@@ -127,19 +127,20 @@ r.put('/tenants/:id/subscription', (req, res) => {
 // Aggregate metrics across all tenants
 r.get('/metrics/overview', (req, res) => {
   const db = D();
-  const totals = db.prepare(`
-    SELECT COUNT(DISTINCT t.id) as total_centres,
-      (SELECT COUNT(*) FROM children) as total_children,
-      (SELECT COUNT(*) FROM tenant_members WHERE active=1) as total_educators,
-      (SELECT COUNT(*) FROM rooms) as total_rooms,
-      (SELECT SUM(monthly_price_cents) FROM tenant_subscriptions WHERE status IN ('active','trial')) as mrr_cents,
-      (SELECT COUNT(*) FROM waitlist WHERE status='waiting') as total_waitlist,
-      (SELECT COUNT(*) FROM incidents WHERE created_at > datetime('now','-30 days')) as incidents_30d,
-      (SELECT COUNT(*) FROM tenant_subscriptions WHERE status='trial') as trial_centres,
-      (SELECT COUNT(*) FROM tenant_subscriptions WHERE status='active') as active_centres,
-      (SELECT COUNT(*) FROM tenant_subscriptions WHERE status='suspended') as suspended_centres
-    FROM tenants t
-  `).get();
+  // Use individual queries so a missing table doesn't kill everything
+  const safeCount = (sql) => { try { return db.prepare(sql).get()?.cnt || 0; } catch(e) { return 0; } };
+  const totals = {
+    total_centres:    safeCount("SELECT COUNT(*) as cnt FROM tenants"),
+    total_children:   safeCount("SELECT COUNT(*) as cnt FROM children WHERE active=1"),
+    total_educators:  safeCount("SELECT COUNT(*) as cnt FROM tenant_members WHERE active=1"),
+    total_rooms:      safeCount("SELECT COUNT(*) as cnt FROM rooms"),
+    mrr_cents:        (()=>{ try { return db.prepare("SELECT COALESCE(SUM(monthly_price_cents),0) as s FROM tenant_subscriptions WHERE status IN ('active','trial')").get()?.s || 0; } catch(e){ return 0; } })(),
+    total_waitlist:   safeCount("SELECT COUNT(*) as cnt FROM waitlist WHERE status='waiting'"),
+    incidents_30d:    safeCount("SELECT COUNT(*) as cnt FROM incidents WHERE created_at > datetime('now','-30 days')"),
+    trial_centres:    safeCount("SELECT COUNT(*) as cnt FROM tenant_subscriptions WHERE status='trial'"),
+    active_centres:   safeCount("SELECT COUNT(*) as cnt FROM tenant_subscriptions WHERE status='active'"),
+    suspended_centres:safeCount("SELECT COUNT(*) as cnt FROM tenant_subscriptions WHERE status='suspended'"),
+  };
 
   // Plan distribution
   const planDist = db.prepare(`SELECT plan, COUNT(*) as count, SUM(monthly_price_cents) as revenue

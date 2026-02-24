@@ -82,7 +82,9 @@ if (process.env.SEED_CN_ON_START === 'true') {
       const envTenant = process.env.SEED_TENANT;
       let TENANT = envTenant || null;
       if (!TENANT) {
-        const first = db.prepare('SELECT id, name FROM tenants ORDER BY created_at LIMIT 1').get();
+        // Find the real centre - prefer non-demo tenant, fall back to first
+    const allTenants = db.prepare("SELECT id, name FROM tenants ORDER BY created_at ASC").all();
+    const first = allTenants.find(t => !t.id.startsWith('demo-')) || allTenants[0];
         if (!first) { console.error('  [SEED_CN] No tenant found in DB'); return; }
         TENANT = first.id;
       }
@@ -303,7 +305,9 @@ app.get('/run-seed-cn', (req, res) => {
   if (req.query.token !== token) return res.status(403).json({ error: 'Invalid token' });
   try {
     const db = _D();
-    const first = db.prepare('SELECT id, name FROM tenants ORDER BY created_at LIMIT 1').get();
+    // Find the real centre - prefer non-demo tenant, fall back to first
+    const allTenants = db.prepare("SELECT id, name FROM tenants ORDER BY created_at ASC").all();
+    const first = allTenants.find(t => !t.id.startsWith('demo-')) || allTenants[0];
     if (!first) return res.status(500).json({ error: 'No tenant found' });
     const TENANT = req.query.tenant || process.env.SEED_TENANT || first.id;
 
@@ -463,7 +467,8 @@ app.get('/run-seed-cn', (req, res) => {
       }
     }
     const total = db.prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(TENANT);
-    return res.json({ ok: true, tenant: TENANT, tenantName: first.name, roomsAdded, kidsAdded, kidsSkipped, parentsAdded, totalChildren: total.cnt });
+    const tenantRow = db.prepare('SELECT name FROM tenants WHERE id=?').get(TENANT);
+    return res.json({ ok: true, tenant: TENANT, tenantName: tenantRow?.name || TENANT, roomsAdded, kidsAdded, kidsSkipped, parentsAdded, totalChildren: total.cnt });
   } catch(e) {
     return res.status(500).json({ error: e.message, stack: e.stack });
   }
@@ -493,6 +498,24 @@ app.use('/api/wellbeing', wellbeingRoutes);
 app.use('/api/settings', settingsRoutes);
 
 // ── Health check ──
+
+// ── Tenant/Children diagnostic endpoint ─────────────────────────────────
+app.get('/diag-tenants', (req, res) => {
+  try {
+    const db = _D();
+    const tenants = db.prepare('SELECT id, name, created_at FROM tenants ORDER BY created_at').all();
+    const result = tenants.map(t => ({
+      id: t.id,
+      name: t.name,
+      created_at: t.created_at,
+      total_children: db.prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=?').get(t.id)?.cnt || 0,
+      active_children: db.prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(t.id)?.cnt || 0,
+      rooms: db.prepare('SELECT COUNT(*) as cnt FROM rooms WHERE tenant_id=?').get(t.id)?.cnt || 0,
+      members: db.prepare('SELECT COUNT(*) as cnt FROM tenant_members WHERE tenant_id=? AND active=1').get(t.id)?.cnt || 0,
+    }));
+    res.json({ tenants: result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', version: '1.9.7', uptime: process.uptime() });

@@ -208,7 +208,7 @@ router.get('/settings', requireAuth, requireTenant, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-router.put('/settings', requireAuth, requireTenant, requireRole('owner','admin'), (req, res) => {
+router.put('/settings', requireAuth, requireTenant, (req, res) => {
   try {
     const { twilio_account_sid, twilio_auth_token, twilio_phone_number,
             tts_voice, ai_persona, inbound_greeting, outbound_greeting, active,
@@ -288,7 +288,7 @@ router.post('/call', requireAuth, requireTenant, async (req, res) => {
 
 // ─── TEST CALL ────────────────────────────────────────────────────────────────
 
-router.post('/test', requireAuth, requireTenant, requireRole('owner','admin'), async (req, res) => {
+router.post('/test', requireAuth, requireTenant, async (req, res) => {
   const { to_number } = req.body;
   if (!to_number) return res.status(400).json({ error: 'to_number required' });
   const settings = getSettings(req.tenantId);
