@@ -1,0 +1,404 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  Childcare360 — Rich Demo Data Seeder
+//  Run: node server/seed-rich.js
+//  Safe to run multiple times (uses INSERT OR IGNORE)
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const Database = require('better-sqlite3');
+const { randomUUID } = require('crypto');
+const path = require('path');
+
+const DB_PATH = path.join(process.cwd(), 'data', 'childcare360.db');
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = OFF');
+
+const TENANT = 'demo-tenant-001';
+const addDays = (base, n) => {
+  const d = new Date(base + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split('T')[0];
+};
+const today = new Date().toISOString().split('T')[0];
+const monday = (() => {
+  const d = new Date(); const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d.toISOString().split('T')[0];
+})();
+console.log(`\n🌱 Seeding rich data for ${TENANT}...\n   Today: ${today}  |  Monday: ${monday}\n`);
+
+// ── 1. EDUCATORS ─────────────────────────────────────────────────────────────
+const edStmt = db.prepare(`INSERT OR IGNORE INTO educators
+  (id,tenant_id,first_name,last_name,email,phone,qualification,employment_type,
+   hourly_rate_cents,annual_salary_cents,max_hours_per_week,distance_km,reliability_score,
+   total_sick_days,total_shifts_offered,total_shifts_accepted,address,suburb,wwcc_number,
+   first_aid,cpr_expiry,start_date,preferred_rooms,is_lunch_cover,can_start_earlier_mins,
+   can_finish_later_mins,notes,status,contracted_hours)
+  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+
+const educators = [
+  ['ed-001','Sarah','Mitchell','sarah.m@sunshinelc.com.au','0412 301 001','ect','permanent',4850,9500000,38,3.2,96,1,80,77,'14 Kingsway','Cronulla','WWC0012345E',1,'2026-12-01','2021-03-01',['room-koalas'],0,15,30,'Lead educator Koalas room. Centre first aid officer. EYLF V2.0 mentor.','active',38],
+  ['ed-002','James','Chen','james.c@sunshinelc.com.au','0412 301 002','diploma','permanent',4200,8200000,38,5.8,89,3,80,71,'7 Elouera Rd','Cronulla','WWC0023456E',1,'2027-03-15','2022-06-15',['room-possums'],0,0,30,'Room leader Possums. Strong language and literacy skills.','active',38],
+  ['ed-003','Emma','Thompson','emma.t@sunshinelc.com.au','0412 301 003','cert3','permanent',3600,7000000,38,2.1,91,2,80,73,'22 Bonanza Ave','Caringbah','WWC0034567E',0,'2025-06-30','2023-01-10',['room-joeys'],0,30,0,'Baby room specialist. CPR certificate EXPIRED — urgent renewal needed.','active',38],
+  ['ed-004','David','Park','david.p@sunshinelc.com.au','0412 301 004','working_towards_diploma','part_time',4000,null,25,6.4,78,5,50,39,'3 Oak St','Miranda','WWC0045678E',1,'2026-09-20','2023-07-01',['room-kookas'],0,0,15,'Studying Bachelor of Early Childhood part-time.','active',25],
+  ['ed-005','Aisha','Mohammed','aisha.m@sunshinelc.com.au','0412 301 005','ect','permanent',4950,9800000,38,4.0,98,0,80,78,'55 President Ave','Kogarah','WWC0056789E',1,'2027-01-10','2020-02-01',['room-kookas'],0,30,60,'Lead educator Kookaburras. Most reliable staff. Kindy transition specialist.','active',38],
+  ['ed-006','Ruby','OBrien','ruby.ob@sunshinelc.com.au','0412 301 006','cert3','casual',3750,null,20,1.5,82,4,50,41,'8 Surf Rd','Cronulla','WWC0067890E',1,'2026-11-30','2024-03-15',['room-joeys','room-possums'],1,60,60,'Lunch cover specialist. Very local — ideal for short-notice calls.','active',20],
+  ['ed-007','Michael','Walsh','michael.w@sunshinelc.com.au','0412 301 007','diploma','permanent',4300,8400000,38,7.2,85,3,80,68,'19 Rawson Ave','Rockdale','WWC0078901E',0,'2026-08-15','2022-11-01',['room-koalas'],0,15,30,'STEM integration focus. Runs robotics program in Kookas room.','active',38],
+  ['ed-008','Priya','Sharma','priya.s@sunshinelc.com.au','0412 301 008','working_towards','part_time',3500,null,20,3.8,70,6,50,35,'31 Park Rd','Caringbah','WWC0089012E',0,'2025-09-01','2024-08-05',['room-possums'],1,0,0,'Recent hire. CPR and First Aid overdue. Improving reliability.','active',20],
+  ['ed-009','Callum','Brennan','callum.b@sunshinelc.com.au','0412 301 009','cert3','casual',3700,null,15,9.1,75,2,50,38,'44 Bay St','Rockdale','WWC0090123E',1,'2027-04-01','2024-10-20',['room-joeys'],1,30,30,'Weekdays only. Good with very young children.','active',15],
+];
+educators.forEach(e => {
+  edStmt.run(e[0],TENANT,...e.slice(1,23).map((v,i)=>i===22?JSON.stringify(v):v),...e.slice(23));
+});
+console.log(`  ✓ ${educators.length} educators`);
+
+// ── 2. EDUCATOR AVAILABILITY ─────────────────────────────────────────────────
+const availStmt = db.prepare(`INSERT OR IGNORE INTO educator_availability
+  (id,educator_id,day_of_week,available,start_time,end_time,preferred) VALUES(?,?,?,?,?,?,?)`);
+const schedules = {
+  'ed-001':[{d:1,s:'06:30',e:'15:00'},{d:2,s:'07:00',e:'15:30'},{d:3,s:'06:30',e:'15:00'},{d:4,s:'07:00',e:'15:30'},{d:5,s:'06:30',e:'15:00'}],
+  'ed-002':[{d:1,s:'07:00',e:'15:30'},{d:2,s:'07:00',e:'15:30'},{d:3,s:'07:00',e:'15:30'},{d:4,s:'07:00',e:'15:30'},{d:5,s:'07:00',e:'15:30'}],
+  'ed-003':[{d:1,s:'06:30',e:'14:30'},{d:2,s:'06:30',e:'14:30'},{d:3,s:'06:30',e:'14:30'},{d:4,s:'06:30',e:'14:30'},{d:5,s:'06:30',e:'14:30'}],
+  'ed-004':[{d:1,s:'08:00',e:'13:00'},{d:2,s:'08:00',e:'14:00'},{d:3,s:'08:00',e:'13:00'},{d:4,s:'08:00',e:'14:00'},{d:5,s:'08:00',e:'13:00'}],
+  'ed-005':[{d:1,s:'11:00',e:'18:00'},{d:2,s:'11:00',e:'18:00'},{d:3,s:'11:00',e:'18:00'},{d:4,s:'11:00',e:'18:30'},{d:5,s:'11:00',e:'18:00'}],
+  'ed-006':[{d:1,s:'10:00',e:'15:00'},{d:2,s:'10:00',e:'15:00'},{d:3,s:'10:00',e:'15:00'},{d:4,s:'10:00',e:'15:00'},{d:5,s:'10:00',e:'15:00'}],
+  'ed-007':[{d:1,s:'09:00',e:'17:30'},{d:2,s:'09:00',e:'17:30'},{d:3,s:'09:00',e:'17:30'},{d:4,s:'09:00',e:'17:30'},{d:5,s:'09:00',e:'17:30'}],
+  'ed-008':[{d:1,s:'07:30',e:'12:00'},{d:2,s:'07:30',e:'12:00'},{d:3,s:'07:30',e:'12:00'},{d:4,s:'07:30',e:'12:00'},{d:5,s:'07:30',e:'12:00'}],
+  'ed-009':[{d:1,s:'09:00',e:'14:00'},{d:2,s:'09:00',e:'14:00'},{d:3,s:'09:00',e:'14:00'},{d:4,s:'09:00',e:'14:00'},{d:5,s:'09:00',e:'14:00'}],
+};
+educators.forEach(e => {
+  const id = e[0];
+  [0,6].forEach(d => availStmt.run(randomUUID(),id,d,0,'06:00','18:30',0));
+  (schedules[id]||[]).forEach(s => availStmt.run(randomUUID(),id,s.d,1,s.s,s.e,1));
+});
+console.log(`  ✓ Educator availability`);
+
+// ── 3. ROOM ASSIGNMENTS ───────────────────────────────────────────────────────
+const asgnStmt = db.prepare(`INSERT OR IGNORE INTO educator_room_assignments
+  (id,educator_id,tenant_id,room_id,role,start_date) VALUES(?,?,?,?,?,?)`);
+[['ed-001','room-koalas','lead_educator'],['ed-005','room-kookas','lead_educator'],
+ ['ed-002','room-possums','educator'],['ed-003','room-joeys','educator'],
+ ['ed-004','room-kookas','educator'],['ed-007','room-koalas','educator'],
+ ['ed-008','room-possums','educator']].forEach(a=>asgnStmt.run(randomUUID(),a[0],TENANT,a[1],a[2],'2024-01-15'));
+console.log(`  ✓ Room assignments`);
+
+// ── 4. ROSTER PERIODS + ENTRIES ───────────────────────────────────────────────
+const periodStmt = db.prepare(`INSERT OR IGNORE INTO roster_periods
+  (id,tenant_id,period_type,start_date,end_date,status,generated_by,total_hours,total_cost_cents,compliance_score,entry_count,weekly_budget_cents)
+  VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`);
+const entryStmt = db.prepare(`INSERT OR IGNORE INTO roster_entries
+  (id,tenant_id,period_id,educator_id,room_id,date,start_time,end_time,break_mins,role,status,cost_cents,is_lunch_cover,lunch_start)
+  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+
+const shifts = [
+  {ed:'ed-001',room:'room-koalas', s:'06:30',e:'15:00',role:'lead_educator',brk:30,lunch:'12:00'},
+  {ed:'ed-002',room:'room-possums',s:'07:00',e:'15:30',role:'lead_educator',brk:30,lunch:'12:30'},
+  {ed:'ed-003',room:'room-joeys',  s:'06:30',e:'14:30',role:'educator',     brk:30,lunch:'11:30'},
+  {ed:'ed-004',room:'room-kookas', s:'08:00',e:'13:00',role:'educator',     brk:0, lunch:null},
+  {ed:'ed-005',room:'room-kookas', s:'11:00',e:'18:00',role:'lead_educator',brk:30,lunch:'13:30'},
+  {ed:'ed-007',room:'room-koalas', s:'09:00',e:'17:30',role:'educator',     brk:30,lunch:'13:00'},
+  {ed:'ed-008',room:'room-possums',s:'07:30',e:'12:00',role:'educator',     brk:0, lunch:null},
+  {ed:'ed-006',room:'room-joeys',  s:'10:00',e:'14:30',role:'educator',     brk:0, lunch:'11:30',lc:1},
+];
+const edRate = {
+  'ed-001':4850,'ed-002':4200,'ed-003':3600,'ed-004':4000,
+  'ed-005':4950,'ed-006':3750,'ed-007':4300,'ed-008':3500,'ed-009':3700
+};
+const weeks = [
+  {start:addDays(monday,-14),status:'published'},
+  {start:addDays(monday,-7), status:'published'},
+  {start:monday,             status:'approved'},
+  {start:addDays(monday,7),  status:'draft'},
+];
+weeks.forEach(w => {
+  const pid='period-'+w.start; let tH=0,tC=0,cnt=0;
+  for(let d=0;d<5;d++){
+    const date=addDays(w.start,d);
+    shifts.forEach(sh=>{
+      const sM=parseInt(sh.s)*60+parseInt(sh.s.slice(3));
+      const eM=parseInt(sh.e)*60+parseInt(sh.e.slice(3));
+      const hrs=(eM-sM-(sh.brk||0))/60;
+      const cost=Math.round(hrs*(edRate[sh.ed]||3500));
+      tH+=hrs;tC+=cost;cnt++;
+      entryStmt.run(randomUUID(),TENANT,pid,sh.ed,sh.room,date,sh.s,sh.e,sh.brk||0,sh.role,'scheduled',cost,sh.lc?1:0,sh.lunch||null);
+    });
+  }
+  periodStmt.run(pid,TENANT,'weekly',w.start,addDays(w.start,4),w.status,'ai',Math.round(tH*10)/10,tC,94,cnt,380000);
+});
+console.log(`  ✓ ${weeks.length} roster periods (${weeks.length*5*shifts.length} entries)`);
+
+// ── 5. ABSENCES + FILL REQUESTS ───────────────────────────────────────────────
+const absStmt=db.prepare(`INSERT OR IGNORE INTO educator_absences
+  (id,tenant_id,educator_id,date,type,reason,cover_found,created_at) VALUES(?,?,?,?,?,?,?,?)`);
+const fillStmt=db.prepare(`INSERT OR IGNORE INTO shift_fill_requests
+  (id,tenant_id,original_educator_id,room_id,date,start_time,end_time,status,strategy,filled_by_educator_id,created_at)
+  VALUES(?,?,?,?,?,?,?,?,?,?,?)`);
+const attemptStmt=db.prepare(`INSERT OR IGNORE INTO shift_fill_attempts
+  (id,tenant_id,fill_request_id,educator_id,contact_method,status,contacted_at)
+  VALUES(?,?,?,?,?,?,?)`);
+[
+  {ae:'ed-003',room:'room-joeys',  date:addDays(monday,-12),s:'06:30',e:'14:30',reason:'Gastroenteritis',fb:'ed-006'},
+  {ae:'ed-002',room:'room-possums',date:addDays(monday,-8), s:'07:00',e:'15:30',reason:'Influenza — certificate provided',fb:'ed-009'},
+  {ae:'ed-008',room:'room-possums',date:addDays(monday,-3), s:'07:30',e:'12:00',reason:'Family emergency',fb:null},
+  {ae:'ed-004',room:'room-kookas', date:addDays(monday,-1), s:'08:00',e:'13:00',reason:'Medical appointment (pre-approved)',fb:'ed-009'},
+].forEach(fr=>{
+  const fid=randomUUID();
+  absStmt.run(randomUUID(),TENANT,fr.ae,fr.date,'sick',fr.reason,fr.fb?1:0,fr.date+'T07:05:00Z');
+  fillStmt.run(fid,TENANT,fr.ae,fr.room,fr.date,fr.s,fr.e,fr.fb?'filled':'open','sequential',fr.fb||null,fr.date+'T07:08:00Z');
+  ['ed-006','ed-009','ed-008'].filter(c=>c!==fr.ae).forEach((c,i)=>{
+    attemptStmt.run(randomUUID(),TENANT,fid,c,i===0?'sms':'phone',c===fr.fb?'accepted':i<2?'declined':'queued',fr.date+`T07:${String(8+i*5).padStart(2,'0')}:00Z`);
+  });
+});
+console.log(`  ✓ 4 absences + fill requests`);
+
+// ── 6. CLOCK RECORDS (20 days) ────────────────────────────────────────────────
+const children = db.prepare(`SELECT id FROM children WHERE tenant_id=?`).all(TENANT);
+const clockStmt=db.prepare(`INSERT OR IGNORE INTO clock_records
+  (id,tenant_id,child_id,date,clock_in,clock_out,clocked_in_by,status) VALUES(?,?,?,?,?,?,?,?)`);
+let clocks=0;
+for(let d=-20;d<=-1;d++){
+  const date=addDays(today,d);
+  if([0,6].includes(new Date(date+'T12:00:00Z').getUTCDay())) continue;
+  children.forEach(c=>{
+    if(Math.random()>0.91) return;
+    const i=7*60+30+Math.round((Math.random()-.5)*60);
+    const o=16*60+Math.round(Math.random()*90);
+    clockStmt.run(randomUUID(),TENANT,c.id,date,
+      `${String(Math.floor(i/60)).padStart(2,'0')}:${String(i%60).padStart(2,'0')}:00`,
+      `${String(Math.floor(o/60)).padStart(2,'0')}:${String(o%60).padStart(2,'0')}:00`,
+      'parent','complete');
+    clocks++;
+  });
+}
+console.log(`  ✓ ${clocks} clock records`);
+
+// ── 7. MEDICATIONS ────────────────────────────────────────────────────────────
+const kids = db.prepare(`SELECT id FROM children WHERE tenant_id=? ORDER BY rowid`).all(TENANT);
+const medStmt=db.prepare(`INSERT OR IGNORE INTO medications
+  (id,tenant_id,child_id,medication_name,dosage,frequency,administration_route,requires_prescription,
+   prescribing_doctor,prescribed_date,expiry_date,reason,storage_instructions,status,created_at)
+  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+const logStmt=db.prepare(`INSERT OR IGNORE INTO medication_log
+  (id,tenant_id,child_id,medication_id,administered_at,administered_by,dose_given,notes,parent_informed)
+  VALUES(?,?,?,?,?,?,?,?,?)`);
+const meds=[
+  [0,'med-001','EpiPen Jr 150mcg','1 pen IM','As required (anaphylaxis)','injection',1,'Dr. Angela Lim','2025-09-01','2026-09-01','Anaphylaxis — peanuts','Locked medical cabinet — EMERGENCY ACCESS'],
+  [1,'med-002','Nurofen Infant Drops','2.5ml','Every 6–8 hours if required','oral',0,null,'2026-01-15','2027-01-15','Fever / teething','Room temperature'],
+  [2,'med-003','Zyrtec Oral Solution','5ml','Once daily — morning','oral',0,'Dr. Peter Nguyen','2025-11-20','2026-11-20','Seasonal allergic rhinitis','Room temperature'],
+  [3,'med-004','Ventolin 100mcg Inhaler','2 puffs via spacer','As required / pre-exercise','inhaled',1,'Dr. Sarah Chau','2025-08-10','2026-08-10','Exercise-induced asthma','Accessible — NOT locked. Check before outdoor play.'],
+  [4,'med-005','Lacteeze Drops','4 drops per feed','With each milk feed','oral',0,null,'2025-12-01','2026-12-01','Lactase deficiency','REFRIGERATE after opening'],
+  [7,'med-006','EpiPen Jr 150mcg','1 pen IM','As required (anaphylaxis)','injection',1,'Dr. James Park','2025-10-15','2026-10-15','Anaphylaxis — bee stings','Locked medical cabinet — EMERGENCY ACCESS'],
+];
+meds.forEach(m=>{
+  const cid=kids[m[0]]?.id; if(!cid) return;
+  medStmt.run(m[1],TENANT,cid,...m.slice(2),'active',m[8]+'T09:00:00Z');
+});
+[
+  [3,'med-004',8,'10:15','ed-001','2 puffs','Child short of breath after outdoor run. Spacer used. Full recovery 10 min. Parents called.',1],
+  [3,'med-004',2,'14:00','ed-005','2 puffs','Pre-exercise preventive. No adverse reaction.',1],
+  [2,'med-003',15,'08:30','ed-001','5ml','Morning dose per schedule.',1],
+  [2,'med-003',8,'08:30','ed-002','5ml','Morning dose. No issues.',1],
+  [2,'med-003',1,'08:30','ed-001','5ml','Morning dose.',1],
+  [4,'med-005',5,'09:00','ed-003','4 drops','Added to morning bottle. No distress.',0],
+  [1,'med-002',12,'11:45','ed-003','2.5ml','Temp 38.2C. Nurofen given. 37.4C after 1hr. Parents notified, collected at 1pm.',1],
+].forEach(a=>{
+  const cid=kids[a[0]]?.id; if(!cid) return;
+  logStmt.run(randomUUID(),TENANT,cid,a[1],addDays(today,-a[2])+'T'+a[3]+':00Z',a[4],a[5],a[6],a[7]);
+});
+console.log(`  ✓ ${meds.length} medications + 7 admin log entries`);
+
+// ── 8. OBSERVATIONS ───────────────────────────────────────────────────────────
+const obsStmt=db.prepare(`INSERT OR IGNORE INTO observations
+  (id,tenant_id,child_id,educator_id,type,narrative,eylf_outcomes,timestamp)
+  VALUES(?,?,?,?,?,?,?,?)`);
+[
+  [0,'ed-002','learning_story',3,`Olivia showed remarkable persistence during water play today — 40 minutes experimenting with different-sized containers, testing hypotheses about volume and capacity. When water overflowed she laughed: "too much water!" and tried again with a smaller container, demonstrating emerging scientific thinking. She also invited Ava to join her, extending the play and demonstrating generous social behaviour.`,['1.1','1.4','4.1','4.2']],
+  [1,'ed-003','observation',1,`Liam (8 months) has begun pulling to standing using the foam block corner. He held the position independently for 12 seconds today before sitting back down with a proud smile. He is also babbling with increasing consonants — "ba ba da da" — and consistently orients toward his name. Parent notified of this developmental milestone.`,['3.1','3.2']],
+  [2,'ed-001','learning_story',5,`Isla and Ethan collaborated on building a "rainforest" in the block corner today. Isla took a confident leadership role while genuinely incorporating Ethan's suggestions. When their structure collapsed she said "Let's make the bottom wider like a real tree" — impressive structural understanding. She then drew the finished building unprompted, creating a detailed architectural plan. EYLF Outcome 4: Children are confident and involved learners.`,['4.1','4.2','5.1','5.2']],
+  [3,'ed-005','observation',2,`Noah has been developing strong letter recognition this week. Today he identified his name on his locker, then systematically found each letter on the alphabet display. "N is for Noah, O is for... orange!" — demonstrating emerging phonemic awareness. He then wrote his name independently with a crayon, all letters in correct order though some reversed — developmentally typical.`,['5.1','5.2']],
+  [4,'ed-002','anecdote',7,`Ava demonstrated beautiful empathy today. When a visiting sibling began to cry, Ava walked over, patted his back and said "Don't worry, I was scared too when I started here," then fetched him a dinosaur book: "I like this one when I'm sad." Her social-emotional intelligence and perspective-taking are exceptional for her age.`,['1.2','3.1']],
+  [5,'ed-001','learning_story',10,`Ethan led a self-initiated "cooking class" in the home corner for nearly an hour, carefully narrating each step: "First you wash your hands, then you chop the vegetables — carefully so you don't cut yourself." His knowledge of food safety and sequencing reflects our embedded cooking program. He insisted on "clean plates" and wiped the table afterwards without prompting.`,['1.1','2.1','2.2','4.1']],
+  [6,'ed-003','observation',4,`Mia (11 months) took her first assisted steps today — 4-5 steps across the mat, squealing with delight before shuffling back to try again. She is also showing excellent hand-eye coordination, placing the round peg in the shape sorter on first attempt. Parent notified of this milestone immediately.`,['3.1','3.2']],
+  [7,'ed-005','learning_story',6,`Jack has developed an extraordinary sustained interest in the butterfly lifecycle since our caterpillar arrived. He has filled nearly half a notebook with daily observation sketches. Today he presented to the group: "First it's an egg, then a caterpillar, then it makes a chrysalis, and then a butterfly comes out and has to dry its wings." Several children started their own observation journals. Jack's deep inquiry and peer leadership are outstanding.`,['4.1','4.2','4.3','5.1']],
+].forEach(o=>{
+  const cid=kids[o[0]]?.id; if(!cid) return;
+  obsStmt.run(randomUUID(),TENANT,cid,o[1],o[2],o[4],JSON.stringify(o[5]),addDays(today,-o[3])+'T14:30:00Z');
+});
+console.log(`  ✓ 8 observations / learning stories`);
+
+// ── 9. DAILY PLANS ────────────────────────────────────────────────────────────
+const planStmt=db.prepare(`INSERT OR IGNORE INTO daily_plans
+  (id,tenant_id,room_id,educator_id,date,activities,notes,focus_domains,status)
+  VALUES(?,?,?,?,?,?,?,?,?)`);
+[
+  {room:'room-koalas', da:1,ed:'ed-001',
+   acts:[{time:'08:30',title:'Bridges Investigation',desc:'Design and test bridges with cardboard, straws and tape. Focus on load-bearing and span. Document with photos.'},
+         {time:'09:30',title:'Circle — Iggy Peck Architect',desc:'Read the book. Discuss Sydney Harbour Bridge. Measure span with non-standard units.'},
+         {time:'11:00',title:'Outdoor Build',desc:'Large-scale construction with wooden crates and planks. Children collaborating on a "city".'},
+         {time:'14:00',title:'Collage Bridges',desc:'Mixed media bridge art — magazines, tissue paper, foil.'}],
+   notes:'Focus: Isla T, Ethan B — document leadership and spatial reasoning.',domains:['cognitive','creative','physical']},
+  {room:'room-possums',da:1,ed:'ed-002',
+   acts:[{time:'08:00',title:'Cloud Dough Sensory',desc:'Flour + oil. Language focus: soft, smooth, squishy. Rolling and cutting shapes.'},
+         {time:'09:30',title:'Story — Dinosaur Roar',desc:'Opposites and vocabulary. Children act out the story.'},
+         {time:'10:30',title:'Playdough Fine Motor',desc:'Rolling pins and cookie cutters. Pre-writing fine motor development.'},
+         {time:'14:30',title:'Water Table',desc:'Pouring, measuring, predicting — sponges, cups, funnels.'}],
+   notes:'Focus: Olivia C, Ava N — mathematical language and social interaction.',domains:['language','fine_motor','sensory']},
+  {room:'room-joeys', da:2,ed:'ed-003',
+   acts:[{time:'07:00',title:'Treasure Basket',desc:'Natural objects — pinecones, shells, smooth stones, fabric. Mia and Liam exploring textures and schemas.'},
+         {time:'09:00',title:'Tummy Time & Mirrors',desc:'Babies exploring reflection and self-recognition. Tracking moving objects.'},
+         {time:'10:00',title:'Singing Circle',desc:'Old MacDonald, Twinkle Twinkle, Heads Shoulders Knees. Auditory stimulation and body awareness.'},
+         {time:'14:30',title:'Outdoor Sensory',desc:'Shaded rug time. Bubbles — reaching and tracking. Gentle grass exploration.'}],
+   notes:'Liam milestone: standing attempts. Mia: first steps practice.',domains:['sensory','gross_motor','language']},
+  {room:'room-kookas', da:0,ed:'ed-005',
+   acts:[{time:'08:30',title:'Beebot Coding',desc:'Programming Beebots to navigate suburb map. Directional language: forward, backward, left, right. Children write their own instructions.'},
+         {time:'10:30',title:'Litter Audit',desc:'Count and categorise litter in our garden. Discussion: how can we reduce waste? Create a green pledge chart.'},
+         {time:'13:30',title:'Creative Writing: My Instructions',desc:'Children document a procedure — making toast, getting dressed, feeding a pet. Emergent writing.'},
+         {time:'15:00',title:'Reflection Circle',desc:'What did we learn about coding? What would we program Beebot to do next?'}],
+   notes:'Focus: Noah W (letter formation), Jack O (spoken presentation).',domains:['literacy','stem','environment']},
+].forEach(p=>{
+  planStmt.run(randomUUID(),TENANT,p.room,p.ed,addDays(today,-p.da),JSON.stringify(p.acts),p.notes,JSON.stringify(p.domains),'published');
+});
+console.log(`  ✓ 4 daily plans`);
+
+// ── 10. PARENT MESSAGES ───────────────────────────────────────────────────────
+const msgStmt=db.prepare(`INSERT OR IGNORE INTO parent_messages
+  (id,tenant_id,child_id,from_type,from_name,body,created_at,read_at) VALUES(?,?,?,?,?,?,?,?)`);
+[
+  [0,'parent','Wei Chen',1,true,'Hi, heads up — Olivia didn\'t sleep well last night. May need extra quiet time today. Also a small rash on her arm — think it\'s heat rash but please keep an eye. Thanks!'],
+  [0,'centre','Sarah Mitchell',1,true,'Thanks Wei! We\'ll keep a close eye and give her extra downtime if needed. We\'ll monitor the rash and let you know if anything changes. She\'s just arrived and is happily in the book corner 📚'],
+  [3,'parent','Kate Williams',2,true,'Hi team — Noah has been talking non-stop about his butterfly project at home! Can you share photos? He has a runny nose today but no temp — happy for him to attend. Let us know if he seems unwell.'],
+  [3,'centre','Aisha Mohammed',2,true,'Hi Kate! Noah has been completely absorbed in the butterfly investigation — his observation journal is remarkable. Photos sent via app. Noted on the runny nose, he\'s in great form today 🦋'],
+  [2,'parent','Mark Thompson',3,true,'Quick question — Isla mentioned a cooking activity tomorrow? She has egg allergy (anaphylaxis level for egg whites). Can you confirm ingredients? EpiPen is in her bag.'],
+  [2,'centre','Sarah Mitchell',3,true,'Hi Mark! Tomorrow\'s cooking is fruit salad — completely egg-free. We always check ingredients against each child\'s allergy register before any food activity. Isla\'s EpiPen location is confirmed and all staff are aware 🍓'],
+  [7,'parent','Fiona OBrien',4,true,'Jack wants to bring his caterpillar book to share — okay? Also, are there bees in the garden? He\'s our bee-sting anaphylaxis kid and I want to double-check outdoor protocols.'],
+  [7,'centre','Aisha Mohammed',4,true,'Hi Fiona! Jack can absolutely bring the book! Outdoor areas are checked every morning. Jack\'s EpiPen is accessible in Kookaburras room (never locked away) and all staff are anaphylaxis-trained. We\'re so proud of how Jack teaches his peers about his allergy too 🐝'],
+  [1,'parent','Raj Patel',1,false,'Liam took his FIRST STEPS last night!! We are SO excited 😍 Wanted to share the joy with his Joeys family!'],
+  [4,'parent','Minh Nguyen',5,true,'Reminder: Ava is dairy-free. Yesterday someone mentioned she had "a bit of cheese" — is that right? No symptoms but wanted to flag.'],
+  [4,'centre','James Chen',5,true,'Hi Minh, I reviewed yesterday\'s records — Ava had plant-based cheese (Violife), which is dairy-free. I understand how concerning this feels. I\'ve added a note to flag plant-based products explicitly at mealtimes going forward. Please call anytime.'],
+  [5,'parent','Lisa Brown',0,false,'Hi! Ethan was SO proud talking about the cooking class he ran for his friends. Can I get a photo for his home portfolio? He\'s completely obsessed with the home corner lately!'],
+].forEach(m=>{
+  const cid=kids[m[0]]?.id; if(!cid) return;
+  const ts=addDays(today,-m[3])+'T09:30:00Z';
+  msgStmt.run(randomUUID(),TENANT,cid,m[1],m[2],m[5],ts,m[4]?addDays(today,-m[3])+'T11:00:00Z':null);
+});
+console.log(`  ✓ 12 parent messages`);
+
+// ── 11. COMPLIANCE ITEMS ─────────────────────────────────────────────────────
+const compStmt=db.prepare(`INSERT OR IGNORE INTO compliance_items
+  (id,tenant_id,child_id,category,item_type,item_label,status,expiry_date,days_until_expiry)
+  VALUES(?,?,?,?,?,?,?,?,?)`);
+[
+  [0,'medical','anaphylaxis_plan','Anaphylaxis Action Plan — Peanuts (Olivia Chen)','current',addDays(today,120),120],
+  [1,'enrolment','immunisation','Immunisation History Statement — Liam Patel','current',addDays(today,180),180],
+  [2,'medical','allergy_plan','Allergy Action Plan — Egg (Isla Thompson)','current',addDays(today,240),240],
+  [3,'medical','asthma_plan','Asthma Action Plan — Noah Williams','current',addDays(today,160),160],
+  [3,'enrolment','immunisation','Immunisation History Statement — Noah Williams','expiring',addDays(today,12),12],
+  [7,'medical','anaphylaxis_plan','Anaphylaxis Action Plan — Bee Sting (Jack OBrien)','current',addDays(today,90),90],
+  [4,'enrolment','dietary_cert','Dietary Confirmation Letter — Ava Nguyen (dairy-free)','current',addDays(today,200),200],
+  [5,'enrolment','immunisation','Immunisation History Statement — Ethan Brown','expired',addDays(today,-5),-5],
+  [6,'enrolment','birth_cert','Birth Certificate — Mia Garcia','current',addDays(today,300),300],
+].forEach(c=>{
+  const cid=kids[c[0]]?.id; if(!cid) return;
+  compStmt.run(randomUUID(),TENANT,cid,...c.slice(1));
+});
+console.log(`  ✓ 9 compliance items`);
+
+// ── 12. ENROLMENT APPLICATIONS ────────────────────────────────────────────────
+const enrolStmt=db.prepare(`INSERT OR IGNORE INTO enrolment_applications
+  (id,tenant_id,child_first_name,child_last_name,child_dob,child_allergies,
+   preferred_room,preferred_days,preferred_start_date,parent1_name,parent1_email,status)
+  VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`);
+[
+  ['Lucas','Kim','2023-08-15','None','room-possums','["Mon","Tue","Wed","Thu"]',addDays(today,30),'Jenny Kim','jenny.kim@email.com','pending'],
+  ['Amara','Osei','2024-02-10','None','room-joeys','["Mon","Wed","Fri"]',addDays(today,14),'Kofi Osei','kofi.osei@email.com','approved'],
+  ['Theo','Vasquez','2022-05-20','None','room-koalas','["Mon","Tue","Wed","Thu","Fri"]',addDays(today,21),'Rosa Vasquez','rosa.v@email.com','pending'],
+  ['Freya','Andersen','2021-12-01','None','room-kookas','["Mon","Tue","Thu"]',addDays(today,7),'Lars Andersen','lars.a@email.com','interview_booked'],
+  ['Zoe','Tran','2023-03-28','None','room-possums','["Tue","Wed","Thu"]',addDays(today,45),'Linh Tran','linh.tran@email.com','withdrawn'],
+].forEach(e=>enrolStmt.run(randomUUID(),TENANT,...e));
+console.log(`  ✓ 5 enrolment applications`);
+
+// ── 13. QIP GOALS ─────────────────────────────────────────────────────────────
+try {
+  const qipStmt=db.prepare(`INSERT OR IGNORE INTO qip_goals
+    (id,tenant_id,quality_area,standard,element,goal,strategies,progress,target_date,status,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`);
+  [[1,'1.2','1.2.2','Strengthen observation-to-planning links across all rooms','Weekly reflective practice\nPeer observation partnerships\nDigital portfolio tools in all rooms\nMonthly programming review',40,addDays(today,90)],
+   [2,'2.1','2.1.3','Embed daily physical activity documentation and reflection','Outdoor learning journals\nWeekly gross motor photography\nMonthly activity summaries to families',60,addDays(today,60)],
+   [3,'3.2','3.2.1','Refresh indoor learning environments in all rooms by end of term','Room audit complete\nBudget $4,500 approved\nNatural materials ordered\nEducator input via survey',25,addDays(today,75)],
+   [4,'4.2','4.2.2','Build capacity through peer observation and mentoring program','Fortnightly peer pairs established\nLead Educator mentoring active\nPD budget $800/educator/year',70,addDays(today,45)],
+   [6,'6.2','6.2.1','Increase family participation in learning documentation to 80%','Parent app fully rolled out\nMonthly digital newsletter\nPortfolio sharing evenings\nParent volunteer program',55,addDays(today,120)],
+  ].forEach(q=>qipStmt.run(randomUUID(),TENANT,...q,'in_progress',today+'T09:00:00Z'));
+  console.log(`  ✓ 5 QIP goals`);
+} catch(e){ console.log(`  ⚠ QIP: ${e.message}`); }
+
+// ── 14. LEAVE REQUESTS ────────────────────────────────────────────────────────
+try {
+  const leaveStmt=db.prepare(`INSERT OR IGNORE INTO leave_requests
+    (id,tenant_id,educator_id,leave_type,start_date,end_date,days_requested,reason,status)
+    VALUES(?,?,?,?,?,?,?,?,?)`);
+  [['ed-003','annual_leave',addDays(today,21),addDays(today,25),5,'Family holiday — Easter',        'approved'],
+   ['ed-007','sick_leave',  addDays(today,-3),addDays(today,-3),1,'Gastroenteritis — cert provided','approved'],
+   ['ed-004','study_leave', addDays(today,14),addDays(today,14),1,'Bachelor of Ed mid-term exam',   'approved'],
+   ['ed-002','annual_leave',addDays(today,35),addDays(today,39),5,'Anniversary holiday — Bali',     'pending'],
+   ['ed-001','professional_development',addDays(today,7),addDays(today,7),1,'NQF Quality Improvement Conference Sydney','approved'],
+   ['ed-005','annual_leave',addDays(today,56),addDays(today,60),5,'Planned family holiday',         'pending'],
+  ].forEach(l=>leaveStmt.run(randomUUID(),TENANT,...l));
+  console.log(`  ✓ 6 leave requests`);
+} catch(e){ console.log(`  ⚠ Leave: ${e.message}`); }
+
+// ── 15. NOTIFICATIONS ─────────────────────────────────────────────────────────
+const notifStmt=db.prepare(`INSERT OR IGNORE INTO notifications
+  (id,tenant_id,user_id,type,title,body,link,read_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)`);
+const admin='demo-admin-001';
+[
+  ['compliance_alert','Immunisation EXPIRED — Ethan Brown','Certificate expired 5 days ago. Parents contacted x2. Escalation required before further attendance.','/compliance',false,0],
+  ['compliance_alert','Immunisation expiring — Noah Williams','Certificate expires in 12 days. Please contact Kate Williams.','/compliance',false,1],
+  ['compliance_alert','CPR EXPIRED — Emma Thompson','CPR expired June 2025. Cannot be left as sole supervisor. Urgent renewal required.','/staff',false,1],
+  ['sick_cover','Fill request open — Priya Sharma (Tuesday)','No cover found for 7:30–12:00 Tuesday. 3 educators contacted with no response.','/rostering',false,2],
+  ['enrolment','New application — Freya Andersen','Kookaburras room (Mon/Tue/Thu). Parent meeting booked Thursday 9am.','/enrolments',true,4],
+  ['incident','Incident report — Noah Williams','Asthma episode. Ventolin administered by Sarah Mitchell. Parents notified, child collected.','/incidents',true,8],
+  ['message','New message — Raj Patel (Liam)','Liam took his first steps last night! Parent sharing milestone.','/messages',false,1],
+  ['roster','Next week\'s roster ready for approval','Draft for week of '+addDays(monday,7)+' AI-generated. Please review.','/rostering',false,0],
+  ['message','New message — Lisa Brown (Ethan)','Parent asking for photos of Ethan\'s cooking class for home portfolio.','/messages',false,0],
+].forEach(n=>{
+  const ts=addDays(today,-n[5])+'T09:00:00Z';
+  notifStmt.run(randomUUID(),TENANT,admin,...n.slice(0,4),n[3],n[4]?addDays(today,-n[5])+'T10:00:00Z':null,ts);
+});
+console.log(`  ✓ 9 notifications`);
+
+// ── 16. ROSTER CHANGE PROPOSALS ──────────────────────────────────────────────
+try {
+  const propStmt=db.prepare(`INSERT OR IGNORE INTO roster_change_proposals
+    (id,tenant_id,period_id,proposed_by,proposal_type,description,changes_json,status,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?)`);
+  const pid='period-'+monday;
+  [
+    ['swap','Shift swap: Sarah Mitchell (Mon 6:30–15:00) ↔ Michael Walsh (Mon 9:00–17:30). Both agree.',{from:{ed:'ed-001',start:'06:30',end:'15:00'},to:{ed:'ed-007',start:'09:00',end:'17:30'}},'pending'],
+    ['add','Add Callum Brennan to Joeys room Wednesday — casual fill (Priya unavailable).',{ed:'ed-009',room:'room-joeys',date:addDays(monday,2),start:'09:00',end:'14:00'},'approved'],
+    ['remove','Remove David Park from Thursday — study leave approved (exam).',{ed:'ed-004',date:addDays(monday,3)},'approved'],
+  ].forEach(p=>propStmt.run(randomUUID(),TENANT,pid,admin,...p.slice(0,2),JSON.stringify(p[2]),p[3],today+'T09:00:00Z'));
+  console.log(`  ✓ 3 roster change proposals`);
+} catch(e){ console.log(`  ⚠ Proposals: ${e.message}`); }
+
+// ── 17. AI AGENT CONFIG ───────────────────────────────────────────────────────
+try {
+  db.prepare(`INSERT OR IGNORE INTO ai_agent_config
+    (id,tenant_id,agent_type,enabled,contact_strategy,send_sms_first,sms_wait_mins,call_wait_mins,
+     max_attempts_per_educator,priority_order,sms_template,notify_manager_on_fill,notify_manager_on_fail,
+     working_hours_start,working_hours_end)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(randomUUID(),TENANT,'sick_cover',1,'sequential',1,10,15,2,'reliability_desc',
+      'Hi {name}, urgent shift at Sunshine Early Learning on {date} from {start}–{end} in {room}. Can you cover? Reply YES or call 02 9544 1234.',
+      1,1,'05:30','20:00');
+  console.log(`  ✓ AI agent config`);
+} catch(e){ console.log(`  ⚠ AI config: ${e.message}`); }
+
+// ── 18. UPDATE ROOM COUNTS ────────────────────────────────────────────────────
+try {
+  db.prepare(`UPDATE rooms SET current_children=(SELECT COUNT(*) FROM children c WHERE c.room_id=rooms.id AND c.tenant_id=rooms.tenant_id) WHERE tenant_id=?`).run(TENANT);
+  console.log(`  ✓ Room child counts updated`);
+} catch(e){ console.log(`  ⚠ Room counts: ${e.message}`); }
+
+db.pragma('foreign_keys = ON');
+console.log(`\n✅ Rich seed complete!\n   Login: admin@sunshinelc.com.au / Childcare3602024!\n`);

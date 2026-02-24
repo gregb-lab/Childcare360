@@ -1,0 +1,147 @@
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { existsSync, mkdirSync } from 'fs';
+import { initDatabase, cleanExpired } from './db.js';
+import authRoutes from './auth.js';
+import apiRoutes from './api.js';
+import documentRoutes from './documents.js';
+import complianceRoutes, { runDailyComplianceScan } from './compliance.js';
+import invoicingRoutes from './invoicing.js';
+import enrolmentRoutes from './enrolment.js';
+import platformRoutes from './platform.js';
+import rosteringRoutes from './rostering.js';
+import educatorsRoutes from './educators.js';
+import childrenRoutes from './children.js';
+import dailyUpdatesRoutes from './daily-updates.js';
+import excursionsRoutes from './excursions.js';
+import messagingRoutes from './messaging.js';
+import registerRoutes from './register.js';
+import learningRoutes from './learning.js';
+import wellbeingRoutes from './wellbeing.js';
+import settingsRoutes from './settings.js';
+import waitlistRoutes from './waitlist.js';
+import parentRoutes from './parent.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PORT = process.env.PORT || 3003;
+const isProd = process.env.NODE_ENV === 'production';
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+import { existsSync, mkdirSync } from 'fs';
+if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+console.log('\n  ╔══════════════════════════════════════════╗');
+console.log('  ║  Childcare360 v1.9.1 — Starting Server    ║');
+console.log('  ╚══════════════════════════════════════════╝\n');
+
+// ── Init database ──
+initDatabase();
+
+// ── Express app ──
+const app = express();
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: isProd ? undefined : false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+// CORS — allow dev frontend
+app.use(cors({
+  origin: isProd ? false : ['http://localhost:5173', 'http://localhost:3003'],
+  credentials: true,
+}));
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+
+// Trust proxy for rate limiting
+app.set('trust proxy', 1);
+
+// Request logging (non-static)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+    const start = Date.now();
+    res.on('finish', () => {
+      const ms = Date.now() - start;
+      const status = res.statusCode;
+      const color = status < 400 ? '\x1b[32m' : status < 500 ? '\x1b[33m' : '\x1b[31m';
+      console.log(`  ${color}${req.method} ${req.path} → ${status}\x1b[0m (${ms}ms)`);
+    });
+  }
+  next();
+});
+
+// ── Routes ──
+app.use('/auth', authRoutes);
+app.use('/api', apiRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/compliance', complianceRoutes);
+app.use('/api/invoicing', invoicingRoutes);
+app.use('/api/enrolment', enrolmentRoutes);
+app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/platform', platformRoutes);
+app.use('/api/rostering', rosteringRoutes);
+app.use('/api/educators', educatorsRoutes);
+app.use('/api/children', childrenRoutes);
+app.use('/api/daily-updates', dailyUpdatesRoutes);
+app.use('/api/excursions', excursionsRoutes);
+app.use('/api/messaging', messagingRoutes);
+app.use('/api/register', registerRoutes);
+app.use('/api/learning', learningRoutes);
+app.use('/api/parent', parentRoutes);
+app.use('/api/wellbeing', wellbeingRoutes);
+app.use('/api/settings', settingsRoutes);
+
+// ── Health check ──
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', version: '1.9.1', uptime: process.uptime() });
+});
+
+// ── Serve frontend (production) ──
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/auth/')) {
+    res.sendFile(path.join(distPath, 'index.html'));
+  }
+});
+
+// ── Error handler ──
+app.use((err, req, res, _next) => {
+  console.error('  ✗ Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// ── Periodic cleanup + daily compliance scan ──
+setInterval(() => { try { cleanExpired(); } catch(e) {} }, 3600000);
+
+// Import D for compliance scans
+import { D } from './db.js';
+
+// Run compliance scan every 6 hours for all tenants
+setInterval(() => {
+  try {
+    const tenants = D().prepare('SELECT id FROM tenants').all();
+    tenants.forEach(t => runDailyComplianceScan(t.id));
+  } catch(e) { console.error('Compliance scan error:', e.message); }
+}, 6 * 3600000);
+
+// Run initial compliance scan 10s after startup
+setTimeout(() => {
+  try {
+    const tenants = D().prepare('SELECT id FROM tenants').all();
+    tenants.forEach(t => runDailyComplianceScan(t.id));
+  } catch(e) {}
+}, 10000);
+
+// ── Start ──
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`  ✓ Server listening on http://0.0.0.0:${PORT}`);
+  console.log(`  ✓ Environment: ${isProd ? 'production' : 'development'}`);
+  console.log(`  ✓ Auth: Email/Password, Google OAuth, Apple OAuth, TOTP, Email MFA`);
+  console.log(`  ✓ Multi-tenant isolation enabled`);
+  console.log(`  ✓ Document store + AI analysis enabled`);
+  console.log(`  ✓ Compliance engine: auto-scan every 6 hours\n`);
+});
