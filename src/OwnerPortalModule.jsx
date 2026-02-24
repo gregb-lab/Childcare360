@@ -59,11 +59,16 @@ export function OwnerPortal() {
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
   const [seedTenant, setSeedTenant] = useState('');
+  const [seedTenantList, setSeedTenantList] = useState([]);
+
+  useEffect(() => {
+    API('/api/platform/tenants').then(r => setSeedTenantList(r.tenants || [])).catch(() => {});
+  }, []);
 
   const runCNSeed = async () => {
-    if (!seedTenant) { alert('Please select a centre to import children into.'); return; }
-    const chosen = tenants.find(t => t.id === seedTenant);
-    if (!window.confirm('Import CN Centre children into "' + (chosen?.name || seedTenant) + '"?\n\nThis adds ~127 children across 7 rooms. Safe to re-run.')) return;
+    if (!seedTenant) { alert('Please select a centre first.'); return; }
+    const chosen = seedTenantList.find(t => t.id === seedTenant);
+    if (!window.confirm('Import CN children into "' + (chosen?.name || seedTenant) + '"?\n\nAdds ~127 children across 7 rooms. Safe to re-run.')) return;
     setSeeding(true); setSeedResult(null);
     try {
       const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
@@ -179,7 +184,7 @@ export function OwnerPortal() {
           {seedResult && <span style={{fontSize:11,color:seedResult.ok?'#2E7D32':'#C06B73',background:seedResult.ok?'#E8F5E9':'#FFEBEE',padding:'4px 10px',borderRadius:8}}>{seedResult.ok ? `✓ ${seedResult.kidsAdded} added into ${seedResult.tenant} (${seedResult.totalChildren} total)` : `✗ ${seedResult.error||JSON.stringify(seedResult)}`}</span>}
           <select value={seedTenant} onChange={e=>setSeedTenant(e.target.value)} style={{padding:'8px 10px',borderRadius:8,border:'1px solid #DDD6EE',fontSize:12,color:'#3D3248'}}>
             <option value=''>— Select centre to seed —</option>
-            {tenants.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
+            {seedTenantList.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <button onClick={runCNSeed} disabled={seeding||!seedTenant} style={{...btnPrimary,background:'linear-gradient(135deg,#2E7D32,#43A047)',opacity:(seeding||!seedTenant)?0.6:1}}>{seeding?'Importing...':'🏫 Import CN Children'}</button>
           <button onClick={() => setShowProvision(true)} style={btnPrimary}>+ Provision New Centre</button>

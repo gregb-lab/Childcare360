@@ -17,7 +17,10 @@ const TTS_CACHE_DIR = '/data/tts_cache';
 
 function getBase() {
   if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
-  return process.env.PUBLIC_URL || '';
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  // Auto-detect from Railway internal domain
+  if (process.env.RAILWAY_STATIC_URL) return process.env.RAILWAY_STATIC_URL.replace(/\/+$/, '');
+  return '';
 }
 
 function twiml(inner) {
@@ -307,6 +310,23 @@ router.post('/test', requireAuth, requireTenant, requireRole('owner','admin'), a
   } catch(e) { setStatus(callId, 'failed', { error: e.message }); res.status(500).json({ error: e.message }); }
 });
 
+// ─── DEBUG ───────────────────────────────────────────────────────────────────
+router.get('/debug', requireAuth, requireTenant, (req, res) => {
+  const settings = getSettings(req.tenantId);
+  const base = getBase();
+  res.json({
+    base,
+    RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || null,
+    RAILWAY_STATIC_URL: process.env.RAILWAY_STATIC_URL || null,
+    PUBLIC_URL: process.env.PUBLIC_URL || null,
+    voice_active: settings?.active,
+    twilio_configured: !!(settings?.twilio_account_sid),
+    elevenlabs_configured: !!(settings?.elevenlabs_api_key),
+    elevenlabs_voice_id: settings?.elevenlabs_voice_id,
+    webhook_url: base ? base + '/api/voice/webhook/answer/TEST' : 'BASE_EMPTY — this is the problem!',
+  });
+});
+
 // ─── INBOUND URL ──────────────────────────────────────────────────────────────
 
 router.get('/inbound-url', requireAuth, requireTenant, (req, res) => {
@@ -417,7 +437,7 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
   res.type('text/xml');
   try {
     const settings = getSettings(tenantId);
-    if (!settings?.active) return res.send(twiml('<Say>Thank you for calling. We are unable to take your call right now.</Say><Hangup/>'));
+    if (settings?.active === 0 || settings?.active === false) return res.send(twiml('<Say>Thank you for calling. We are unable to take your call right now.</Say><Hangup/>'));
     const callId = uuid();
     D().prepare(`INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(callId, tenantId, req.body.CallSid, 'inbound', 'in-progress', req.body.From || 'unknown', req.body.To || settings.twilio_phone_number, 'inbound', '[]');
