@@ -288,6 +288,44 @@ function SettingsTab() {
         padding: '12px 28px', borderRadius: 10, background: saving ? '#C4B5D9' : purple,
         color: '#fff', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700
       }}>{saving ? 'Saving…' : 'Save Settings'}</button>
+
+      <DebugPanel />
+    </div>
+  );
+}
+
+// ── Debug Panel ───────────────────────────────────────────────────────────────
+function DebugPanel() {
+  const [open, setOpen] = useState(false);
+  const [info, setInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const run = async () => {
+    setLoading(true);
+    try { const d = await API('/debug'); setInfo(d); }
+    catch(e) { setInfo({ error: e.message }); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{marginTop:16,borderTop:'1px solid #EDE8F4',paddingTop:14}}>
+      <button onClick={()=>{setOpen(o=>!o); if(!open) run();}} style={{background:'none',border:'1px solid #DDD6EE',borderRadius:8,padding:'6px 14px',cursor:'pointer',fontSize:12,color:'#8A7F96'}}>
+        🔧 {open ? 'Hide' : 'Show'} Debug Info
+      </button>
+      {open && (
+        <div style={{marginTop:10,background:'#1E1E2E',borderRadius:10,padding:16,fontFamily:'monospace',fontSize:11,color:'#CDD6F4',overflowX:'auto'}}>
+          {loading && <div style={{color:'#89B4FA'}}>Loading...</div>}
+          {info && Object.entries(info).map(([k,v]) => (
+            <div key={k} style={{marginBottom:4}}>
+              <span style={{color:'#89DCEB'}}>{k}:</span>{' '}
+              <span style={{color: v===null||v===false||v===''||v==='BASE_EMPTY — this is the problem!' ? '#F38BA8' : '#A6E3A1'}}>
+                {v===null ? 'null' : v===false ? 'false' : v===true ? 'true' : String(v)}
+              </span>
+            </div>
+          ))}
+          <button onClick={run} style={{marginTop:8,background:'#313244',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:11,color:'#CDD6F4'}}>↻ Refresh</button>
+        </div>
+      )}
     </div>
   );
 }
