@@ -295,33 +295,10 @@ app.use('/auth', authRoutes);
 // Twilio webhooks mounted BEFORE /api auth middleware
 app.use('/api/voice/webhook', webhookRouter);
 
-app.use('/api', apiRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/compliance', complianceRoutes);
-app.use('/api/invoicing', invoicingRoutes);
-app.use('/api/enrolment', enrolmentRoutes);
-app.use('/api/waitlist', waitlistRoutes);
-app.use('/api/platform', platformRoutes);
-app.use('/api/rostering', rosteringRoutes);
-app.use('/api/educators', educatorsRoutes);
-app.use('/api/children', childrenRoutes);
-app.use('/api/daily-updates', dailyUpdatesRoutes);
-app.use('/api/excursions', excursionsRoutes);
-app.use('/api/messaging', messagingRoutes);
-app.use('/api/register', registerRoutes);
-app.use('/api/learning', learningRoutes);
-app.use('/api/parent', parentRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/audit', auditRoutes);
-app.use('/api/voice', voiceRoutes);
-app.use('/api/wellbeing', wellbeingRoutes);
-app.use('/api/settings', settingsRoutes);
-
-// ── Health check ──
 // ── One-shot CN seed endpoint ─────────────────────────────────────────────
 // Hit: GET /admin-seed-cn?token=childcare360seed
 // Remove the SEED_TOKEN env var after seeding to disable this endpoint
-app.get('/api/admin-seed-cn', (req, res) => {
+app.get('/run-seed-cn', (req, res) => {
   const token = process.env.SEED_TOKEN || 'childcare360seed';
   if (req.query.token !== token) return res.status(403).json({ error: 'Invalid token' });
   try {
@@ -491,6 +468,31 @@ app.get('/api/admin-seed-cn', (req, res) => {
     return res.status(500).json({ error: e.message, stack: e.stack });
   }
 });
+
+
+app.use('/api', apiRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/compliance', complianceRoutes);
+app.use('/api/invoicing', invoicingRoutes);
+app.use('/api/enrolment', enrolmentRoutes);
+app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/platform', platformRoutes);
+app.use('/api/rostering', rosteringRoutes);
+app.use('/api/educators', educatorsRoutes);
+app.use('/api/children', childrenRoutes);
+app.use('/api/daily-updates', dailyUpdatesRoutes);
+app.use('/api/excursions', excursionsRoutes);
+app.use('/api/messaging', messagingRoutes);
+app.use('/api/register', registerRoutes);
+app.use('/api/learning', learningRoutes);
+app.use('/api/parent', parentRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/voice', voiceRoutes);
+app.use('/api/wellbeing', wellbeingRoutes);
+app.use('/api/settings', settingsRoutes);
+
+// ── Health check ──
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', version: '1.9.7', uptime: process.uptime() });
