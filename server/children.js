@@ -542,16 +542,17 @@ router.post('/:id/equipment', requireAuth, requireTenant, (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE demo children (children whose IDs are not cn-room seeded ones, keeping CN children)
-router.delete('/delete-demo', requireAuth, requireTenant, (req, res) => {
+// DELETE demo children — works with or without tenant (platform admin passes ?tenant=)
+router.delete('/delete-demo', requireAuth, (req, res) => {
   try {
-    // Delete children NOT from CN rooms (the demo ones have no cn- room_id)
+    const tenantId = req.tenantId || req.query.tenant;
+    if (!tenantId) return res.status(400).json({ error: 'No tenant specified' });
     const cnRoomIds = ['cn-sprouts-1','cn-sprouts-2','cn-buds-1','cn-buds-2','cn-blossoms-1','cn-blossoms-2','cn-oaks-1'];
     const placeholders = cnRoomIds.map(() => '?').join(',');
-    const before = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(req.tenantId)?.cnt || 0;
+    const before = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
     D().prepare(`UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (${placeholders}) OR room_id IS NULL)`)
-      .run(req.tenantId, ...cnRoomIds);
-    const after = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(req.tenantId)?.cnt || 0;
+      .run(tenantId, ...cnRoomIds);
+    const after = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
     res.json({ ok: true, removed: before - after, remaining: after });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

@@ -75,7 +75,7 @@ export function OwnerPortal() {
     if (!window.confirm('Delete all non-CN demo children?')) return;
     setDeleting(true);
     try {
-      const data = await API('/api/children/delete-demo', { method: 'DELETE' });
+      const data = await API('/api/children/delete-demo?tenant=demo-tenant-001', { method: 'DELETE' });
       if (data.ok) { setSeedResult({ ok: true, _msg: data.removed + ' demo children removed, ' + data.remaining + ' remaining', kidsAdded: 0, totalChildren: data.remaining, tenantName: '' }); load(); }
       else setSeedResult({ error: data.error || 'Delete failed' });
     } catch(e) { setSeedResult({ error: e.message }); }
