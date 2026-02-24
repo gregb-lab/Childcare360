@@ -576,7 +576,7 @@ function ChildChip({child,group,isDragging,isMoving,fitsGroup,onDragStart,onDrag
   return(
     <div draggable={!isMoving} onDragStart={e=>{e.stopPropagation();onDragStart();}} onDragEnd={onDragEnd}
       title={`${child.first_name} ${child.last_name} · ${ageLabel(child.dob)}${!fitsGroup?" ⚠ outside age range":""}`}
-      style={{display:"flex",alignItems:"center",gap:5,padding:"4px 6px 4px 8px",borderRadius:20,background:isDragging?lightPurple:fitsGroup?"#fff":"#FFF3E0",border:`1px solid ${isDragging?purple:fitsGroup?(group?.color||purple)+"50":"#FFCC80"}`,cursor:isDragging?"grabbing":"grab",opacity:isDragging?0.5:isMoving?0.4:1,transition:"all 0.15s",userSelect:"none",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}}>
+      style={{display:"flex",alignItems:"center",gap:5,padding:"4px 6px 4px 8px",borderRadius:20,background:isDragging?lightPurple:fitsGroup?"#fff":"#FFF3E0",border:`1px solid ${isDragging?purple:fitsGroup?(group?.color||purple)+"50":"#FFCC80"}`,cursor:isDragging?"grabbing":"grab",opacity:isDragging?0.5:isMoving?0.4:1,transition:"all 0.15s",userSelect:"none",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
       <ChildAvatar child={child} size={22} color={group?.color}/>
       <span style={{fontSize:11,fontWeight:600,color:"#3D3248",maxWidth:68,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{child.first_name}</span>
       {!fitsGroup&&<span style={{fontSize:9}}>⚠</span>}
