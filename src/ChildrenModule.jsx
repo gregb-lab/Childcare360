@@ -85,7 +85,7 @@ export default function ChildrenModule() {
             const room = rooms.find(r => r.id === c.room_id);
             const sel = selected?.id === c.id;
             return (
-              <div key={c.id} onClick={async () => { setSelected(c); setTab("profile"); try { const full = await API(\`/api/children/${c.id}\`); if (full.id) setSelected(full); } catch(e) {} }}
+              <div key={c.id} onClick={async () => { setSelected(c); setTab("profile"); try { const full = await API(`/api/children/${c.id}`); if (full.id) setSelected(full); } catch(e) {} }}
                 style={{ padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #F5F0FB",
                   background: sel ? lp : "transparent", borderLeft: `3px solid ${sel ? purple : "transparent"}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
