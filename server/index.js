@@ -305,7 +305,7 @@ app.get('/run-seed-cn', (req, res) => {
     const db = _D();
     const first = db.prepare('SELECT id, name FROM tenants ORDER BY created_at LIMIT 1').get();
     if (!first) return res.status(500).json({ error: 'No tenant found' });
-    const TENANT = process.env.SEED_TENANT || first.id;
+    const TENANT = req.query.tenant || process.env.SEED_TENANT || first.id;
 
     const ROOMS = [
       { id: 'cn-sprouts-1',  name: 'Sprouts Room 1',  age_group: '0-2', capacity: 8  },
@@ -463,7 +463,7 @@ app.get('/run-seed-cn', (req, res) => {
       }
     }
     const total = db.prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(TENANT);
-    return res.json({ ok: true, tenant: TENANT, roomsAdded, kidsAdded, kidsSkipped, parentsAdded, totalChildren: total.cnt });
+    return res.json({ ok: true, tenant: TENANT, tenantName: first.name, roomsAdded, kidsAdded, kidsSkipped, parentsAdded, totalChildren: total.cnt });
   } catch(e) {
     return res.status(500).json({ error: e.message, stack: e.stack });
   }

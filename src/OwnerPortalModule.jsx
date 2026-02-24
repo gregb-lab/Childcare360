@@ -58,13 +58,16 @@ export function OwnerPortal() {
   const [showProvision, setShowProvision] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
+  const [seedTenant, setSeedTenant] = useState('');
 
   const runCNSeed = async () => {
-    if (!window.confirm('Import CN Centre children data? This will add ~127 children across 7 rooms. Safe to run multiple times.')) return;
+    if (!seedTenant) { alert('Please select a centre to import children into.'); return; }
+    const chosen = tenants.find(t => t.id === seedTenant);
+    if (!window.confirm('Import CN Centre children into "' + (chosen?.name || seedTenant) + '"?\n\nThis adds ~127 children across 7 rooms. Safe to re-run.')) return;
     setSeeding(true); setSeedResult(null);
     try {
       const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
-      const r = await fetch('/run-seed-cn?token=childcare360seed', { headers: { Authorization: 'Bearer ' + token } });
+      const r = await fetch('/run-seed-cn?token=childcare360seed&tenant=' + encodeURIComponent(seedTenant), { headers: { Authorization: 'Bearer ' + token } });
       const text = await r.text();
       let data;
       try { data = JSON.parse(text); } catch(e) { data = { raw: text }; }
@@ -173,8 +176,12 @@ export function OwnerPortal() {
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "#8A7F96" }}>Multi-tenant SaaS management · Platform-wide analytics</p>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          {seedResult && <span style={{fontSize:11,color:seedResult.ok?'#2E7D32':'#C06B73',background:seedResult.ok?'#E8F5E9':'#FFEBEE',padding:'4px 10px',borderRadius:8}}>{seedResult.ok ? `✓ ${seedResult.kidsAdded} children imported (${seedResult.totalChildren} total)` : `✗ ${seedResult.error||JSON.stringify(seedResult)}`}</span>}
-          <button onClick={runCNSeed} disabled={seeding} style={{...btnPrimary,background:'linear-gradient(135deg,#2E7D32,#43A047)',opacity:seeding?0.6:1}}>{seeding?'Importing...':'🏫 Import CN Children'}</button>
+          {seedResult && <span style={{fontSize:11,color:seedResult.ok?'#2E7D32':'#C06B73',background:seedResult.ok?'#E8F5E9':'#FFEBEE',padding:'4px 10px',borderRadius:8}}>{seedResult.ok ? `✓ ${seedResult.kidsAdded} added into ${seedResult.tenant} (${seedResult.totalChildren} total)` : `✗ ${seedResult.error||JSON.stringify(seedResult)}`}</span>}
+          <select value={seedTenant} onChange={e=>setSeedTenant(e.target.value)} style={{padding:'8px 10px',borderRadius:8,border:'1px solid #DDD6EE',fontSize:12,color:'#3D3248'}}>
+            <option value=''>— Select centre to seed —</option>
+            {tenants.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
+          </select>
+          <button onClick={runCNSeed} disabled={seeding||!seedTenant} style={{...btnPrimary,background:'linear-gradient(135deg,#2E7D32,#43A047)',opacity:(seeding||!seedTenant)?0.6:1}}>{seeding?'Importing...':'🏫 Import CN Children'}</button>
           <button onClick={() => setShowProvision(true)} style={btnPrimary}>+ Provision New Centre</button>
         </div>
       </div>
