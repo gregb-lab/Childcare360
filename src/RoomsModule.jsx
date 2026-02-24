@@ -572,19 +572,21 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
 }
 
 // ─── CHILD CHIP ──────────────────────────────────────────────────────────────
-function ChildChip({child,group,isDragging,isMoving,fitsGroup,onDragStart,onDragEnd}){
+function ChildChip({child,group,isDragging,isMoving,fitsGroup,onDragStart,onDragEnd,onRemove}){
   return(
     <div draggable={!isMoving} onDragStart={e=>{e.stopPropagation();onDragStart();}} onDragEnd={onDragEnd}
       title={`${child.first_name} ${child.last_name} · ${ageLabel(child.dob)}${!fitsGroup?" ⚠ outside age range":""}`}
-      style={{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:20,background:isDragging?lightPurple:fitsGroup?"#fff":"#FFF3E0",border:`1px solid ${isDragging?purple:fitsGroup?(group?.color||purple)+"50":"#FFCC80"}`,cursor:isDragging?"grabbing":"grab",opacity:isDragging?0.5:isMoving?0.4:1,transition:"all 0.15s",userSelect:"none",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
+      style={{display:"flex",alignItems:"center",gap:5,padding:"4px 6px 4px 8px",borderRadius:20,background:isDragging?lightPurple:fitsGroup?"#fff":"#FFF3E0",border:`1px solid ${isDragging?purple:fitsGroup?(group?.color||purple)+"50":"#FFCC80"}`,cursor:isDragging?"grabbing":"grab",opacity:isDragging?0.5:isMoving?0.4:1,transition:"all 0.15s",userSelect:"none",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}}>
       <ChildAvatar child={child} size={22} color={group?.color}/>
       <span style={{fontSize:11,fontWeight:600,color:"#3D3248",maxWidth:68,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{child.first_name}</span>
       {!fitsGroup&&<span style={{fontSize:9}}>⚠</span>}
-      {isMoving&&<span style={{fontSize:10,color:"#8A7F96"}}>…</span>}
+      {isMoving?<span style={{fontSize:10,color:"#8A7F96"}}>…</span>:(
+        onRemove&&<button onClick={e=>{e.stopPropagation();onRemove();}} title="Unassign from room"
+          style={{width:16,height:16,borderRadius:"50%",border:"none",background:"#E5DEFF",color:"#6B21A8",cursor:"pointer",fontSize:12,lineHeight:"16px",padding:0,flexShrink:0,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+      )}
     </div>
   );
 }
-
 // ─── PANEL CHILD ROW ─────────────────────────────────────────────────────────
 function PanelChildRow({child,fits,selectedGroup,isDragging,isMoving,canOverride,onDragStart,onDragEnd,onAssign}){
   return(
@@ -817,7 +819,7 @@ export default function RoomsModule() {
                       <div style={{textAlign:"center",padding:"14px 0",color:"#B0AAB9",fontSize:12,borderRadius:8,border:"2px dashed #EDE8F4"}}>{isOver?"Drop here":"Empty — drop children here"}</div>
                     ):(
                       <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                        {roomKids.map(child=>(<ChildChip key={child.id} child={child} group={group} isDragging={dragging?.childId===child.id} isMoving={moving===child.id} fitsGroup={childFitsGroup(child,group)} onDragStart={()=>onDragStart(child.id,room.id)} onDragEnd={onDragEnd}/>))}
+                        {roomKids.map(child=>(<ChildChip key={child.id} child={child} group={group} isDragging={dragging?.childId===child.id} isMoving={moving===child.id} fitsGroup={childFitsGroup(child,group)} onDragStart={()=>onDragStart(child.id,room.id)} onDragEnd={onDragEnd} onRemove={()=>doMove(child.id,null)}/>))}
                       </div>
                     )}
                   </div>

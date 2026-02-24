@@ -69,6 +69,20 @@ if (process.env.SEED_ON_START === 'true') {
   });
 }
 
+// -- Auto-seed CN data if SEED_CN_ON_START is set --
+if (process.env.SEED_CN_ON_START === 'true') {
+  import('child_process').then(({ execFile }) => {
+    console.log('  [SEED_CN] SEED_CN_ON_START detected - running seed-cn.js...');
+    const seedPath = path.join(__dirname, 'seed-cn.js');
+    const cwd = path.join(__dirname, '..');
+    execFile('node', [seedPath], { cwd }, (err, stdout, stderr) => {
+      if (err) { console.error('  [SEED_CN] Seed failed:', err.message); return; }
+      console.log('  [SEED_CN] Output:\n', stdout);
+      console.log('  [SEED_CN] CN seed complete!');
+    });
+  });
+}
+
 // ── Express app ──
 const app = express();
 

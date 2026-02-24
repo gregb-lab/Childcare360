@@ -17,8 +17,13 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = OFF');
 
-// ── CHANGE THIS to your real tenant ID ────────────────────────────────────
-const TENANT = 'demo-tenant-001';
+// ── Tenant ID — uses SEED_TENANT env var or falls back to first tenant in DB ─
+const envTenant = process.env.SEED_TENANT;
+let TENANT = envTenant || 'demo-tenant-001';
+if (!envTenant) {
+  const firstTenant = db.prepare('SELECT id FROM tenants ORDER BY created_at LIMIT 1').get();
+  if (firstTenant) TENANT = firstTenant.id;
+}
 // ──────────────────────────────────────────────────────────────────────────
 
 console.log('\n🌱 Childcare360 — CN Centre Real Data Seeder');
