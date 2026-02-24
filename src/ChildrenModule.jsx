@@ -85,7 +85,7 @@ export default function ChildrenModule() {
             const room = rooms.find(r => r.id === c.room_id);
             const sel = selected?.id === c.id;
             return (
-              <div key={c.id} onClick={() => { setSelected(c); setTab("profile"); }}
+              <div key={c.id} onClick={async () => { setSelected(c); setTab("profile"); try { const full = await API(\`/api/children/${c.id}\`); if (full.id) setSelected(full); } catch(e) {} }}
                 style={{ padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #F5F0FB",
                   background: sel ? lp : "transparent", borderLeft: `3px solid ${sel ? purple : "transparent"}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -149,17 +149,17 @@ export default function ChildrenModule() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-            {tab === "profile"    && <ProfileTab child={selected} rooms={rooms} onSaved={refreshSelected} />}
-            {tab === "focus"      && <FocusTab child={selected} />}
-            {tab === "attendance" && <AttendanceTab child={selected} />}
-            {tab === "medical"    && <MedicalTab child={selected} onSaved={refreshSelected} />}
-            {tab === "dietary"    && <DietaryTab child={selected} onSaved={refreshSelected} />}
-            {tab === "immunise"   && <ImmunisationTab child={selected} />}
-            {tab === "permissions"&& <PermissionsTab child={selected} />}
-            {tab === "notes"      && <EducatorNotesTab child={selected} />}
-            {tab === "messaging"  && <ParentMessagingTab child={selected} />}
-            {tab === "payments"   && <PaymentsTab child={selected} />}
-            {tab === "log"        && <EventLogTab child={selected} />}
+            {tab === "profile"    && <ProfileTab key={selected.id} child={selected} rooms={rooms} onSaved={refreshSelected} />}
+            {tab === "focus"      && <FocusTab key={selected.id} child={selected} />}
+            {tab === "attendance" && <AttendanceTab key={selected.id} child={selected} />}
+            {tab === "medical"    && <MedicalTab key={selected.id} child={selected} onSaved={refreshSelected} />}
+            {tab === "dietary"    && <DietaryTab key={selected.id} child={selected} onSaved={refreshSelected} />}
+            {tab === "immunise"   && <ImmunisationTab key={selected.id} child={selected} />}
+            {tab === "permissions"&& <PermissionsTab key={selected.id} child={selected} />}
+            {tab === "notes"      && <EducatorNotesTab key={selected.id} child={selected} />}
+            {tab === "messaging"  && <ParentMessagingTab key={selected.id} child={selected} />}
+            {tab === "payments"   && <PaymentsTab key={selected.id} child={selected} />}
+            {tab === "log"        && <EventLogTab key={selected.id} child={selected} />}
           </div>
         </div>
       ) : (

@@ -11,7 +11,8 @@ import { requireAuth, requireTenant, requireRole } from './middleware.js';
 const router   = Router();
 const webhooks = Router();
 
-const TTS_CACHE_DIR = '/data/tts_cache';
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
+const TTS_CACHE_DIR = DATA_DIR + '/tts_cache';
 
 // ─── Core helpers ─────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ async function toAudioUrl(text, settings) {
     writeFileSync(join(TTS_CACHE_DIR, filename), audio);
     return `${getBase()}/api/voice/audio/${filename}`;
   } catch(e) {
-    console.error('[ElevenLabs]', e.message, '— falling back to Twilio TTS');
+    console.error('[ElevenLabs] FAIL:', e.message, '— falling back to Twilio TTS');
     return null;
   }
 }
@@ -342,6 +343,14 @@ router.post('/force-active', requireAuth, requireTenant, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── CALL LOGS (last 20 voice_calls with error details) ─────────────────────
+router.get('/logs', requireAuth, requireTenant, (req, res) => {
+  try {
+    const calls = D().prepare(`SELECT id, direction, status, from_number, to_number, purpose, error_message, created_at, ended_at, duration_seconds FROM voice_calls WHERE tenant_id=? ORDER BY created_at DESC LIMIT 20`).all(req.tenantId);
+    res.json({ calls });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── INBOUND URL ──────────────────────────────────────────────────────────────
 
 router.get('/inbound-url', requireAuth, requireTenant, (req, res) => {
@@ -371,30 +380,43 @@ router.get('/webhook/answer/:callId', (req, res) => {
 webhooks.post('/answer/:callId', async (req, res) => {
   const { callId } = req.params;
   const isTest = req.query.test === '1';
+  console.log(`[Voice:answer] callId=${callId} isTest=${isTest} body=`, JSON.stringify(req.body).slice(0,200));
   res.type('text/xml');
   try {
     const call = D().prepare('SELECT * FROM voice_calls WHERE id=?').get(callId);
-    if (!call) return res.send(twiml('<Say>Sorry, this call could not be connected.</Say><Hangup/>'));
+    if (!call) {
+      console.error(`[Voice:answer] FAIL — no call record found for callId=${callId}`);
+      return res.send(twiml('<Say>Sorry, this call could not be connected.</Say><Hangup/>'));
+    }
+    console.log(`[Voice:answer] call found tenantId=${call.tenant_id} direction=${call.direction}`);
     const settings = getSettings(call.tenant_id);
+    console.log(`[Voice:answer] settings active=${settings?.active} tts=${settings?.tts_voice} el_key=${settings?.elevenlabs_api_key ? 'SET' : 'NOT SET'} el_voice=${settings?.elevenlabs_voice_id}`);
     setStatus(callId, 'in-progress');
 
     if (isTest) {
+      console.log('[Voice:answer] TEST mode — playing test message');
       const msg = 'Hello! This is a test call from Childcare360. Your AI voice agent is working correctly. Have a great day!';
       saveTurn(callId, 'assistant', msg);
-      return res.send(twiml((await speak(msg, settings)) + '<Hangup/>'));
+      const ttsXml = await speak(msg, settings);
+      console.log('[Voice:answer] TEST ttsXml:', ttsXml.slice(0,100));
+      return res.send(twiml(ttsXml + '<Hangup/>'));
     }
 
+    const base = getBase();
+    if (!base) console.error('[Voice:answer] WARNING: getBase() is empty — webhook URLs will be broken');
     const greeting = settings?.outbound_greeting || 'Hello, this is a call from your childcare centre.';
     saveTurn(callId, 'assistant', greeting);
-    const base = getBase();
     const gatherUrl = `${base}/api/voice/webhook/gather/${callId}`;
+    console.log(`[Voice:answer] gatherUrl=${gatherUrl}`);
+    const greetXml = await speak(greeting, settings);
+    console.log('[Voice:answer] greetXml:', greetXml.slice(0,100));
     res.send(twiml(
       (await gatherWith(gatherUrl, greeting, settings)) +
       (await speak("Sorry, I didn't catch that.", settings)) +
       `<Redirect method="POST">${gatherUrl}</Redirect>`
     ));
   } catch(e) {
-    console.error('[Voice] Answer error:', e.message);
+    console.error('[Voice:answer] EXCEPTION:', e.message, e.stack?.slice(0,300));
     res.send(twiml('<Say>Sorry, there was a technical problem.</Say><Hangup/>'));
   }
 });
@@ -402,15 +424,17 @@ webhooks.post('/answer/:callId', async (req, res) => {
 webhooks.post('/gather/:callId', async (req, res) => {
   const { callId } = req.params;
   const speechResult = req.body.SpeechResult || '';
+  console.log(`[Voice:gather] callId=${callId} speech="${speechResult.slice(0,80)}"`);
   res.type('text/xml');
   try {
     const call = D().prepare('SELECT * FROM voice_calls WHERE id=?').get(callId);
-    if (!call) return res.send(twiml('<Hangup/>'));
+    if (!call) { console.error(`[Voice:gather] FAIL — no call record callId=${callId}`); return res.send(twiml('<Hangup/>')); }
     const settings = getSettings(call.tenant_id);
     const base = getBase();
     const gatherUrl = `${base}/api/voice/webhook/gather/${callId}`;
 
     if (!speechResult) {
+      console.log('[Voice:gather] no speech result — re-prompting');
       return res.send(twiml(
         (await gatherWith(gatherUrl, "I'm sorry, I couldn't hear you. Could you please speak again?", settings)) + '<Hangup/>'
       ));
@@ -428,7 +452,9 @@ webhooks.post('/gather/:callId', async (req, res) => {
     let contextStr = '';
     try { const ctx = JSON.parse(call.transcript || '[]').find(t => t.role === '_context'); if (ctx) contextStr = ctx.content; } catch(e) {}
 
+    console.log('[Voice:gather] calling Claude AI...');
     const aiResponse = await askClaude(getTranscript(callId), settings?.ai_persona || 'You are a friendly assistant for a childcare centre.', contextStr);
+    console.log(`[Voice:gather] Claude responded: "${aiResponse?.slice(0,100)}"`);
     saveTurn(callId, 'assistant', aiResponse);
 
     if (['goodbye','have a great day','take care','have a wonderful day'].some(p => aiResponse.toLowerCase().includes(p))) {
@@ -442,7 +468,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
       `<Redirect method="POST">${gatherUrl}</Redirect>`
     ));
   } catch(e) {
-    console.error('[Voice] Gather error:', e.message);
+    console.error('[Voice:gather] EXCEPTION:', e.message, e.stack?.slice(0,300));
     res.send(twiml('<Say>I\'m sorry, I had a technical issue. Please call back and I\'ll be happy to help.</Say><Hangup/>'));
   }
 });
@@ -450,9 +476,12 @@ webhooks.post('/gather/:callId', async (req, res) => {
 webhooks.post('/inbound/:tenantId', async (req, res) => {
   const { tenantId } = req.params;
   res.type('text/xml');
+  console.log(`[Voice:inbound] tenantId=${tenantId} From=${req.body.From} CallSid=${req.body.CallSid}`);
   try {
     const settings = getSettings(tenantId);
-    const isActive = settings?.active == null || settings?.active === 1 || settings?.active === true; if (!isActive) return res.send(twiml('<Say>Thank you for calling. We are unable to take your call right now.</Say><Hangup/>'));
+    console.log(`[Voice:inbound] active=${settings?.active} twilio=${!!settings?.twilio_account_sid} el=${!!settings?.elevenlabs_api_key}`);
+    const isActive = settings?.active == null || settings?.active === 1 || settings?.active === true;
+    if (!isActive) { console.log('[Voice:inbound] BLOCKED — agent not active'); return res.send(twiml('<Say>Thank you for calling. We are unable to take your call right now.</Say><Hangup/>')); }
     const callId = uuid();
     D().prepare(`INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(callId, tenantId, req.body.CallSid, 'inbound', 'in-progress', req.body.From || 'unknown', req.body.To || settings.twilio_phone_number, 'inbound', '[]');

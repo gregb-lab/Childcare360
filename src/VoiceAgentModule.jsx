@@ -538,6 +538,7 @@ function HistoryTab() {
                 <button onClick={() => { setSelected(null); setDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9CA3AF' }}>×</button>
               </div>
               <div style={{ padding: 16 }}>
+                {detail.error_message && <div style={{padding:'10px 14px',borderRadius:8,background:'#FFEBEE',border:'1px solid #FFCDD2',color:'#B71C1C',fontSize:12,fontWeight:600,marginBottom:12}}>⚠️ Error: {detail.error_message}</div>}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                   {[
                     ['Status', <Badge status={detail.status} />],
