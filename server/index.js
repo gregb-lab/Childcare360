@@ -321,7 +321,7 @@ app.use('/api/settings', settingsRoutes);
 // ── One-shot CN seed endpoint ─────────────────────────────────────────────
 // Hit: GET /admin-seed-cn?token=childcare360seed
 // Remove the SEED_TOKEN env var after seeding to disable this endpoint
-app.get('/admin-seed-cn', (req, res) => {
+app.get('/api/admin-seed-cn', (req, res) => {
   const token = process.env.SEED_TOKEN || 'childcare360seed';
   if (req.query.token !== token) return res.status(403).json({ error: 'Invalid token' });
   try {
