@@ -56,6 +56,23 @@ export function OwnerPortal() {
   const [predictions, setPredictions] = useState(null);
   const [ccsData, setCcsData] = useState(null);
   const [showProvision, setShowProvision] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState(null);
+
+  const runCNSeed = async () => {
+    if (!window.confirm('Import CN Centre children data? This will add ~127 children across 7 rooms. Safe to run multiple times.')) return;
+    setSeeding(true); setSeedResult(null);
+    try {
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
+      const r = await fetch('/run-seed-cn?token=childcare360seed', { headers: { Authorization: 'Bearer ' + token } });
+      const text = await r.text();
+      let data;
+      try { data = JSON.parse(text); } catch(e) { data = { raw: text }; }
+      setSeedResult(data);
+      if (data.ok) load();
+    } catch(e) { setSeedResult({ error: e.message }); }
+    setSeeding(false);
+  };
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenantDetail, setTenantDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -155,7 +172,11 @@ export function OwnerPortal() {
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#3D3248" }}>Childcare360 Owner Portal</h2>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "#8A7F96" }}>Multi-tenant SaaS management · Platform-wide analytics</p>
         </div>
-        <button onClick={() => setShowProvision(true)} style={btnPrimary}>+ Provision New Centre</button>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {seedResult && <span style={{fontSize:11,color:seedResult.ok?'#2E7D32':'#C06B73',background:seedResult.ok?'#E8F5E9':'#FFEBEE',padding:'4px 10px',borderRadius:8}}>{seedResult.ok ? `✓ ${seedResult.kidsAdded} children imported (${seedResult.totalChildren} total)` : `✗ ${seedResult.error||JSON.stringify(seedResult)}`}</span>}
+          <button onClick={runCNSeed} disabled={seeding} style={{...btnPrimary,background:'linear-gradient(135deg,#2E7D32,#43A047)',opacity:seeding?0.6:1}}>{seeding?'Importing...':'🏫 Import CN Children'}</button>
+          <button onClick={() => setShowProvision(true)} style={btnPrimary}>+ Provision New Centre</button>
+        </div>
       </div>
 
       {/* Tab Bar */}
