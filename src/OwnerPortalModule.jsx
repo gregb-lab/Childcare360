@@ -183,7 +183,6 @@ export function OwnerPortal() {
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           {seedResult && <span style={{fontSize:11,color:seedResult.ok?'#2E7D32':'#C06B73',background:seedResult.ok?'#E8F5E9':'#FFEBEE',padding:'4px 10px',borderRadius:8}}>{seedResult.ok ? (seedResult._msg || `✓ ${seedResult.kidsAdded} children imported (${seedResult.totalChildren} total in ${seedResult.tenantName||seedResult.tenant})`) : `✗ ${seedResult.error||JSON.stringify(seedResult)}`}</span>}
           <button onClick={runCNSeed} disabled={seeding} style={{...btnPrimary,background:'linear-gradient(135deg,#2E7D32,#43A047)',opacity:seeding?0.6:1}}>{seeding?'Importing...':'🏫 Import CN Children'}</button>
-          <button onClick={deleteDemo} disabled={deleting} style={{...btnPrimary,background:'linear-gradient(135deg,#B71C1C,#E53935)',opacity:deleting?0.6:1,marginLeft:8}}>{deleting?'Deleting...':'🗑 Delete Demo Children'}</button>
           <button onClick={() => setShowProvision(true)} style={btnPrimary}>+ Provision New Centre</button>
         </div>
       </div>

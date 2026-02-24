@@ -1759,6 +1759,8 @@ function SettingsView() {
   const [stab, setStab] = useState("service");
   const [svc, setSvc]   = useState(null);
   const [saving, setSaving] = useState(false);
+  const [dataMsg, setDataMsg] = useState(null);
+  const [dataWorking, setDataWorking] = useState(false);
   const [saved, setSaved]   = useState(false);
 
   // AI state
@@ -1817,7 +1819,7 @@ function SettingsView() {
     setTesting(null);
   };
 
-  const STABS = [{id:"service",l:"⚙️ Service"},{id:"ai",l:"🤖 AI Providers"},{id:"notifications",l:"🔔 Notifications"},{id:"regs",l:"📋 Regulations"}];
+  const STABS = [{id:"service",l:"⚙️ Service"},{id:"ai",l:"🤖 AI Providers"},{id:"notifications",l:"🔔 Notifications"},{id:"regs",l:"📋 Regulations"},{id:"data",l:"🗄️ Data Management"}];
   const purple2="#8B6DAF", lp2="#F0EBF8";
   const inp2={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:12,width:"100%",boxSizing:"border-box"};
   const lbl2={fontSize:11,color:"#7A6E8A",fontWeight:700,display:"block",marginBottom:4};
@@ -2068,6 +2070,36 @@ function SettingsView() {
                 <div style={{fontSize:11,color:"#8A7F96",lineHeight:1.5}}>{item.desc}</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {stab==="data" && (
+        <div style={cardStyle}>
+          <h3 style={{margin:"0 0 4px",fontSize:14,fontWeight:700}}>Data Management</h3>
+          <p style={{margin:"0 0 20px",fontSize:11,color:"#A89DB5"}}>Manage centre data — import, clean up demo content, and reset data.</p>
+          {dataMsg && (
+            <div style={{padding:"10px 14px",borderRadius:8,marginBottom:16,background:dataMsg.ok?"#E8F5E9":"#FFEBEE",color:dataMsg.ok?"#2E7D32":"#C62828",fontSize:12,fontWeight:600}}>
+              {dataMsg.ok ? "✓ " : "✗ "}{dataMsg.text}
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{padding:"16px",borderRadius:10,background:"#FFF8E1",border:"1px solid #FFE082"}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🗑️ Remove Demo Children</div>
+              <div style={{fontSize:11,color:"#8A7F96",marginBottom:12}}>Deletes the original sample children (not from CN rooms). Keeps all imported CN children intact.</div>
+              <button disabled={dataWorking} onClick={async()=>{
+                if(!confirm('Remove demo children? This keeps all CN-imported children and removes original sample data.')) return;
+                setDataWorking(true); setDataMsg(null);
+                try {
+                  const r = await API2('/api/children/delete-demo',{method:'DELETE'});
+                  if(r.ok) setDataMsg({ok:true,text:r.removed+' demo children removed. '+r.remaining+' children remaining.'});
+                  else setDataMsg({ok:false,text:r.error||'Failed'});
+                } catch(e){setDataMsg({ok:false,text:e.message});}
+                setDataWorking(false);
+              }} style={{padding:"8px 20px",borderRadius:8,border:"none",background:"#E53935",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",opacity:dataWorking?0.6:1}}>
+                {dataWorking?'Working...':'Remove Demo Children'}
+              </button>
+            </div>
           </div>
         </div>
       )}
