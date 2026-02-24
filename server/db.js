@@ -2093,4 +2093,10 @@ function initLearningTables(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_weekly_child ON weekly_reports(child_id);
   `);
+
+  // v1.9.9 ElevenLabs TTS columns
+  [
+    'ALTER TABLE voice_settings ADD COLUMN elevenlabs_api_key TEXT',
+    'ALTER TABLE voice_settings ADD COLUMN elevenlabs_voice_id TEXT DEFAULT \'21m00Tcm4TlvDq8ikWAM\'',
+  ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

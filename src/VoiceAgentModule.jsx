@@ -69,49 +69,80 @@ function SettingsTab() {
     tts_voice: 'Polly.Joanna-Neural',
     ai_persona: 'You are a friendly, professional assistant for a childcare centre. You help parents with enquiries about enrolment, daily updates, and absences. Always be warm and reassuring.',
     inbound_greeting: 'Hello, thank you for calling. This is the childcare centre AI assistant. How can I help you today?',
-    outbound_greeting: 'Hello, this is an automated call from your childcare centre. I\'m calling regarding your child\'s enrolment.',
-    active: false
+    outbound_greeting: "Hello, this is an automated call from your childcare centre. I'm calling regarding your child's enrolment.",
+    active: false,
+    elevenlabs_api_key: '',
+    elevenlabs_voice_id: '21m00Tcm4TlvDq8ikWAM',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [inboundUrl, setInboundUrl] = useState('');
+  const [elVoices, setElVoices] = useState([]);
+  const [elVoicesLoading, setElVoicesLoading] = useState(false);
+  const [elVoicesErr, setElVoicesErr] = useState('');
+  const [testingVoice, setTestingVoice] = useState(false);
+  const [testAudioUrl, setTestAudioUrl] = useState(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     Promise.all([
       API('/settings').catch(() => ({})),
       API('/inbound-url').catch(() => ({}))
     ]).then(([s, u]) => {
-      if (s && s.twilio_account_sid) setForm(f => ({ ...f, ...s, active: !!s.active }));
+      if (s) setForm(f => ({ ...f, ...s, active: !!s.active }));
       if (u?.url) setInboundUrl(u.url);
       setLoading(false);
+      if (s?.elevenlabs_configured) loadElVoices();
     });
   }, []);
+
+  const loadElVoices = async () => {
+    setElVoicesLoading(true); setElVoicesErr('');
+    try {
+      const r = await API('/elevenlabs/voices');
+      setElVoices(r.voices || []);
+    } catch(e) { setElVoicesErr(e.message); }
+    setElVoicesLoading(false);
+  };
+
+  const testVoice = async () => {
+    setTestingVoice(true); setTestAudioUrl(null);
+    try {
+      const r = await API('/elevenlabs/test', {
+        method: 'POST',
+        body: JSON.stringify({ voice_id: form.elevenlabs_voice_id })
+      });
+      if (r.url) {
+        setTestAudioUrl(r.url);
+        setTimeout(() => audioRef.current?.play(), 200);
+      }
+    } catch(e) { setElVoicesErr('Test failed: ' + e.message); }
+    setTestingVoice(false);
+  };
 
   const save = async () => {
     setSaving(true); setMsg(null);
     try {
       await API('/settings', { method: 'PUT', body: JSON.stringify(form) });
-      setMsg({ type: 'success', text: 'Settings saved successfully!' });
-    } catch(e) {
-      setMsg({ type: 'error', text: e.message });
-    }
+      setMsg({ type: 'success', text: 'Settings saved!' });
+    } catch(e) { setMsg({ type: 'error', text: e.message }); }
     setSaving(false);
   };
 
-  const F = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  const F = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const purple = '#8B6DAF';
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#8B6DAF' }}>Loading…</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: purple }}>Loading…</div>;
+
+  const hasElKey = !!(form.elevenlabs_api_key && !form.elevenlabs_api_key.startsWith('••••'));
+  const elConfigured = form.elevenlabs_configured || hasElKey;
 
   return (
-    <div style={{ padding: 24, maxWidth: 740 }}>
-      {/* Status banner */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '14px 18px', borderRadius: 12, marginBottom: 24,
-        background: form.active ? '#F0FDF4' : '#FFF8F0',
-        border: `1px solid ${form.active ? '#86EFAC' : '#FED7AA'}`
-      }}>
+    <div style={{ padding: 24, maxWidth: 760 }}>
+      {/* Active toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 12, marginBottom: 24,
+        background: form.active ? '#F0FDF4' : '#FFF8F0', border: `1px solid ${form.active ? '#86EFAC' : '#FED7AA'}` }}>
         <span style={{ fontSize: 22 }}>{form.active ? '🟢' : '🔴'}</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, color: form.active ? '#15803d' : '#92400e', fontSize: 14 }}>
@@ -121,71 +152,124 @@ function SettingsTab() {
             {form.active ? 'AI will answer inbound calls and can make outbound calls.' : 'Enable below to activate the AI agent.'}
           </div>
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <div style={{
-            width: 44, height: 24, borderRadius: 12, background: form.active ? '#8B6DAF' : '#D1D5DB',
-            position: 'relative', transition: 'background 0.2s', cursor: 'pointer'
-          }} onClick={() => F('active', !form.active)}>
-            <div style={{
-              width: 20, height: 20, borderRadius: '50%', background: '#fff',
-              position: 'absolute', top: 2, left: form.active ? 22 : 2, transition: 'left 0.2s',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-            }} />
-          </div>
-        </label>
+        <div style={{ width: 44, height: 24, borderRadius: 12, background: form.active ? purple : '#D1D5DB',
+          position: 'relative', cursor: 'pointer' }} onClick={() => F('active', !form.active)}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff',
+            position: 'absolute', top: 2, left: form.active ? 22 : 2, transition: 'left 0.2s',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+        </div>
       </div>
 
+      {/* ElevenLabs — PRIMARY TTS */}
+      <Section title="🎙️ ElevenLabs Voice (Recommended)" hint="Ultra-realistic AI voices for your agent. Set this up first for best quality.">
+        <div style={{ background: '#F3EFF8', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#4B3B6B',
+          display: 'flex', alignItems: 'flex-start', gap: 10, border: '1px solid #D8C8F0' }}>
+          <span style={{ fontSize: 18 }}>⭐</span>
+          <div>
+            <strong>ElevenLabs gives you natural, human-sounding voices</strong> — far better than Twilio's built-in TTS. 
+            When configured, all calls will use ElevenLabs automatically. Twilio TTS is the fallback only.
+          </div>
+        </div>
+        <Field label="ElevenLabs API Key" hint="From elevenlabs.io → Profile → API Keys">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input type="password" value={form.elevenlabs_api_key || ''}
+              onChange={e => { F('elevenlabs_api_key', e.target.value); setElVoices([]); }}
+              placeholder="sk_xxxxxxxxxxxxxxxxxxxxxxxx" style={{ ...iStyle, flex: 1 }} />
+            <button onClick={loadElVoices} disabled={elVoicesLoading}
+              style={{ padding: '10px 16px', borderRadius: 8, background: purple, color: '#fff', border: 'none',
+                cursor: elVoicesLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>
+              {elVoicesLoading ? 'Loading…' : '🔄 Load Voices'}
+            </button>
+          </div>
+          {elVoicesErr && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>⚠ {elVoicesErr}</div>}
+        </Field>
+
+        {elVoices.length > 0 && (
+          <Field label="Voice Selection" hint={`${elVoices.length} voices available`}>
+            <select value={form.elevenlabs_voice_id || ''} onChange={e => { F('elevenlabs_voice_id', e.target.value); setTestAudioUrl(null); }}
+              style={{ ...iStyle, cursor: 'pointer' }}>
+              {elVoices.map(v => (
+                <option key={v.voice_id} value={v.voice_id}>
+                  {v.name}{v.accent ? ` — ${v.accent}` : ''}{v.gender ? ` (${v.gender})` : ''}{v.category === 'premade' ? ' ⭐' : ''}
+                </option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+              <button onClick={testVoice} disabled={testingVoice}
+                style={{ padding: '8px 16px', borderRadius: 8, background: '#F3EFF8', color: purple,
+                  border: `1px solid ${purple}`, cursor: testingVoice ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12 }}>
+                {testingVoice ? '⏳ Generating…' : '▶ Preview Voice'}
+              </button>
+              {testAudioUrl && (
+                <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>✅ Playing audio…</span>
+              )}
+            </div>
+            {testAudioUrl && <audio ref={audioRef} src={testAudioUrl} style={{ display: 'none' }} />}
+          </Field>
+        )}
+
+        {elVoices.length === 0 && !elVoicesLoading && (
+          <div style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', marginTop: 8 }}>
+            Enter your API key above and click "Load Voices" to browse available voices.
+          </div>
+        )}
+      </Section>
+
       {/* Twilio credentials */}
-      <Section title="🔑 Twilio Credentials" hint="From console.twilio.com — Account Info section">
+      <Section title="📞 Twilio Credentials" hint="Required for making and receiving calls — from console.twilio.com">
         <Field label="Account SID" hint="Starts with AC...">
-          <input value={form.twilio_account_sid} onChange={e => F('twilio_account_sid', e.target.value)}
+          <input value={form.twilio_account_sid || ''} onChange={e => F('twilio_account_sid', e.target.value)}
             placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={iStyle} />
         </Field>
         <Field label="Auth Token" hint="Keep this secret">
-          <input type="password" value={form.twilio_auth_token} onChange={e => F('twilio_auth_token', e.target.value)}
+          <input type="password" value={form.twilio_auth_token || ''} onChange={e => F('twilio_auth_token', e.target.value)}
             placeholder="Your Twilio Auth Token" style={iStyle} />
         </Field>
-        <Field label="Twilio Phone Number" hint="In E.164 format, e.g. +61291234567">
-          <input value={form.twilio_phone_number} onChange={e => F('twilio_phone_number', e.target.value)}
+        <Field label="Twilio Phone Number" hint="In E.164 format e.g. +61291234567">
+          <input value={form.twilio_phone_number || ''} onChange={e => F('twilio_phone_number', e.target.value)}
             placeholder="+61291234567" style={iStyle} />
         </Field>
       </Section>
 
-      {/* Voice selection */}
-      <Section title="🎙️ Voice & Personality" hint="How the AI agent sounds and behaves">
-        <Field label="AI Voice">
-          <select value={form.tts_voice} onChange={e => F('tts_voice', e.target.value)} style={{ ...iStyle, cursor: 'pointer' }}>
+      {/* Fallback voice (Twilio) */}
+      <Section title="🔈 Fallback Voice (Twilio TTS)" hint="Used only if ElevenLabs is not configured or fails">
+        <Field label="Twilio Built-in Voice">
+          <select value={form.tts_voice || 'Polly.Joanna-Neural'} onChange={e => F('tts_voice', e.target.value)} style={{ ...iStyle, cursor: 'pointer' }}>
             {TTS_VOICES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
           </select>
         </Field>
-        <Field label="AI Persona" hint="Instructions for how the agent should behave">
-          <textarea value={form.ai_persona} onChange={e => F('ai_persona', e.target.value)}
-            rows={3} style={{ ...iStyle, resize: 'vertical', lineHeight: 1.5 }} />
+      </Section>
+
+      {/* Personality */}
+      <Section title="🤖 Agent Personality" hint="How the AI agent sounds and behaves">
+        <Field label="AI Persona" hint="Instructions for the agent's personality and knowledge">
+          <textarea value={form.ai_persona || ''} onChange={e => F('ai_persona', e.target.value)}
+            rows={4} style={{ ...iStyle, resize: 'vertical', lineHeight: 1.6 }} />
         </Field>
-        <Field label="Inbound Call Greeting" hint="First thing callers hear when they call your number">
-          <textarea value={form.inbound_greeting} onChange={e => F('inbound_greeting', e.target.value)}
+        <Field label="Inbound Greeting" hint="What callers hear when they call your number">
+          <textarea value={form.inbound_greeting || ''} onChange={e => F('inbound_greeting', e.target.value)}
             rows={2} style={{ ...iStyle, resize: 'vertical' }} />
         </Field>
-        <Field label="Outbound Call Opening" hint="How the agent introduces outbound calls">
-          <textarea value={form.outbound_greeting} onChange={e => F('outbound_greeting', e.target.value)}
+        <Field label="Outbound Opening" hint="How the agent introduces outbound calls">
+          <textarea value={form.outbound_greeting || ''} onChange={e => F('outbound_greeting', e.target.value)}
             rows={2} style={{ ...iStyle, resize: 'vertical' }} />
         </Field>
       </Section>
 
-      {/* Inbound URL */}
+      {/* Inbound webhook URL */}
       {inboundUrl && (
-        <Section title="📞 Inbound Call Webhook" hint="Paste this URL into your Twilio phone number settings">
+        <Section title="🔗 Twilio Inbound Webhook URL" hint="Paste this into your Twilio phone number settings">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <code style={{ flex: 1, background: '#F3EFF8', padding: '10px 14px', borderRadius: 8, fontSize: 12, color: '#4B3B6B', wordBreak: 'break-all' }}>
               {inboundUrl}
             </code>
-            <button onClick={() => { navigator.clipboard.writeText(inboundUrl); }}
-              style={{ padding: '10px 14px', borderRadius: 8, background: '#8B6DAF', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            <button onClick={() => navigator.clipboard.writeText(inboundUrl)}
+              style={{ padding: '10px 14px', borderRadius: 8, background: purple, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
               Copy
             </button>
           </div>
           <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
-            In Twilio: Phone Numbers → Manage → Active Numbers → click your number → set "A Call Comes In" Webhook to this URL
+            Twilio → Phone Numbers → Manage → Active Numbers → your number → "A Call Comes In" Webhook → paste URL above
           </div>
         </Section>
       )}
@@ -201,9 +285,8 @@ function SettingsTab() {
       )}
 
       <button onClick={save} disabled={saving} style={{
-        padding: '12px 28px', borderRadius: 10, background: saving ? '#C4B5D9' : '#8B6DAF',
-        color: '#fff', border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
-        fontSize: 14, fontWeight: 700
+        padding: '12px 28px', borderRadius: 10, background: saving ? '#C4B5D9' : purple,
+        color: '#fff', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700
       }}>{saving ? 'Saving…' : 'Save Settings'}</button>
     </div>
   );
