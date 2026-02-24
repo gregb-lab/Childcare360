@@ -57,6 +57,7 @@ export function OwnerPortal() {
   const [ccsData, setCcsData] = useState(null);
   const [showProvision, setShowProvision] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
 
   const runCNSeed = async () => {
@@ -68,6 +69,17 @@ export function OwnerPortal() {
       if (data.ok) load();
     } catch(e) { setSeedResult({ error: e.message }); }
     setSeeding(false);
+  };
+
+  const deleteDemo = async () => {
+    if (!window.confirm('Delete all non-CN demo children?')) return;
+    setDeleting(true);
+    try {
+      const data = await API('/api/children/delete-demo', { method: 'DELETE' });
+      if (data.ok) { setSeedResult({ ok: true, _msg: data.removed + ' demo children removed, ' + data.remaining + ' remaining', kidsAdded: 0, totalChildren: data.remaining, tenantName: '' }); load(); }
+      else setSeedResult({ error: data.error || 'Delete failed' });
+    } catch(e) { setSeedResult({ error: e.message }); }
+    setDeleting(false);
   };
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenantDetail, setTenantDetail] = useState(null);
