@@ -12,7 +12,12 @@ const Database = require('better-sqlite3');
 const { randomUUID } = require('crypto');
 const path = require('path');
 
-const DB_PATH = path.join(process.cwd(), 'data', 'childcare360.db');
+// Match db.js path exactly — use Railway volume mount or local data dir
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? process.env.RAILWAY_VOLUME_MOUNT_PATH
+  : path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'data');
+const DB_PATH = path.join(DATA_DIR, 'childcare360.db');
+console.log('  DB path:', DB_PATH);
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = OFF');
