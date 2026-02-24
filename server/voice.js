@@ -327,6 +327,21 @@ router.get('/debug', requireAuth, requireTenant, (req, res) => {
   });
 });
 
+// ─── FORCE ACTIVE (debug helper) ─────────────────────────────────────────────
+router.post('/force-active', requireAuth, requireTenant, (req, res) => {
+  try {
+    const db = D();
+    const existing = db.prepare('SELECT * FROM voice_settings WHERE tenant_id=?').get(req.tenantId);
+    if (existing) {
+      db.prepare("UPDATE voice_settings SET active=1, updated_at=datetime('now') WHERE tenant_id=?").run(req.tenantId);
+    } else {
+      db.prepare("INSERT INTO voice_settings (id,tenant_id,active,updated_at) VALUES(?,?,1,datetime('now'))").run(uuid(), req.tenantId);
+    }
+    const check = db.prepare('SELECT active FROM voice_settings WHERE tenant_id=?').get(req.tenantId);
+    res.json({ ok: true, active: check?.active });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── INBOUND URL ──────────────────────────────────────────────────────────────
 
 router.get('/inbound-url', requireAuth, requireTenant, (req, res) => {

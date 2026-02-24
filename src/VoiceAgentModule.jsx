@@ -308,6 +308,14 @@ function DebugPanel() {
     setLoading(false);
   };
 
+  const forceActive = async () => {
+    try {
+      const d = await API('/force-active', { method: 'POST', body: JSON.stringify({}) });
+      alert(d.ok ? 'Active set to ON in database. Refresh debug to confirm.' : 'Error: ' + d.error);
+      run();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
   return (
     <div style={{marginTop:16,borderTop:'1px solid #EDE8F4',paddingTop:14}}>
       <button onClick={()=>{setOpen(o=>!o); if(!open) run();}} style={{background:'none',border:'1px solid #DDD6EE',borderRadius:8,padding:'6px 14px',cursor:'pointer',fontSize:12,color:'#8A7F96'}}>
@@ -325,6 +333,7 @@ function DebugPanel() {
             </div>
           ))}
           <button onClick={run} style={{marginTop:8,background:'#313244',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:11,color:'#CDD6F4'}}>↻ Refresh</button>
+          <button onClick={forceActive} style={{marginTop:8,marginLeft:8,background:'#2E7D32',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:11,color:'#fff'}}>⚡ Force Active ON</button>
         </div>
       )}
     </div>
