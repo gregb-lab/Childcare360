@@ -210,6 +210,16 @@ export default function ChildcareRosterApp() {
   
   // ── NQF Learning & Development State ──
   const [nqfChildren, setNqfChildren] = useState(INITIAL_CHILDREN);
+  const [liveChildCount, setLiveChildCount] = useState(null);
+
+  // Fetch live child count for sidebar
+  useEffect(() => {
+    const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+    if (!t || !tid) return;
+    fetch("/api/children/debug-count", {
+      headers: { Authorization: "Bearer " + t, "x-tenant-id": tid, "Content-Type": "application/json" }
+    }).then(r => r.json()).then(d => { if (d.childCount != null) setLiveChildCount(d.childCount); }).catch(() => {});
+  }, []);
   const [observations, setObservations] = useState([]);
   const [dailyPlans, setDailyPlans] = useState([]);
 
@@ -442,7 +452,7 @@ export default function ChildcareRosterApp() {
                 </svg>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.02em" }}>Childcare360</div>
-              <div style={{ fontSize: 11, color: "#A89DB5" }}>v2.1.5</div>
+              <div style={{ fontSize: 11, color: "#A89DB5" }}>v2.1.6</div>
             </div>
           </div>
         </div>
@@ -474,7 +484,7 @@ export default function ChildcareRosterApp() {
                 </span>
               )}
               {item.id === "children" && (
-                <span style={{ marginLeft: "auto", fontSize: 10, color: "#A89DB5", fontFamily: "'DM Sans', sans-serif" }}>{nqfChildren.length}</span>
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "#A89DB5", fontFamily: "'DM Sans', sans-serif" }}>{liveChildCount ?? nqfChildren.length}</span>
               )}
               {item.id === "observations" && observations.filter(o => o.timestamp?.startsWith(new Date().toISOString().split("T")[0])).length > 0 && (
                 <span style={{ marginLeft: "auto", background: "#8B6DAF", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "2px 7px", fontFamily: "'DM Sans', sans-serif" }}>
