@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, mkdirSync } from 'fs';
 import { initDatabase, cleanExpired } from './db.js';
+import { randomUUID as _uuid } from 'crypto';
 import authRoutes from './auth.js';
 import apiRoutes from './api.js';
 import documentRoutes from './documents.js';
@@ -71,16 +72,184 @@ if (process.env.SEED_ON_START === 'true') {
 
 // -- Auto-seed CN data if SEED_CN_ON_START is set --
 if (process.env.SEED_CN_ON_START === 'true') {
-  import('child_process').then(({ execFile }) => {
-    console.log('  [SEED_CN] SEED_CN_ON_START detected - running seed-cn.js...');
-    const seedPath = path.join(__dirname, 'seed-cn.js');
-    const cwd = path.join(__dirname, '..');
-    execFile('node', [seedPath], { cwd }, (err, stdout, stderr) => {
-      if (err) { console.error('  [SEED_CN] Seed failed:', err.message); return; }
-      console.log('  [SEED_CN] Output:\n', stdout);
-      console.log('  [SEED_CN] CN seed complete!');
-    });
-  });
+  setTimeout(() => {
+    try {
+      console.log('  [SEED_CN] Starting inline CN seed...');
+      const db = D();
+
+      // Auto-detect tenant
+      const envTenant = process.env.SEED_TENANT;
+      let TENANT = envTenant || null;
+      if (!TENANT) {
+        const first = db.prepare('SELECT id, name FROM tenants ORDER BY created_at LIMIT 1').get();
+        if (!first) { console.error('  [SEED_CN] No tenant found in DB'); return; }
+        TENANT = first.id;
+      }
+      console.log('  [SEED_CN] Using tenant:', TENANT);
+
+      const ROOMS = [
+        { id: 'cn-sprouts-1',  name: 'Sprouts Room 1',  age_group: '0-2', capacity: 8  },
+        { id: 'cn-sprouts-2',  name: 'Sprouts Room 2',  age_group: '0-2', capacity: 12 },
+        { id: 'cn-buds-1',     name: 'Buds Room 1',     age_group: '2-3', capacity: 15 },
+        { id: 'cn-buds-2',     name: 'Buds Room 2',     age_group: '2-3', capacity: 10 },
+        { id: 'cn-blossoms-1', name: 'Blossoms Room 1', age_group: '3-4', capacity: 10 },
+        { id: 'cn-blossoms-2', name: 'Blossoms Room 2', age_group: '3-4', capacity: 15 },
+        { id: 'cn-oaks-1',     name: 'Oaks Room 1',     age_group: '4-5', capacity: 20 },
+      ];
+      let roomsAdded = 0;
+      for (const r of ROOMS) {
+        const ex = db.prepare('SELECT id FROM rooms WHERE id=? OR (tenant_id=? AND name=?)').get(r.id, TENANT, r.name);
+        if (!ex) { db.prepare('INSERT OR IGNORE INTO rooms (id,tenant_id,name,age_group,capacity) VALUES(?,?,?,?,?)').run(r.id, TENANT, r.name, r.age_group, r.capacity); roomsAdded++; }
+      }
+      console.log('  [SEED_CN] Rooms added:', roomsAdded);
+
+      const CHILDREN = [
+        {fn:'Luke',ln:'Patel',dob:'2025-02-18',room:'cn-sprouts-1',parent:'Jasmine Patel',phone:'',email:'akkari.jasmine@gmail.com',days:'Mon,Tue,Wed',notes:''},
+        {fn:'Darcie',ln:'Ravenall',dob:'2025-04-09',room:'cn-sprouts-1',parent:'Victoria Ravenall',phone:'',email:'vmbrown91@gmail.com',days:'Mon,Wed,Thu',notes:''},
+        {fn:'Johnny',ln:'Koutsoufis',dob:'2025-02-27',room:'cn-sprouts-1',parent:'Katie Sofatzis',phone:'0424442704',email:'k.sofatzis@hotmail.com',days:'Tue,Wed',notes:''},
+        {fn:'Apostolos',ln:'Toumbelekis',dob:'2024-12-24',room:'cn-sprouts-1',parent:'Danielle Toumbelekis',phone:'0408337751',email:'danicons.777@gmail.com',days:'Tue,Wed,Thu',notes:'No CRN'},
+        {fn:'Noah',ln:'Egan',dob:'2025-05-31',room:'cn-sprouts-1',parent:'Ivana Egan',phone:'0422858359',email:'',days:'Mon,Fri',notes:''},
+        {fn:'Chris',ln:'Christofi',dob:'2025-04-15',room:'cn-sprouts-1',parent:'Jessica Christofi',phone:'0452557225',email:'jessicarizzo03@yahoo.com',days:'Mon,Tue',notes:''},
+        {fn:'Frank',ln:'Piperides',dob:'2025-05-27',room:'cn-sprouts-1',parent:'Tracey Piperides',phone:'0452187887',email:'Tracey.piperides@gmail.com',days:'Mon,Thu',notes:''},
+        {fn:'Matteo',ln:'Macander',dob:'2025-02-20',room:'cn-sprouts-1',parent:'Clair Macander',phone:'0424163670',email:'clairgoldie@gmail.com',days:'Mon,Fri',notes:''},
+        {fn:'Riley',ln:'Coppini',dob:'2025-05-14',room:'cn-sprouts-1',parent:'Emma Coppini',phone:'0452339240',email:'coppinijemma@gmail.com',days:'Tue,Wed,Thu',notes:''},
+        {fn:'Joy',ln:'Guirguis',dob:'2025-06-04',room:'cn-sprouts-1',parent:'Mary Guirguis',phone:'0422438823',email:'Guirguis2311@gmail.com',days:'Mon,Thu',notes:''},
+        {fn:'Levi',ln:'Po',dob:'2025-01-17',room:'cn-sprouts-1',parent:'Thuy Po',phone:'0433421651',email:'Thuy.le_@live.com',days:'Thu,Fri',notes:''},
+        {fn:'Leon',ln:'Ianni',dob:'2024-10-31',room:'cn-sprouts-1',parent:'Sally Ianni',phone:'',email:'sally.elazzi4@det.nsw.edu.au',days:'Mon,Thu,Fri',notes:''},
+        {fn:'Chelsea',ln:'Lam',dob:'2024-06-18',room:'cn-sprouts-1',parent:'Michelle Nguyen',phone:'0404193048',email:'M.vynguyen@gmail.com',days:'Tue,Wed,Thu',notes:''},
+        {fn:'Matteo',ln:'Belviso',dob:'2024-09-10',room:'cn-sprouts-2',parent:'Brianna Belviso',phone:'',email:'',days:'Tue,Wed',notes:''},
+        {fn:'Ciara',ln:'Tonks',dob:'2024-08-13',room:'cn-sprouts-2',parent:'Aoife Tonks',phone:'0406279123',email:'',days:'Mon,Wed,Thu',notes:''},
+        {fn:'Landon',ln:'Zanella',dob:'2025-07-01',room:'cn-sprouts-2',parent:'Samantha Zanella',phone:'0435735428',email:'',days:'Fri',notes:''},
+        {fn:'Darcy',ln:'Sweeting',dob:'2024-05-27',room:'cn-sprouts-2',parent:'Christina Sweeting',phone:'',email:'',days:'Mon,Tue,Wed,Fri',notes:''},
+        {fn:'Mathias',ln:'Cosman',dob:'2025-07-27',room:'cn-sprouts-2',parent:'Marena Cosman',phone:'0433677290',email:'marenamike@gmail.com',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Madeline',ln:'Knevett',dob:'2024-08-28',room:'cn-sprouts-2',parent:'',phone:'',email:'',days:'Wed,Thu',notes:''},
+        {fn:'Arya',ln:'Sanjeevee',dob:'2024-07-09',room:'cn-sprouts-2',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu',notes:''},
+        {fn:'Taym',ln:'Albassit',dob:'2024-12-20',room:'cn-sprouts-2',parent:'Renee Albassit',phone:'0449970385',email:'reneealbassit@gmail.com',days:'Tue,Wed,Thu,Fri',notes:'Sibling: Haayah'},
+        {fn:'Evie',ln:'Kete',dob:'2024-07-20',room:'cn-sprouts-2',parent:'Beatrice Kete',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Edmund',ln:'Foote',dob:'2024-08-08',room:'cn-sprouts-2',parent:'Liz Foote',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Ariana',ln:'Da Silva',dob:'2024-09-09',room:'cn-sprouts-2',parent:'Krissi Matakakis',phone:'0433402461',email:'Krissimatakakis@gmail.com',days:'Thu,Fri',notes:''},
+        {fn:'Luna',ln:'Salameh',dob:'2024-06-24',room:'cn-sprouts-2',parent:'Soukania Salameh',phone:'',email:'',days:'Tue,Fri',notes:''},
+        {fn:'Penelope',ln:'Cooke',dob:'2024-04-05',room:'cn-sprouts-2',parent:'Jessica Debattista',phone:'0422709504',email:'jessica.debattista@outlook.com',days:'Mon,Tue,Fri',notes:''},
+        {fn:'Joaquin',ln:'Arce',dob:'2024-07-08',room:'cn-sprouts-2',parent:'Frances Arce',phone:'0452125203',email:'francesjaviera@live.com',days:'Mon,Tue,Wed',notes:''},
+        {fn:'Estella',ln:'Papthanasiou',dob:'2024-05-13',room:'cn-sprouts-2',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:''},
+        {fn:'Zakaria',ln:'Wehbi',dob:'2024-12-10',room:'cn-sprouts-2',parent:'Lamees Moussa',phone:'',email:'lameesmoussa@hotmail.com',days:'Tue,Thu',notes:''},
+        {fn:'Elaria',ln:'Tourany',dob:'2024-09-03',room:'cn-sprouts-2',parent:'Melissa Tourany',phone:'',email:'',days:'Mon,Tue',notes:''},
+        {fn:'Zoe',ln:'Patel',dob:'2023-08-23',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:''},
+        {fn:'Celine',ln:'Nguyen',dob:'2023-08-14',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Zachariah',ln:'Taha',dob:'2024-04-21',room:'cn-buds-1',parent:'Danya Darwiche',phone:'',email:'danyadarwiche@hotmail.com',days:'Tue,Wed',notes:''},
+        {fn:'Elias',ln:'Jalwan',dob:'2023-10-10',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Wed,Thu',notes:''},
+        {fn:'Levi',ln:'Dib',dob:'2023-09-02',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu,Fri',notes:''},
+        {fn:'Norah',ln:'Pak',dob:'2023-09-21',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Wed,Thu',notes:''},
+        {fn:'Jude',ln:'Manoun',dob:'2024-01-03',room:'cn-buds-1',parent:'',phone:'',email:'akaraki@live.com.au',days:'Tue,Wed,Fri',notes:''},
+        {fn:'Anthony',ln:'Alrahil',dob:'2024-03-01',room:'cn-buds-1',parent:'Vivan Alrahil',phone:'0450414429',email:'',days:'Mon,Fri',notes:''},
+        {fn:'Nicolas',ln:'Peet',dob:'2024-01-04',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu',notes:''},
+        {fn:'Ayah',ln:'El-Jamal',dob:'2024-02-03',room:'cn-buds-1',parent:'Christine El-Jamal',phone:'0404038911',email:'h.eljamal@outlook.com',days:'Tue,Wed,Thu',notes:''},
+        {fn:'Dzejla',ln:'Kurtovic',dob:'2024-01-15',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu,Fri',notes:''},
+        {fn:'Idris',ln:'Khadem',dob:'2024-12-07',room:'cn-buds-1',parent:'Randa Khadem',phone:'0414520614',email:'Randa.la.ginge@gmail.com',days:'Tue,Fri',notes:''},
+        {fn:'Natalia',ln:'Azzi',dob:'2024-04-18',room:'cn-buds-1',parent:'Gizelle Azzi',phone:'0498860015',email:'Gizelle.azzi@outlook.com',days:'Tue,Thu',notes:''},
+        {fn:'Javiah',ln:'Caldera',dob:'2023-08-21',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu,Fri',notes:''},
+        {fn:'Nafas',ln:'Joola',dob:'2023-07-11',room:'cn-buds-1',parent:'Naz Mojab',phone:'0450766052',email:'nazaninmojab@gmail.com',days:'Mon,Fri',notes:''},
+        {fn:'Inaya',ln:'Khan',dob:'2023-11-24',room:'cn-buds-1',parent:'Amjad Khan',phone:'0434985112',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Zeinab',ln:'Fares',dob:'2023-12-05',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu',notes:''},
+        {fn:'Penelope',ln:'Sofatzis',dob:'2023-11-14',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:''},
+        {fn:'Aria',ln:'Karavellas',dob:'2023-11-03',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Wed,Thu',notes:''},
+        {fn:'Sophia',ln:'Gallagher',dob:'2023-10-25',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Ali',ln:'Mansour',dob:'2023-09-23',room:'cn-buds-1',parent:'',phone:'',email:'',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Linh',ln:'Nguyen',dob:'2023-08-07',room:'cn-buds-1',parent:'Anna Nguyen',phone:'0450381811',email:'annadaoanh@gmail.com',days:'Mon,Thu,Fri',notes:''},
+        {fn:'Zachariya',ln:'Bazzi',dob:'2023-07-14',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Zion',ln:'Malek',dob:'2023-07-10',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Imogen',ln:'Dignan',dob:'2023-06-29',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Tue,Wed,Thu',notes:''},
+        {fn:'Emrah',ln:'Dautovic',dob:'2023-08-30',room:'cn-buds-2',parent:'Emina Dautovic',phone:'0424059266',email:'',days:'Mon,Wed',notes:''},
+        {fn:'Lukas',ln:'Vidovic',dob:'2024-03-25',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Mon,Wed',notes:''},
+        {fn:'Jamie',ln:'Valiente',dob:'2023-07-26',room:'cn-buds-2',parent:'Tayla Spendlove',phone:'',email:'tayla.spendlove@gmail.com',days:'Tue,Thu',notes:''},
+        {fn:'Nur',ln:'Ozdil',dob:'2024-04-23',room:'cn-buds-2',parent:'Jessica Ozdil',phone:'0406628968',email:'',days:'Mon,Wed',notes:''},
+        {fn:'Carol',ln:'Sorial',dob:'2023-11-07',room:'cn-buds-2',parent:'Youstina Ghaly',phone:'0494165780',email:'youstinaghaly77@gmail.com',days:'Mon,Tue',notes:''},
+        {fn:'Iiyas',ln:'Serinsu',dob:'2023-06-21',room:'cn-buds-2',parent:'Havva Serinsu',phone:'0412894206',email:'havva.m_93@hotmail.com',days:'Wed,Fri',notes:''},
+        {fn:'Bear Saint',ln:'Bechara',dob:'2023-10-02',room:'cn-buds-2',parent:'Kayley Bechara',phone:'',email:'',days:'Mon,Fri',notes:''},
+        {fn:'Jerome',ln:'Ianni',dob:'2023-07-09',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Tue,Thu,Fri',notes:''},
+        {fn:'Ali',ln:'Zoghbi',dob:'2023-07-19',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Thu,Fri',notes:''},
+        {fn:'Poppy',ln:'Carvalho',dob:'2023-07-05',room:'cn-buds-2',parent:'Elena Carvalho',phone:'0423612447',email:'',days:'Thu,Fri',notes:''},
+        {fn:'Austin',ln:'Ardamil',dob:'2023-04-27',room:'cn-buds-2',parent:'Anh Ardamil',phone:'',email:'Ran2504@gmail.com',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'James',ln:'Akkari',dob:'2023-03-27',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Tue',notes:''},
+        {fn:'Liam',ln:'Akkari',dob:'2023-03-27',room:'cn-buds-2',parent:'',phone:'',email:'',days:'Tue',notes:''},
+        {fn:'Haayah',ln:'Albassit',dob:'2023-03-05',room:'cn-buds-2',parent:'Renee Albassit',phone:'0449970385',email:'reneealbassit@gmail.com',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Andrej',ln:'Miloseveski',dob:'2023-03-11',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:'Twin: Tomas'},
+        {fn:'Tomas',ln:'Milosevski',dob:'2023-03-11',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:'Twin: Andrej'},
+        {fn:'Isabella',ln:'Wehbi',dob:'2022-12-08',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu',notes:''},
+        {fn:'Ashton',ln:'Vu',dob:'2022-06-19',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Mason',ln:'Azzi',dob:'2023-02-23',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Thu,Fri',notes:''},
+        {fn:'Louis',ln:'Ngo',dob:'2022-03-28',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Wed,Thu,Fri',notes:''},
+        {fn:'Harper',ln:'Kete',dob:'2022-08-21',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Mylah',ln:'Tourany',dob:'2023-02-10',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Mon,Tue',notes:''},
+        {fn:'Victoria',ln:'Doueihy',dob:'2022-10-12',room:'cn-blossoms-1',parent:'',phone:'',email:'f_fakhoury93@hotmail.com',days:'Tue,Thu,Fri',notes:''},
+        {fn:'Romy',ln:'Alosi',dob:'2022-07-25',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Tue,Wed,Thu',notes:''},
+        {fn:'Anastasia',ln:'Vukotic',dob:'2022-07-28',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Micheal',ln:'Castelao',dob:'2022-10-06',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Tue,Wed,Thu',notes:''},
+        {fn:'Jayda',ln:'Sabido',dob:'2022-08-21',room:'cn-blossoms-1',parent:'',phone:'',email:'',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Darcy',ln:'Cooper',dob:'2022-10-07',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Thu,Fri',notes:''},
+        {fn:'Ibrahim',ln:'Bayrouti',dob:'2022-05-26',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:'Twin: Yousef'},
+        {fn:'Yousef',ln:'Bayrouti',dob:'2022-05-26',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:'Twin: Ibrahim'},
+        {fn:'Catalina',ln:'Duff',dob:'2022-05-07',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Tue',notes:''},
+        {fn:'Athena',ln:'La Greca',dob:'2022-05-24',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Chloe',ln:'Zoobi',dob:'2022-07-31',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Tue,Thu',notes:''},
+        {fn:'Shadi',ln:'Salameh',dob:'2022-07-22',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Tue,Fri',notes:''},
+        {fn:'Mia',ln:'Karabestsos',dob:'2022-12-16',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Thu,Fri',notes:''},
+        {fn:'Leonidas',ln:'Hatzinikitas',dob:'2023-01-09',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:''},
+        {fn:'Nathaniel',ln:'Oxton',dob:'2023-02-22',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu',notes:''},
+        {fn:'Mateo',ln:'Ruz',dob:'2022-11-10',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Tue,Wed',notes:''},
+        {fn:'Isabelle',ln:'Henderson',dob:'2022-09-28',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Mon,Tue,Thu',notes:''},
+        {fn:'Ashton',ln:'Quach',dob:'2022-05-15',room:'cn-blossoms-2',parent:'Pranee Quach',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Xavier',ln:'Morcos',dob:'2022-08-11',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Liyana',ln:'Manoun',dob:'2022-08-23',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Tue,Wed,Fri',notes:''},
+        {fn:'Evelyn',ln:'Hodsoll',dob:'2022-07-18',room:'cn-blossoms-2',parent:'',phone:'',email:'',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Jai',ln:'Patel',dob:'2021-09-13',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed',notes:''},
+        {fn:'Luciano',ln:'Soto',dob:'2021-12-07',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Thu,Fri',notes:''},
+        {fn:'Carter',ln:'Cherrington',dob:'2021-05-31',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu,Fri',notes:''},
+        {fn:'Gabriel',ln:'Bazzi',dob:'2021-04-28',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Wed,Thu',notes:''},
+        {fn:'Alaska',ln:'Carter',dob:'2022-03-17',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu,Fri',notes:''},
+        {fn:'Hudson',ln:'Gallagher',dob:'2021-05-21',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Jordan',ln:'Ayoub',dob:'2021-11-22',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu,Fri',notes:''},
+        {fn:'Anastasia',ln:'Faraj',dob:'2022-05-09',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Audrey',ln:'Buczek',dob:'2021-03-16',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu',notes:''},
+        {fn:'Yaqoub',ln:'Roude',dob:'2021-04-02',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Fri',notes:''},
+        {fn:'Jacob',ln:'Alosi',dob:'2021-04-19',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Tue,Wed,Thu',notes:''},
+        {fn:'Maximus',ln:'Trigas',dob:'2021-06-29',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Selina',ln:'Zoghbi',dob:'2021-05-31',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Adelisa',ln:'Kurtovic',dob:'2021-01-15',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Thu,Fri',notes:''},
+        {fn:'Amelia',ln:'Druce',dob:'2021-08-10',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Wed,Fri',notes:''},
+        {fn:'James',ln:'Peet',dob:'2022-01-17',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu',notes:''},
+        {fn:'Layla',ln:'Fernandes Moniz',dob:'2021-12-03',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:'Twin: Lily'},
+        {fn:'Lily',ln:'Fernandes Moniz',dob:'2021-12-03',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue,Wed,Thu,Fri',notes:'Twin: Layla'},
+        {fn:'Sidra',ln:'Alharbe',dob:'2022-01-09',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Wed,Fri',notes:''},
+        {fn:'Mariano',ln:'Gunua',dob:'2021-06-14',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Tue,Wed',notes:''},
+        {fn:'Venba',ln:'Kannan',dob:'2022-08-04',room:'cn-oaks-1',parent:'Andrea Visca',phone:'0424497509',email:'andreavisca1@gmail.com',days:'Mon,Tue,Wed,Thu,Fri',notes:''},
+        {fn:'Paul',ln:'Abrahim',dob:'2021-07-13',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Tue',notes:''},
+        {fn:'Savion',ln:'Keomoungkhoun',dob:'2021-07-12',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Mon,Wed',notes:''},
+        {fn:'Idris',ln:'Serinsu',dob:'2021-12-08',room:'cn-oaks-1',parent:'Havva Serinsu',phone:'',email:'',days:'Wed,Thu,Fri',notes:''},
+        {fn:'Mariano',ln:'Gunua',dob:'2021-06-14',room:'cn-oaks-1',parent:'',phone:'',email:'',days:'Tue,Wed',notes:''},
+      ];
+
+      let kidsAdded = 0, kidsSkipped = 0, parentsAdded = 0;
+      for (const k of CHILDREN) {
+        if (!k.fn) continue;
+        const ex = db.prepare('SELECT id FROM children WHERE tenant_id=? AND first_name=? AND last_name=?').get(TENANT, k.fn, k.ln||'');
+        if (ex) { kidsSkipped++; continue; }
+        const cid = _uuid();
+        db.prepare('INSERT OR IGNORE INTO children (id,tenant_id,first_name,last_name,dob,room_id,allergies,notes,enrolled_date,active) VALUES(?,?,?,?,?,?,?,?,?,1)')
+          .run(cid, TENANT, k.fn, k.ln||'', k.dob||'2020-01-01', k.room, 'None', [k.notes, k.days ? 'Days: '+k.days : ''].filter(Boolean).join(' | '), '2026-01-27');
+        kidsAdded++;
+        if (k.parent || k.phone || k.email) {
+          db.prepare('INSERT OR IGNORE INTO parent_contacts (id,tenant_id,child_id,name,relationship,email,phone,is_primary,receives_notifications) VALUES(?,?,?,?,?,?,?,1,1)')
+            .run(_uuid(), TENANT, cid, k.parent||'Parent/Guardian', 'parent', k.email||null, k.phone||null);
+          parentsAdded++;
+        }
+      }
+      const total = db.prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(TENANT);
+      console.log('  [SEED_CN] Done! Added:', kidsAdded, 'skipped:', kidsSkipped, 'parents:', parentsAdded, '| Total children now:', total.cnt);
+    } catch(e) {
+      console.error('  [SEED_CN] ERROR:', e.message, e.stack);
+    }
+  }, 3000); // wait 3s for DB to fully init
 }
 
 // ── Express app ──
