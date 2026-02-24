@@ -28,7 +28,7 @@ import waitlistRoutes from './waitlist.js';
 import parentRoutes from './parent.js';
 import aiRoutes from './ai.js';
 import auditRoutes from './audit.js';
-import voiceRoutes, { webhookRouter } from './voice.js';
+import voiceRoutes, { webhookRouter, audioRouter } from './voice.js';
 import { globalAuditMiddleware } from './middleware.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -294,8 +294,10 @@ app.use((req, res, next) => {
 // ── Routes ──
 app.use(globalAuditMiddleware);
 app.use('/auth', authRoutes);
-// Twilio webhooks mounted BEFORE /api auth middleware
+// Twilio webhooks + audio files mounted BEFORE /api auth middleware
+// (Twilio fetches audio files with no auth token)
 app.use('/api/voice/webhook', webhookRouter);
+app.use('/api/voice/audio', audioRouter);
 
 // ── One-shot CN seed endpoint ─────────────────────────────────────────────
 // Hit: GET /admin-seed-cn?token=childcare360seed

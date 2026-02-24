@@ -512,5 +512,18 @@ webhooks.post('/recording/:callId', (req, res) => {
 
 router.use('/webhook', webhooks);
 
+// Separate router for audio — mounted WITHOUT auth so Twilio can fetch files
+import { Router as AudioRouter } from 'express';
+const audioRouter = AudioRouter();
+audioRouter.get('/:filename', (req, res) => {
+  const { filename } = req.params;
+  if (!/^[a-f0-9-]{36}\.mp3$/.test(filename)) return res.status(400).send('Invalid');
+  const fp = join(TTS_CACHE_DIR, filename);
+  if (!existsSync(fp)) return res.status(404).send('Not found');
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  createReadStream(fp).pipe(res);
+});
+
 export default router;
-export { webhooks as webhookRouter };
+export { webhooks as webhookRouter, audioRouter };
