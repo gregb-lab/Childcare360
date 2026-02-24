@@ -62,7 +62,11 @@ export function OwnerPortal() {
   const [seedTenantList, setSeedTenantList] = useState([]);
 
   useEffect(() => {
-    API('/api/platform/tenants').then(r => setSeedTenantList(r.tenants || [])).catch(() => {});
+    API('/api/platform/tenants').then(r => {
+      const list = r.tenants || [];
+      setSeedTenantList(list);
+      if (list.length === 1) setSeedTenant(list[0].id);
+    }).catch(() => {});
   }, []);
 
   const runCNSeed = async () => {
@@ -71,11 +75,7 @@ export function OwnerPortal() {
     if (!window.confirm('Import CN children into "' + (chosen?.name || seedTenant) + '"?\n\nAdds ~127 children across 7 rooms. Safe to re-run.')) return;
     setSeeding(true); setSeedResult(null);
     try {
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
-      const r = await fetch('/run-seed-cn?token=childcare360seed&tenant=' + encodeURIComponent(seedTenant), { headers: { Authorization: 'Bearer ' + token } });
-      const text = await r.text();
-      let data;
-      try { data = JSON.parse(text); } catch(e) { data = { raw: text }; }
+      const data = await API('/run-seed-cn?token=childcare360seed&tenant=' + encodeURIComponent(seedTenant));
       setSeedResult(data);
       if (data.ok) load();
     } catch(e) { setSeedResult({ error: e.message }); }
