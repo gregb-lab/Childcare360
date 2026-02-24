@@ -70,7 +70,7 @@ function SettingsTab() {
     ai_persona: 'You are a friendly, professional assistant for a childcare centre. You help parents with enquiries about enrolment, daily updates, and absences. Always be warm and reassuring.',
     inbound_greeting: 'Hello, thank you for calling. This is the childcare centre AI assistant. How can I help you today?',
     outbound_greeting: "Hello, this is an automated call from your childcare centre. I'm calling regarding your child's enrolment.",
-    active: false,
+    active: true,
     elevenlabs_api_key: '',
     elevenlabs_voice_id: '21m00Tcm4TlvDq8ikWAM',
   });
@@ -124,8 +124,9 @@ function SettingsTab() {
   const save = async () => {
     setSaving(true); setMsg(null);
     try {
-      await API('/settings', { method: 'PUT', body: JSON.stringify(form) });
-      setMsg({ type: 'success', text: 'Settings saved!' });
+      const r = await API('/settings', { method: 'PUT', body: JSON.stringify(form) });
+      if (r.error) { setMsg({ type: 'error', text: 'Save failed: ' + r.error }); }
+      else { setMsg({ type: 'success', text: 'Settings saved!' }); }
     } catch(e) { setMsg({ type: 'error', text: e.message }); }
     setSaving(false);
   };

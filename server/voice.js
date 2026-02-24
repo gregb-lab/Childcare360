@@ -44,7 +44,7 @@ function getSettings(tenantId) {
     ai_persona:          db.ai_persona || 'You are a friendly assistant for a childcare centre.',
     inbound_greeting:    db.inbound_greeting || 'Hello, thank you for calling. How can I help you today?',
     outbound_greeting:   db.outbound_greeting || 'Hello, this is a call from your childcare centre.',
-    active:              db.active ?? 1,
+    active:              db.active != null ? db.active : 1,
   };
 }
 
@@ -437,7 +437,7 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
   res.type('text/xml');
   try {
     const settings = getSettings(tenantId);
-    if (settings?.active === 0 || settings?.active === false) return res.send(twiml('<Say>Thank you for calling. We are unable to take your call right now.</Say><Hangup/>'));
+    const isActive = settings?.active == null || settings?.active === 1 || settings?.active === true; if (!isActive) return res.send(twiml('<Say>Thank you for calling. We are unable to take your call right now.</Say><Hangup/>'));
     const callId = uuid();
     D().prepare(`INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(callId, tenantId, req.body.CallSid, 'inbound', 'in-progress', req.body.From || 'unknown', req.body.To || settings.twilio_phone_number, 'inbound', '[]');
