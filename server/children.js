@@ -5,6 +5,16 @@ import { requireAuth, requireTenant } from './middleware.js';
 const router = Router();
 router.use(requireAuth, requireTenant);
 
+// DEBUG - returns count + tenant info
+router.get('/debug-count', (req, res) => {
+  try {
+    const total = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(req.tenantId);
+    const sample = D().prepare('SELECT first_name, last_name, room_id FROM children WHERE tenant_id=? AND active=1 LIMIT 5').all(req.tenantId);
+    const rooms = D().prepare('SELECT COUNT(*) as cnt FROM rooms WHERE tenant_id=?').get(req.tenantId);
+    res.json({ tenantId: req.tenantId, childCount: total?.cnt, sampleChildren: sample, roomCount: rooms?.cnt });
+  } catch(e) { res.status(500).json({ error: e.message, tenantId: req.tenantId }); }
+});
+
 // GET children (enhanced with compliance counts)
 router.get('/', (req, res) => {
   try {
@@ -21,7 +31,8 @@ router.get('/', (req, res) => {
     `).all(req.tenantId);
     res.json(children);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Children GET]', err.message, 'tenant:', req.tenantId);
+    res.status(500).json({ error: err.message, tenant: req.tenantId });
   }
 });
 
