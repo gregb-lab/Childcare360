@@ -15,9 +15,14 @@
 
 import { Router } from 'express';
 import { D, uuid, auditLog } from './db.js';
+import { requireAuth, requireTenant } from './middleware.js';
 
 const router   = Router(); // authenticated routes (agent management)
 const webhooks = Router(); // Retell webhook (no auth — called by Retell)
+
+// Apply auth to all management routes
+router.use(requireAuth);
+router.use(requireTenant);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

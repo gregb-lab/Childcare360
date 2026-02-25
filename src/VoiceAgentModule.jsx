@@ -19,6 +19,25 @@ const API = async (path, opts = {}) => {
   return res.json();
 };
 
+const RAPI = async (path, opts = {}) => {
+  const token = localStorage.getItem('c360_token');
+  const tenantId = localStorage.getItem('c360_tenant');
+  const res = await fetch(`/api/retell${path}`, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(tenantId ? { 'x-tenant-id': tenantId } : {}),
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Request failed');
+  }
+  return res.json();
+};
+
 const TTS_VOICES = [
   { value: 'alice', label: 'Joanna (Neural) — US Female ⭐ Recommended' },
   { value: 'Polly.Matthew-Neural', label: 'Matthew (Neural) — US Male' },
@@ -134,7 +153,7 @@ function SettingsTab() {
     Promise.all([
       API('/settings').catch(() => ({})),
       API('/inbound-url').catch(() => ({})),
-      API('/retell/llm-url').catch(() => ({})),
+      RAPI('/llm-url').catch(() => ({})),
     ]).then(([s, u, r]) => {
       if (s) setForm(f => ({ ...f, ...s, active: !!s.active, voice_provider: s.voice_provider || 'twilio' }));
       if (u?.url) setInboundUrl(u.url);
@@ -155,7 +174,7 @@ function SettingsTab() {
   const loadRetellStatus = async () => {
     setRetellLoading(true);
     try {
-      const r = await API('/retell/status');
+      const r = await RAPI('/status');
       setRetellStatus(r);
       if (r.phone_numbers?.length) setRetellPhoneNumbers(r.phone_numbers);
     } catch(e) { console.error('Retell status:', e); }
@@ -174,7 +193,7 @@ function SettingsTab() {
   const createRetellAgent = async () => {
     setCreatingAgent(true); setRetellMsg(null);
     try {
-      const r = await API('/retell/agent', { method: 'POST', body: JSON.stringify({
+      const r = await RAPI('/agent', { method: 'POST', body: JSON.stringify({
         voice_id: form.retell_voice_id,
         voice_model: form.elevenlabs_model,
         responsiveness: 1,
@@ -192,7 +211,7 @@ function SettingsTab() {
   const linkRetellNumber = async (phoneNumberId) => {
     setLinkingNumber(true); setRetellMsg(null);
     try {
-      const r = await API('/retell/link-number', { method: 'POST', body: JSON.stringify({ phone_number_id: phoneNumberId }) });
+      const r = await RAPI('/link-number', { method: 'POST', body: JSON.stringify({ phone_number_id: phoneNumberId }) });
       if (r.ok) { setRetellMsg({ type: 'success', text: 'Phone number linked to agent!' }); F('retell_phone_number_id', phoneNumberId); loadRetellStatus(); }
       else setRetellMsg({ type: 'error', text: r.error });
     } catch(e) { setRetellMsg({ type: 'error', text: e.message }); }
@@ -202,7 +221,7 @@ function SettingsTab() {
   const testRetellCall = async () => {
     setTestingRetell(true); setRetellMsg(null);
     try {
-      const r = await API('/retell/test-call', { method: 'POST', body: JSON.stringify({}) });
+      const r = await RAPI('/test-call', { method: 'POST', body: JSON.stringify({}) });
       if (r.ok) setRetellMsg({ type: 'success', text: `Test call initiated! Call ID: ${r.call_id}` });
       else setRetellMsg({ type: 'error', text: r.error });
     } catch(e) { setRetellMsg({ type: 'error', text: e.message }); }
