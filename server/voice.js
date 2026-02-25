@@ -632,7 +632,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
       "can't come in","cannot come in","won't be in","wont be in",'calling in sick',
       'report sick','cancel my shift','cancel shift','miss my shift','off sick',
       'feeling sick','feel sick','not going to make it'];
-    const confirmYes = ['yes','yeah','yep','correct','that is','that's it','that's the one','right','confirm','yup','affirmative'];
+    const confirmYes = ['yes','yeah','yep','correct','that is',"that's it","that's the one",'right','confirm','yup','affirmative'];
     const confirmNo  = ['no','nope','wrong','not that one','different','another','not right'];
 
     const isSickCall  = !ctx.pendingShiftConfirm && sickKeywords.some(k => speech.includes(k));
