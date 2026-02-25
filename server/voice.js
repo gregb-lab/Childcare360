@@ -141,20 +141,54 @@ function setStatus(callId, status, extra = {}) {
 
 async function askClaude(transcript, systemPrompt, context) {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return "I'm sorry, the AI system is not available right now.";
-  const messages = transcript.map(t => ({ role: t.role === 'assistant' ? 'assistant' : 'user', content: t.content }));
-  if (!messages.length) return null;
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 150,
-      system: `${systemPrompt}\n\nContext: ${context || 'General childcare enquiry.'}\n\nYou are on a live phone call. Keep responses under 2 sentences. Be warm and natural. No lists or bullet points.`,
-      messages
-    })
-  });
-  const d = await r.json();
-  return d.content?.[0]?.text || "I'm sorry, I didn't catch that. Could you repeat?";
+  if (!key) { console.error('[Claude] ANTHROPIC_API_KEY not set'); return "I'm sorry, the AI system is not available right now. Please call back during business hours."; }
+
+  // Build messages — Claude requires first message is role:user
+  // Filter out _context entries, then ensure we start with a user turn
+  let messages = transcript
+    .filter(t => t.role !== '_context')
+    .map(t => ({ role: t.role === 'assistant' ? 'assistant' : 'user', content: t.content || '' }))
+    .filter(t => t.content.trim());
+
+  // Strip leading assistant turns (Claude API rejects these)
+  while (messages.length && messages[0].role === 'assistant') messages.shift();
+
+  // Merge consecutive same-role messages (Claude also rejects these)
+  const merged = [];
+  for (const m of messages) {
+    if (merged.length && merged[merged.length - 1].role === m.role) {
+      merged[merged.length - 1].content += ' ' + m.content;
+    } else {
+      merged.push({ ...m });
+    }
+  }
+
+  if (!merged.length) { console.error('[Claude] No valid messages after normalisation'); return null; }
+
+  console.log(`[Claude] Sending ${merged.length} messages to Claude. First role: ${merged[0].role}`);
+
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+        system: `${systemPrompt}\n\nContext: ${context || 'General childcare centre enquiry.'}\n\nYou are on a live phone call. Keep responses short — 1 to 2 sentences maximum. Be warm and natural. No lists, no bullet points, no markdown.`,
+        messages: merged
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      console.error('[Claude] API error:', JSON.stringify(d).slice(0, 300));
+      return "I'm sorry, I had a technical problem. Could you please repeat that?";
+    }
+    const text = d.content?.[0]?.text;
+    if (!text) { console.error('[Claude] Empty response:', JSON.stringify(d).slice(0, 200)); return "I'm sorry, I didn't quite catch that. Could you say that again?"; }
+    return text;
+  } catch(e) {
+    console.error('[Claude] Fetch exception:', e.message);
+    return "I'm sorry, I'm having trouble connecting right now. Please try again.";
+  }
 }
 
 // ─── AUDIO FILE SERVING ───────────────────────────────────────────────────────
@@ -439,7 +473,7 @@ webhooks.post('/answer/:callId', async (req, res) => {
 webhooks.post('/gather/:callId', async (req, res) => {
   const { callId } = req.params;
   const speechResult = req.body.SpeechResult || '';
-  console.log(`[Voice:gather] callId=${callId} speech="${speechResult.slice(0,80)}"`);
+  console.log(`[Voice:gather] callId=${callId} speech="${speechResult.slice(0,100)}"`);
   res.type('text/xml');
   try {
     const call = D().prepare('SELECT * FROM voice_calls WHERE id=?').get(callId);
@@ -449,42 +483,144 @@ webhooks.post('/gather/:callId', async (req, res) => {
     const gatherUrl = `${base}/api/voice/webhook/gather/${callId}`;
 
     if (!speechResult) {
-      console.log('[Voice:gather] no speech result — re-prompting');
       return res.send(twiml(
         (await gatherWith(gatherUrl, "I'm sorry, I couldn't hear you. Could you please speak again?", settings)) + '<Hangup/>'
       ));
     }
 
-    saveTurn(callId, 'user', speechResult);
+    // Parse context stored in voice_calls.transcript
+    let ctx = {};
+    try {
+      const ctxTurn = JSON.parse(call.transcript || '[]').find(t => t.role === '_context');
+      if (ctxTurn) ctx = JSON.parse(ctxTurn.content);
+    } catch(e) {}
 
-    if (['bye','goodbye','thanks bye','no thank you','that\'s all'].some(p => speechResult.toLowerCase().includes(p))) {
-      const farewell = "Thank you for your time. Have a wonderful day. Goodbye!";
+    saveTurn(callId, 'user', speechResult);
+    const speech = speechResult.toLowerCase();
+
+    // ── Farewell ────────────────────────────────────────────────────────────────
+    if (['bye','goodbye','thanks bye','no thank you',"that's all",'all done','nothing else'].some(p => speech.includes(p))) {
+      const farewell = "Thank you for calling. Take care and feel better soon. Goodbye!";
       saveTurn(callId, 'assistant', farewell);
       setStatus(callId, 'completed', { outcome: 'completed_naturally' });
       return res.send(twiml((await speak(farewell, settings)) + '<Hangup/>'));
     }
 
-    let contextStr = '';
-    try { const ctx = JSON.parse(call.transcript || '[]').find(t => t.role === '_context'); if (ctx) contextStr = ctx.content; } catch(e) {}
+    // ── SICK CALL DETECTION ─────────────────────────────────────────────────────
+    const sickKeywords = ['sick','unwell','not well','not feeling well','not coming in',"can't come in","cannot come in","won't be in","wont be in",'calling in sick','report sick','cancel my shift','cancel shift','miss my shift'];
+    const isSickCall = sickKeywords.some(k => speech.includes(k));
 
-    console.log('[Voice:gather] calling Claude AI...');
-    const aiResponse = await askClaude(getTranscript(callId), settings?.ai_persona || 'You are a friendly assistant for a childcare centre.', contextStr);
-    console.log(`[Voice:gather] Claude responded: "${aiResponse?.slice(0,100)}"`);
+    if (isSickCall) {
+      console.log(`[Voice:gather] SICK CALL DETECTED educatorId=${ctx.educatorId}`);
+
+      // Unknown caller — ask for name
+      if (!ctx.educatorId) {
+        const ask = "I'm sorry to hear that. Could you please tell me your name and which shift you need to cancel?";
+        saveTurn(callId, 'assistant', ask);
+        ctx.sickCallDetected = true;
+        D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
+          .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+      }
+
+      // Known caller — find their next shift today or tomorrow
+      const today = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const shift = D().prepare(`
+        SELECT re.*, r.name as room_name
+        FROM roster_entries re LEFT JOIN rooms r ON r.id = re.room_id
+        WHERE re.educator_id=? AND re.tenant_id=? AND re.date IN (?,?)
+        AND re.status NOT IN ('cancelled','unfilled')
+        ORDER BY re.date ASC, re.start_time ASC LIMIT 1
+      `).get(ctx.educatorId, call.tenant_id, today, tomorrow);
+
+      const fmtT = t => { const [h,m] = t.split(':').map(Number); const ap=h<12?'AM':'PM'; const h12=h%12||12; return m?`${h12}:${String(m).padStart(2,'0')} ${ap}`:`${h12} ${ap}`; };
+
+      if (!shift) {
+        const reply = `Got it ${ctx.educatorName || 'there'}, I've noted you're unwell today. There's no shift showing for you today or tomorrow so I'll let management know you called. Feel better soon!`;
+        saveTurn(callId, 'assistant', reply);
+        setStatus(callId, 'completed', { outcome: 'sick_call_no_shift' });
+        const absId = uuid();
+        D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
+          .run(absId, call.tenant_id, ctx.educatorId, today, 'sick', 'Called in sick via voice agent - no shift found', 0, 'phone');
+        D().prepare("UPDATE voice_calls SET purpose='sick_call', outcome='noted_no_shift' WHERE id=?").run(callId);
+        return res.send(twiml((await speak(reply, settings)) + '<Hangup/>'));
+      }
+
+      const dateLabel = shift.date === today ? 'today' : 'tomorrow';
+      const confirmMsg = `Got it ${ctx.educatorName}, I've recorded your sick day and I'm now calling available educators to cover your ${shift.room_name} shift ${dateLabel} from ${fmtT(shift.start_time)} to ${fmtT(shift.end_time)}. Feel better soon, goodbye!`;
+      saveTurn(callId, 'assistant', confirmMsg);
+      setStatus(callId, 'completed', { outcome: 'sick_call_processed' });
+      D().prepare("UPDATE voice_calls SET purpose='sick_call' WHERE id=?").run(callId);
+
+      // Process shift replacement in background — respond to Twilio first
+      const tenantId = call.tenant_id;
+      const educatorId = ctx.educatorId;
+      setImmediate(async () => {
+        try {
+          const shiftDate = new Date(shift.date + 'T12:00:00');
+          const dayOfWeek = shiftDate.getDay();
+          const qualOrder = ['ect','diploma','cert3','working_towards'];
+          const reqQualIdx = qualOrder.indexOf(shift.qualification_required || 'cert3');
+
+          const absId = uuid();
+          D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
+            .run(absId, tenantId, educatorId, shift.date, 'sick', 'Called in sick via voice agent', 0, 'phone');
+          D().prepare("UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime('now') WHERE id=?").run(educatorId);
+          D().prepare("UPDATE roster_entries SET status='unfilled', notes='Educator called in sick via voice agent', updated_at=datetime('now') WHERE id=?").run(shift.id);
+
+          const candidates = D().prepare(`
+            SELECT e.* FROM educators e JOIN educator_availability ea ON ea.educator_id=e.id
+            WHERE e.tenant_id=? AND e.status='active' AND e.id!=? AND ea.day_of_week=? AND ea.available=1
+            AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date=? AND tenant_id=?)
+            ORDER BY e.reliability_score DESC, e.distance_km ASC
+          `).all(tenantId, educatorId, dayOfWeek, shift.date, tenantId)
+            .filter(c => qualOrder.indexOf(c.qualification) <= reqQualIdx).slice(0, 10);
+
+          if (!candidates.length) { console.log('[Voice:gather] Sick call — no eligible candidates'); return; }
+
+          const fillId = uuid();
+          D().prepare(`INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+            .run(fillId, tenantId, absId, educatorId, shift.id, shift.room_id, shift.date, shift.start_time, shift.end_time, shift.qualification_required, 'open', 1);
+          candidates.forEach(c => D().prepare('INSERT INTO shift_fill_attempts (id,request_id,educator_id,contact_method,status) VALUES(?,?,?,?,?)').run(uuid(), fillId, c.id, 'call', 'queued'));
+
+          const { startShiftFillCalls } = await import('./shift-voice.js');
+          await startShiftFillCalls(tenantId, fillId);
+        } catch(err) {
+          console.error('[Voice:gather] Sick call background error:', err.message);
+        }
+      });
+
+      return res.send(twiml((await speak(confirmMsg, settings)) + '<Hangup/>'));
+    }
+
+    // ── General AI conversation ─────────────────────────────────────────────────
+    const tenantName = ctx.tenantName || 'the childcare centre';
+    const persona = settings?.ai_persona ||
+      `You are a friendly AI assistant for ${tenantName}. Help with general enquiries. If someone is calling about a sick day or shift cancellation, acknowledge it warmly. Keep responses to 1-2 sentences maximum.`;
+
+    const aiResponse = await askClaude(getTranscript(callId), persona, JSON.stringify(ctx));
+    if (!aiResponse) {
+      const fallback = "I'm sorry, I'm having a little trouble understanding. Could you say that again?";
+      saveTurn(callId, 'assistant', fallback);
+      return res.send(twiml((await gatherWith(gatherUrl, fallback, settings)) + '<Hangup/>'));
+    }
+    console.log(`[Voice:gather] Claude: "${aiResponse.slice(0, 100)}"`);
     saveTurn(callId, 'assistant', aiResponse);
 
-    if (['goodbye','have a great day','take care','have a wonderful day'].some(p => aiResponse.toLowerCase().includes(p))) {
+    if (['goodbye','have a great day','take care','have a wonderful day','feel better'].some(p => aiResponse.toLowerCase().includes(p))) {
       setStatus(callId, 'completed', { outcome: 'completed_naturally' });
       return res.send(twiml((await speak(aiResponse, settings)) + '<Hangup/>'));
     }
 
     res.send(twiml(
       (await gatherWith(gatherUrl, aiResponse, settings)) +
-      (await speak("I didn't catch that. Is there anything else I can help you with?", settings)) +
+      (await speak("Is there anything else I can help you with?", settings)) +
       `<Redirect method="POST">${gatherUrl}</Redirect>`
     ));
   } catch(e) {
-    console.error('[Voice:gather] EXCEPTION:', e.message, e.stack?.slice(0,300));
-    res.send(twiml('<Say>I\'m sorry, I had a technical issue. Please call back and I\'ll be happy to help.</Say><Hangup/>'));
+    console.error('[Voice:gather] EXCEPTION:', e.message, e.stack?.slice(0,400));
+    try { res.send(twiml('<Say>I\'m sorry, I had a technical issue. Please call back and I\'ll be happy to help.</Say><Hangup/>')); } catch(re) {}
   }
 });
 
@@ -497,18 +633,41 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
     console.log(`[Voice:inbound] active=${settings?.active} twilio=${!!settings?.twilio_account_sid} el=${!!settings?.elevenlabs_api_key}`);
     const isActive = settings?.active == null || settings?.active === 1 || settings?.active === true;
     if (!isActive) { console.log('[Voice:inbound] BLOCKED — agent not active'); return res.send(twiml('<Say>Thank you for calling. We are unable to take your call right now.</Say><Hangup/>')); }
+
     const callId = uuid();
+    const callerNumber = req.body.From || 'unknown';
+
+    // Try to identify the caller as an educator
+    const educator = callerNumber !== 'unknown'
+      ? D().prepare("SELECT id, first_name, last_name FROM educators WHERE tenant_id=? AND phone LIKE ?")
+          .get(tenantId, `%${callerNumber.replace(/^\+61/, '0').replace(/\s/g, '')}%`)
+      : null;
+
+    const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(tenantId)?.name || 'the centre';
+
     D().prepare(`INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
-      .run(callId, tenantId, req.body.CallSid, 'inbound', 'in-progress', req.body.From || 'unknown', req.body.To || settings.twilio_phone_number, 'inbound', '[]');
-    const greeting = settings.inbound_greeting || 'Hello, thank you for calling. How can I help you today?';
-    saveTurn(callId, 'assistant', greeting);
+      .run(callId, tenantId, req.body.CallSid, 'inbound', 'in-progress', callerNumber,
+           req.body.To || settings.twilio_phone_number, 'inbound', '[]');
+
+    // Store context in call record (not as a turn — keeps Claude messages clean)
+    const ctx = { tenantId, callerNumber, educatorId: educator?.id || null, educatorName: educator ? educator.first_name : null, tenantName };
+    D().prepare("UPDATE voice_calls SET transcript=? WHERE id=?")
+      .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
+
+    const personalGreeting = educator
+      ? `Hi ${educator.first_name}, this is the AI assistant at ${tenantName}. How can I help you today?`
+      : `Hi, thank you for calling ${tenantName}. This is an AI assistant. How can I help you today?`;
+
+    // NOTE: Do NOT saveTurn for the greeting — it would make Claude's first message 'assistant'
+    // which the API rejects. The greeting is context-only.
     const base = getBase();
     res.send(twiml(
-      (await gatherWith(`${base}/api/voice/webhook/gather/${callId}`, greeting, settings)) +
-      (await speak("I'm sorry, I didn't catch that. Please call back during business hours.", settings)) + '<Hangup/>'
+      (await gatherWith(`${base}/api/voice/webhook/gather/${callId}`, personalGreeting, settings)) +
+      (await speak("I'm sorry, I didn't catch that. Please call back if you need assistance.", settings)) +
+      '<Hangup/>'
     ));
   } catch(e) {
-    console.error('[Voice] Inbound error:', e.message);
+    console.error('[Voice] Inbound error:', e.message, e.stack?.slice(0, 200));
     res.send(twiml('<Say>Thank you for calling. Please try again shortly.</Say><Hangup/>'));
   }
 });
