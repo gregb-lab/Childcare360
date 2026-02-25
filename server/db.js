@@ -1146,6 +1146,14 @@ export function initDatabase() {
     'ALTER TABLE children ADD COLUMN cultural_background TEXT',
     'ALTER TABLE children ADD COLUMN home_language TEXT',
     'ALTER TABLE educators ADD COLUMN hourly_rate_dollars REAL DEFAULT 0',
+    'ALTER TABLE educators ADD COLUMN dob TEXT',
+    'ALTER TABLE educators ADD COLUMN role_title TEXT',
+    'ALTER TABLE educators ADD COLUMN is_responsible_person INTEGER DEFAULT 0',
+    'ALTER TABLE educators ADD COLUMN food_safety_supervisor INTEGER DEFAULT 0',
+    'ALTER TABLE educators ADD COLUMN child_protection_date TEXT',
+    'ALTER TABLE educators ADD COLUMN child_protection_expiry TEXT',
+    'ALTER TABLE educators ADD COLUMN anaphylaxis_expiry TEXT',
+    'ALTER TABLE educators ADD COLUMN asthma_expiry TEXT',
   ];
   alters.forEach(sql => { try { db.exec(sql); } catch(e) {} });
 

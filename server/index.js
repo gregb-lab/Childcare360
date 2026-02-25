@@ -504,6 +504,276 @@ app.use('/api/settings', settingsRoutes);
 
 // ── Health check ──
 
+// ── Seed real CN educators (replaces demo educators for the target tenant)
+// Hit: GET /run-seed-educators?token=childcare360seed
+app.get('/run-seed-educators', (req, res) => {
+  const token = process.env.SEED_TOKEN || 'childcare360seed';
+  if (req.query.token !== token) return res.status(403).json({ error: 'Invalid token' });
+  try {
+    const db = _D();
+    const allTenants = db.prepare('SELECT id, name FROM tenants ORDER BY created_at ASC').all();
+    const first = allTenants.find(t => !t.id.startsWith('demo-')) || allTenants[0];
+    if (!first) return res.status(500).json({ error: 'No tenant found' });
+    const TENANT = req.query.tenant || process.env.SEED_TENANT || first.id;
+
+    // ── Rooms (same IDs as children seed - ensure they exist) ──────────────────
+    const ROOMS = [
+      { id: 'cn-sprouts-1',  name: 'Sprouts Room 1',  age_group: '0-2', capacity: 8  },
+      { id: 'cn-sprouts-2',  name: 'Sprouts Room 2',  age_group: '0-2', capacity: 12 },
+      { id: 'cn-buds-1',     name: 'Buds Room 1',     age_group: '2-3', capacity: 15 },
+      { id: 'cn-buds-2',     name: 'Buds Room 2',     age_group: '2-3', capacity: 10 },
+      { id: 'cn-blossoms-1', name: 'Blossoms Room 1', age_group: '3-4', capacity: 10 },
+      { id: 'cn-blossoms-2', name: 'Blossoms Room 2', age_group: '3-4', capacity: 15 },
+      { id: 'cn-oaks-1',     name: 'Oaks Room 1',     age_group: '4-5', capacity: 20 },
+    ];
+    for (const r of ROOMS) {
+      db.prepare('INSERT OR IGNORE INTO rooms (id,tenant_id,name,age_group,capacity) VALUES(?,?,?,?,?)').run(r.id, TENANT, r.name, r.age_group, r.capacity);
+    }
+
+    // ── Delete demo educators for this tenant ──────────────────────────────────
+    const existingEds = db.prepare('SELECT id FROM educators WHERE tenant_id=?').all(TENANT);
+    existingEds.forEach(e => {
+      db.prepare('DELETE FROM educator_availability WHERE educator_id=?').run(e.id);
+      db.prepare('DELETE FROM educator_absences WHERE educator_id=?').run(e.id);
+      db.prepare('DELETE FROM shift_fill_attempts WHERE educator_id=?').run(e.id);
+      db.prepare('DELETE FROM roster_entries WHERE educator_id=? AND tenant_id=?').run(e.id, TENANT);
+    });
+    db.prepare('DELETE FROM educators WHERE tenant_id=?').run(TENANT);
+
+    // ── Real educators from compliance spreadsheet ─────────────────────────────
+    // Rooms shorthand: 0-2 = sprouts, 2-3 = buds, 3-4 = blossoms, 3-5 = blossoms+oaks, 4-5 = oaks, all = all
+    const ALL = JSON.stringify(['cn-sprouts-1','cn-sprouts-2','cn-buds-1','cn-buds-2','cn-blossoms-1','cn-blossoms-2','cn-oaks-1']);
+    const S   = JSON.stringify(['cn-sprouts-1','cn-sprouts-2']);                       // 0-2
+    const B   = JSON.stringify(['cn-buds-1','cn-buds-2']);                             // 2-3
+    const BL  = JSON.stringify(['cn-blossoms-1','cn-blossoms-2']);                     // 3-4
+    const OAK = JSON.stringify(['cn-oaks-1']);                                         // 4-5
+    const BLO = JSON.stringify(['cn-blossoms-1','cn-blossoms-2','cn-oaks-1']);         // 3-5
+
+    // Fields: fn, ln, dob, role, qual, responsible, food_safety, wwcc, wwcc_exp,
+    //         fa (bool), fa_exp, cpr_exp, cp_date, emp, hrs, rooms, notes
+    const EDUCATORS = [
+      {
+        fn:'Eddie', ln:'Biyik', dob:'1962-12-29',
+        role:'Approved Provider', qual:'ect', responsible:1, food_safety:0,
+        wwcc:null, wwcc_exp:null,
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'permanent', hrs:38, rooms:ALL, notes:'Approved Provider',
+      },
+      {
+        fn:'Esra', ln:'Biyik', dob:'1994-11-22',
+        role:'Operations Manager', qual:'diploma', responsible:1, food_safety:0,
+        wwcc:'WWC1555153E', wwcc_exp:'2028-01-12',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2025-08-11', cp_date:'2024-05-28',
+        emp:'permanent', hrs:38, rooms:ALL, notes:'Operations Manager, Diploma Qualified, Speech Pathologist',
+      },
+      {
+        fn:'Rebecca', ln:'Hazle', dob:'1981-01-03',
+        role:'Nominated Supervisor', qual:'diploma', responsible:1, food_safety:1,
+        wwcc:'WWC2501339E', wwcc_exp:'2027-07-27',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2026-08-07', cp_date:'2025-08-13',
+        emp:'permanent', hrs:38, rooms:ALL, notes:'Nominated Supervisor, Diploma Qualified, Food Safety Supervisor',
+      },
+      {
+        fn:'Andrea', ln:'Godoy', dob:'1991-12-20',
+        role:'Operations Manager', qual:'ect', responsible:1, food_safety:0,
+        wwcc:'WWC2234628E', wwcc_exp:'2027-03-08',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2026-08-07', cp_date:'2025-06-16',
+        emp:'permanent', hrs:38, rooms:ALL, notes:'Operations Manager, Early Childhood Teacher',
+      },
+      {
+        fn:'Maria', ln:'Guzman', dob:'1984-09-08',
+        role:'Early Childhood Teacher', qual:'ect', responsible:1, food_safety:0,
+        wwcc:'WWC0298543E', wwcc_exp:'2029-03-19',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2025-08-11', cp_date:'2025-06-18',
+        emp:'permanent', hrs:38, rooms:BLO, notes:'Early Childhood Teacher, 3-5 yrs',
+      },
+      {
+        fn:'Sabrina', ln:'Khan', dob:'2002-05-11',
+        role:'Educational Leader', qual:'ect', responsible:1, food_safety:0,
+        wwcc:'WWC1450605E', wwcc_exp:'2028-09-11',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2026-08-07', cp_date:'2025-06-20',
+        emp:'permanent', hrs:38, rooms:BLO, notes:'Educational Leader, Early Childhood Teacher, Diploma Qualified, 3-5 yrs',
+      },
+      {
+        fn:'Elizabeth', ln:'Goman', dob:null,
+        role:'Early Childhood Teacher', qual:'ect', responsible:1, food_safety:1,
+        wwcc:'WWC2492489E', wwcc_exp:'2027-07-09',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2026-08-07', cp_date:'2025-06-20',
+        emp:'permanent', hrs:38, rooms:S, notes:'Early Childhood Teacher, Food Safety Supervisor, 0-2 yrs',
+      },
+      {
+        fn:'Anna Maria', ln:'Abou Fram', dob:'2003-08-04',
+        role:'Early Childhood Teacher', qual:'ect', responsible:0, food_safety:0,
+        wwcc:'WWC2477223E', wwcc_exp:'2027-08-12',
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'permanent', hrs:38, rooms:BLO, notes:'Early Childhood Teacher, 3-5 yrs',
+      },
+      {
+        fn:'Enisa', ln:'Kurtovic', dob:'1997-07-02',
+        role:'Diploma Educator', qual:'diploma', responsible:1, food_safety:0,
+        wwcc:'WWC2675663E', wwcc_exp:'2028-06-01',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2026-08-07', cp_date:'2025-06-17',
+        emp:'permanent', hrs:38, rooms:BL, notes:'Diploma Qualified, 3-4 yrs',
+      },
+      {
+        fn:'Jazmine', ln:"O'Shea", dob:'2003-10-24',
+        role:'Certificate 3 Educator', qual:'cert3', responsible:1, food_safety:0,
+        wwcc:'WWC3010815E', wwcc_exp:'2030-01-18',
+        fa:1, fa_exp:'2027-08-11', cpr_exp:'2026-08-07', cp_date:'2025-06-18',
+        emp:'permanent', hrs:38, rooms:S, notes:'Certificate 3, Studying towards Diploma, 0-2 yrs',
+      },
+      {
+        fn:'Nicola', ln:'Valanidas', dob:'2002-07-22',
+        role:'Certificate 3 Educator', qual:'cert3', responsible:1, food_safety:0,
+        wwcc:'WWC2588790E', wwcc_exp:'2028-02-01',
+        fa:1, fa_exp:'2028-08-26', cpr_exp:'2026-08-07', cp_date:'2025-06-16',
+        emp:'permanent', hrs:38, rooms:B, notes:'Certificate 3, Studying towards Diploma, 2-3 yrs',
+      },
+      {
+        fn:'Seren', ln:'Gokus', dob:'1999-04-16',
+        role:'Certificate 3 Educator', qual:'cert3', responsible:1, food_safety:1,
+        wwcc:'WWC0930002E', wwcc_exp:'2027-11-25',
+        fa:1, fa_exp:'2026-12-15', cpr_exp:'2026-08-07', cp_date:'2025-06-11',
+        emp:'permanent', hrs:38, rooms:ALL, notes:'Certificate 3, Studying towards Diploma, Food Safety Supervisor, Support all rooms',
+      },
+      {
+        fn:'Layla', ln:'Talbot', dob:'2005-03-07',
+        role:'Trainee Educator', qual:'working_towards', responsible:0, food_safety:0,
+        wwcc:'WWC0421565E', wwcc_exp:'2029-07-15',
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'casual', hrs:20, rooms:ALL, notes:'Studying Towards Certificate 3, Support all rooms',
+        u18: 0,
+      },
+      {
+        fn:'Tegan Leanne', ln:'Parish', dob:'2006-07-25',
+        role:'Trainee Educator', qual:'working_towards', responsible:0, food_safety:0,
+        wwcc:'WWC0259291E', wwcc_exp:'2029-02-16',
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'casual', hrs:20, rooms:ALL, notes:'Studying Towards Certificate 3, Support all rooms',
+        u18: 0,
+      },
+      {
+        fn:'Holly', ln:'Giddings', dob:'2003-06-04',
+        role:'Trainee Educator', qual:'working_towards', responsible:0, food_safety:0,
+        wwcc:'WWC2923641E', wwcc_exp:'2029-08-08',
+        fa:1, fa_exp:'2027-05-15', cpr_exp:'2026-08-07', cp_date:null,
+        emp:'casual', hrs:20, rooms:ALL, notes:'Working Towards Certificate 3, Support all rooms',
+      },
+      {
+        fn:'Sarah', ln:'Nguyen Trinh', dob:'2006-07-13',
+        role:'Trainee Educator', qual:'working_towards', responsible:0, food_safety:0,
+        wwcc:null, wwcc_exp:null,
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'casual', hrs:20, rooms:ALL, notes:'Studying Towards Certificate 3, Support all rooms',
+        u18: 0,
+      },
+      {
+        fn:'Meerab', ln:'Imran', dob:'2006-10-21',
+        role:'Trainee Educator', qual:'working_towards', responsible:0, food_safety:0,
+        wwcc:'WWC2986597E', wwcc_exp:'2029-11-20',
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'casual', hrs:20, rooms:ALL, notes:'Studying Towards Certificate 3, Support all rooms',
+        u18: 0,
+      },
+      {
+        fn:'Fotini', ln:'Deme', dob:'1974-10-12',
+        role:'Diploma Educator', qual:'diploma', responsible:0, food_safety:0,
+        wwcc:'WWC0293870E', wwcc_exp:'2029-03-05',
+        fa:0, fa_exp:null, cpr_exp:'2026-02-17', cp_date:null,
+        emp:'casual', hrs:25, rooms:ALL, notes:'Diploma Qualified, Support all rooms',
+      },
+      {
+        fn:'Leanne', ln:'Walsh', dob:'1970-10-25',
+        role:'Diploma Educator', qual:'diploma', responsible:1, food_safety:0,
+        wwcc:'WWC0188798E', wwcc_exp:'2028-11-28',
+        fa:1, fa_exp:'2026-10-14', cpr_exp:'2026-05-10', cp_date:'2025-03-18',
+        emp:'casual', hrs:25, rooms:ALL, notes:'Diploma Qualified, Support all rooms',
+      },
+      {
+        fn:'Lauren', ln:'Cunha', dob:'1995-06-09',
+        role:'Diploma Educator', qual:'diploma', responsible:0, food_safety:0,
+        wwcc:'WWC0236154E', wwcc_exp:'2029-03-01',
+        fa:1, fa_exp:'2028-09-26', cpr_exp:'2028-09-26', cp_date:'2022-03-29',
+        emp:'casual', hrs:25, rooms:ALL, notes:'Diploma Qualified, Support all rooms',
+      },
+      {
+        fn:'Susan', ln:'Obeid', dob:'1980-05-08',
+        role:'Cook', qual:'cert3', responsible:0, food_safety:1,
+        wwcc:'WWC0602457E', wwcc_exp:'2027-03-24',
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'permanent', hrs:38, rooms:ALL, notes:'Cook — Certificate in Safe Food Handling and Nutrition, Menu Planning, Munch and Move',
+      },
+      {
+        fn:'Sebahat', ln:'Biyik', dob:'1968-03-13',
+        role:'Support Educator', qual:'cert3', responsible:0, food_safety:1,
+        wwcc:'WWC2345661E', wwcc_exp:'2026-12-14',
+        fa:0, fa_exp:null, cpr_exp:null, cp_date:null,
+        emp:'permanent', hrs:38, rooms:ALL, notes:'Cert 3, Support Educator, Food Handling',
+      },
+    ];
+
+    const insertEd = db.prepare(`
+      INSERT INTO educators
+        (id,tenant_id,first_name,last_name,dob,role_title,qualification,
+         is_responsible_person,food_safety_supervisor,
+         wwcc_number,wwcc_expiry,
+         first_aid,first_aid_expiry,cpr_expiry,child_protection_date,
+         employment_type,max_hours_per_week,contracted_hours,
+         preferred_rooms,status,reliability_score,
+         total_shifts_offered,total_shifts_accepted,total_sick_days,
+         is_under_18,notes,start_date)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `);
+
+    const edIds = [];
+    EDUCATORS.forEach(e => {
+      const eid = crypto.randomUUID();
+      edIds.push({ id: eid, hrs: e.hrs, rooms: e.rooms });
+      insertEd.run(
+        eid, TENANT, e.fn, e.ln, e.dob || null, e.role, e.qual,
+        e.responsible ? 1 : 0, e.food_safety ? 1 : 0,
+        e.wwcc || null, e.wwcc_exp || null,
+        e.fa ? 1 : 0, e.fa_exp || null, e.cpr_exp || null, e.cp_date || null,
+        e.emp, e.hrs, e.hrs,
+        e.rooms, 'active', 85,
+        0, 0, 0,
+        e.u18 ? 1 : 0, e.notes || null, '2025-01-01'
+      );
+    });
+
+    // ── Weekly availability: Mon-Fri for permanent, 3 days/week for casual ──
+    edIds.forEach((e, idx) => {
+      const ed = EDUCATORS[idx];
+      const isCasual = ed.emp === 'casual';
+      // Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=0
+      const casualPatterns = [
+        [1,1,0,1,0,0,0],  // M/T/Th
+        [1,0,1,0,1,0,0],  // M/W/F
+        [0,1,1,0,1,0,0],  // T/W/F
+        [1,1,1,0,0,0,0],  // M/T/W
+        [0,0,1,1,1,0,0],  // W/Th/F
+      ];
+      const pattern = isCasual ? casualPatterns[idx % casualPatterns.length] : [0,1,1,1,1,1,0]; // Mon-Fri
+      for (let d = 0; d < 7; d++) {
+        db.prepare('INSERT OR IGNORE INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,preferred) VALUES(?,?,?,?,?,?,?)')
+          .run(crypto.randomUUID(), e.id, d, pattern[d] ? 1 : 0, '07:00', '18:30', d >= 1 && d <= 5 ? 1 : 0);
+      }
+    });
+
+    res.json({
+      ok: true,
+      tenant: TENANT,
+      educators_inserted: EDUCATORS.length,
+      message: `Replaced demo educators with ${EDUCATORS.length} real CN educators`,
+    });
+  } catch(err) {
+    console.error('[seed-educators]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 // ── Tenant/Children diagnostic endpoint ─────────────────────────────────
 app.get('/diag-tenants', (req, res) => {
   try {

@@ -211,6 +211,7 @@ export default function ChildcareRosterApp() {
   // ── NQF Learning & Development State ──
   const [nqfChildren, setNqfChildren] = useState(INITIAL_CHILDREN);
   const [liveChildCount, setLiveChildCount] = useState(null);
+  const [liveEducatorCount, setLiveEducatorCount] = useState(null);
 
   // Fetch live child count for sidebar
   useEffect(() => {
@@ -219,6 +220,13 @@ export default function ChildcareRosterApp() {
     fetch("/api/children/debug-count", {
       headers: { Authorization: "Bearer " + t, "x-tenant-id": tid, "Content-Type": "application/json" }
     }).then(r => r.json()).then(d => { if (d.childCount != null) setLiveChildCount(d.childCount); }).catch(() => {});
+    // Educator count
+    fetch("/api/educators", {
+      headers: { Authorization: "Bearer " + t, "x-tenant-id": tid }
+    }).then(r => r.json()).then(d => {
+      const arr = Array.isArray(d) ? d : (d.educators || []);
+      setLiveEducatorCount(arr.filter(e => e.status === 'active').length);
+    }).catch(() => {});
   }, []);
   const [observations, setObservations] = useState([]);
   const [dailyPlans, setDailyPlans] = useState([]);
@@ -452,7 +460,7 @@ export default function ChildcareRosterApp() {
                 </svg>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.02em" }}>Childcare360</div>
-              <div style={{ fontSize: 11, color: "#A89DB5" }}>v2.2.2</div>
+              <div style={{ fontSize: 11, color: "#A89DB5" }}>v2.2.3</div>
             </div>
           </div>
         </div>
@@ -485,6 +493,9 @@ export default function ChildcareRosterApp() {
               )}
               {item.id === "children" && (
                 <span style={{ marginLeft: "auto", fontSize: 10, color: "#A89DB5", fontFamily: "'DM Sans', sans-serif" }}>{liveChildCount ?? nqfChildren.length}</span>
+              )}
+              {item.id === "educators" && liveEducatorCount != null && (
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "#A89DB5", fontFamily: "'DM Sans', sans-serif" }}>{liveEducatorCount}</span>
               )}
               {item.id === "observations" && observations.filter(o => o.timestamp?.startsWith(new Date().toISOString().split("T")[0])).length > 0 && (
                 <span style={{ marginLeft: "auto", background: "#8B6DAF", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "2px 7px", fontFamily: "'DM Sans', sans-serif" }}>
@@ -2098,6 +2109,23 @@ function SettingsView() {
                 setDataWorking(false);
               }} style={{padding:"8px 20px",borderRadius:8,border:"none",background:"#E53935",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",opacity:dataWorking?0.6:1}}>
                 {dataWorking?'Working...':'Remove Demo Children'}
+              </button>
+            </div>
+            <div style={{padding:"16px",borderRadius:10,background:"#E8F5E9",border:"1px solid #A5D6A7"}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👩‍🏫 Import Real Educators</div>
+              <div style={{fontSize:11,color:"#8A7F96",marginBottom:12}}>Replaces all demo educators with the 22 real CN educators from the compliance spreadsheet. Includes qualifications, WWCC, first aid, and room assignments.</div>
+              <button disabled={dataWorking} onClick={async()=>{
+                if(!confirm('This will DELETE all current educators for this centre and replace with the 22 real CN educators from the compliance spreadsheet. Continue?')) return;
+                setDataWorking(true); setDataMsg(null);
+                try {
+                  const r = await fetch('/run-seed-educators?token=childcare360seed');
+                  const d = await r.json();
+                  if(d.ok) { setDataMsg({ok:true,text:`✓ ${d.educators_inserted} real educators imported successfully.`}); setLiveEducatorCount(d.educators_inserted); }
+                  else setDataMsg({ok:false,text:d.error||'Failed'});
+                } catch(e){setDataMsg({ok:false,text:e.message});}
+                setDataWorking(false);
+              }} style={{padding:"8px 20px",borderRadius:8,border:"none",background:"#2E7D32",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",opacity:dataWorking?0.6:1}}>
+                {dataWorking?'Working...':'Import Real Educators'}
               </button>
             </div>
           </div>
