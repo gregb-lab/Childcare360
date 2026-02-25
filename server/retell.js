@@ -14,7 +14,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router } from 'express';
-import { WebSocketServer } from 'ws';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
 
@@ -333,7 +332,18 @@ export { webhooks as retellWebhooks };
 //  Called by: setupRetellWebSocket(httpServer) in index.js
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function setupRetellWebSocket(httpServer) {
+export async function setupRetellWebSocket(httpServer) {
+  let WebSocketServer;
+  try {
+    const ws = await import('ws');
+    WebSocketServer = ws.WebSocketServer || ws.default?.WebSocketServer;
+    if (!WebSocketServer) throw new Error('WebSocketServer not found in ws module');
+  } catch(e) {
+    console.warn('[Retell] ws package not available — WebSocket handler disabled:', e.message);
+    console.warn('[Retell] Agent creation and REST APIs still work. Run: npm install ws');
+    return;
+  }
+
   const wss = new WebSocketServer({ noServer: true });
 
   // Upgrade only /api/retell/ws/* paths

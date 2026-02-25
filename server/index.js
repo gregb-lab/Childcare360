@@ -868,7 +868,7 @@ setTimeout(() => {
 
 // ── Start ──
 const httpServer = createServer(app);
-setupRetellWebSocket(httpServer);
+setupRetellWebSocket(httpServer).catch(e => console.warn('[Retell] WS setup failed:', e.message));
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ Server listening on http://0.0.0.0:${PORT}`);
   console.log(`  ✓ Environment: ${isProd ? 'production' : 'development'}`);
