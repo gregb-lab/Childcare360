@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync as _rfs } from 'fs';
 import { initDatabase, cleanExpired } from './db.js';
 import { randomUUID as _uuid } from 'crypto';
 import { D as _D } from './db.js';
@@ -54,9 +54,10 @@ const uploadsDir = process.env.RAILWAY_VOLUME_MOUNT_PATH
 if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
 
 
-console.log('\n  ╔══════════════════════════════════════════╗');
-console.log('  ║  Childcare360 v1.9.7 — Starting Server    ║');
-console.log('  ╚══════════════════════════════════════════╝\n');
+const _pkg = JSON.parse(_rfs(new URL('../package.json', import.meta.url)));
+console.log(`\n  ╔══════════════════════════════════════════╗`);
+console.log(`  ║  Childcare360 v${_pkg.version} — Starting Server    ║`);
+console.log(`  ╚══════════════════════════════════════════╝\n`);
 
 // ── Init database ──
 initDatabase();

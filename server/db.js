@@ -2113,5 +2113,6 @@ function initLearningTables(db) {
     'ALTER TABLE voice_settings ADD COLUMN retell_api_key TEXT',
     'ALTER TABLE voice_settings ADD COLUMN retell_agent_id TEXT',
     'ALTER TABLE voice_settings ADD COLUMN retell_phone_number_id TEXT',
+    'ALTER TABLE voice_settings ADD COLUMN retell_llm_id TEXT',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

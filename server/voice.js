@@ -975,6 +975,7 @@ function getRetellSettings(tenantId) {
     ...db,
     retell_api_key:   process.env.RETELL_API_KEY || db.retell_api_key,
     retell_agent_id:  db.retell_agent_id,
+    retell_llm_id:    db.retell_llm_id,
     call_language:    db.call_language || 'en-AU',
     inbound_greeting: db.inbound_greeting || 'Hello, thanks for calling. How can I help?',
   };
@@ -1034,6 +1035,7 @@ router.get('/retell/status', requireAuth, requireTenant, async (req, res) => {
 });
 
 // POST /api/voice/retell/agent — create or update Retell agent
+// Retell v2 flow: create/update custom LLM first → get llm_id → create/update agent
 router.post('/retell/agent', requireAuth, requireTenant, async (req, res) => {
   const s = getRetellSettings(req.tenantId);
   if (!s.retell_api_key) return res.status(400).json({ error: 'Retell API key not configured. Add it in settings and save first.' });
@@ -1044,34 +1046,51 @@ router.post('/retell/agent', requireAuth, requireTenant, async (req, res) => {
   const llmWsUrl = `${wsBase}/api/retell/ws/${req.tenantId}`;
   const { voice_id, agent_name, responsiveness, interruption_sensitivity } = req.body;
 
-  const payload = {
-    agent_name: agent_name || s.retell_agent_name || `${tenantName} AI Assistant`,
-    response_engine: { type: 'custom_llm', llm_websocket_url: llmWsUrl },
-    voice_id: voice_id || 'openai-Alloy',
-    language: (s.call_language || 'en-AU').replace('-', '_'),
-    responsiveness: responsiveness ?? 1,
-    interruption_sensitivity: interruption_sensitivity ?? 1,
-    enable_backchannel: true,
-    backchannel_frequency: 0.8,
-    normalize_for_speech: true,
-    end_call_after_silence_ms: 30000,
-    begin_message: s.inbound_greeting || `Hi, thanks for calling ${tenantName}. How can I help?`,
-    metadata: { tenant_id: req.tenantId },
-  };
-
-  console.log('[Retell] POST /retell/agent tenantId:', req.tenantId, 'agent_id:', s.retell_agent_id || 'new');
+  console.log('[Retell] POST /retell/agent tenantId:', req.tenantId, 'llmWsUrl:', llmWsUrl);
 
   try {
+    // Step 1: create or update the custom LLM object
+    let llmId = s.retell_llm_id;
+    if (llmId) {
+      const llm = await retellFetch(`/update-retell-llm/${llmId}`, 'PATCH',
+        { llm_websocket_url: llmWsUrl }, s.retell_api_key);
+      console.log('[Retell] LLM updated:', llm.llm_id);
+    } else {
+      const llm = await retellFetch('/create-retell-llm', 'POST',
+        { llm_websocket_url: llmWsUrl }, s.retell_api_key);
+      llmId = llm.llm_id;
+      console.log('[Retell] LLM created:', llmId);
+      D().prepare("UPDATE voice_settings SET retell_llm_id=?, updated_at=datetime('now') WHERE tenant_id=?")
+        .run(llmId, req.tenantId);
+    }
+
+    // Step 2: create or update the agent referencing llm_id
+    const payload = {
+      agent_name: agent_name || s.retell_agent_name || `${tenantName} AI Assistant`,
+      response_engine: { type: 'retell-llm', llm_id: llmId },
+      voice_id: voice_id || 'openai-Alloy',
+      language: (s.call_language || 'en-AU').replace('-', '_'),
+      responsiveness: responsiveness ?? 1,
+      interruption_sensitivity: interruption_sensitivity ?? 1,
+      enable_backchannel: true,
+      backchannel_frequency: 0.8,
+      normalize_for_speech: true,
+      end_call_after_silence_ms: 30000,
+      begin_message: s.inbound_greeting || `Hi, thanks for calling ${tenantName}. How can I help?`,
+    };
+
     let agent;
     if (s.retell_agent_id) {
       agent = await retellFetch(`/update-agent/${s.retell_agent_id}`, 'PATCH', payload, s.retell_api_key);
+      console.log('[Retell] Agent updated:', agent.agent_id);
     } else {
       agent = await retellFetch('/create-agent', 'POST', payload, s.retell_api_key);
-      D().prepare('UPDATE voice_settings SET retell_agent_id=?, updated_at=datetime("now") WHERE tenant_id=?')
+      console.log('[Retell] Agent created:', agent.agent_id);
+      D().prepare("UPDATE voice_settings SET retell_agent_id=?, updated_at=datetime('now') WHERE tenant_id=?")
         .run(agent.agent_id, req.tenantId);
     }
-    console.log('[Retell] Agent ok:', agent.agent_id);
-    res.json({ ok: true, agent });
+
+    res.json({ ok: true, agent, llm_id: llmId });
   } catch(e) {
     console.error('[Retell] Agent error:', e.message);
     res.status(500).json({ error: e.message });
