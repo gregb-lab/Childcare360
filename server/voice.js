@@ -654,13 +654,28 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
     D().prepare("UPDATE voice_calls SET transcript=? WHERE id=?")
       .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
 
+    // Register statusCallback with Twilio so completed/failed/no-answer updates our DB
+    // (For inbound calls this can't be set in TwiML — must use REST API)
+    const base = getBase();
+    try {
+      const client = await getTwilioClient(settings);
+      await client.calls(req.body.CallSid).update({
+        statusCallback: `${base}/api/voice/webhook/status/${callId}`,
+        statusCallbackMethod: 'POST',
+        statusCallbackEvent: ['completed', 'failed', 'busy', 'no-answer']
+      });
+      console.log(`[Voice:inbound] statusCallback registered for ${callId}`);
+    } catch(scErr) {
+      console.warn('[Voice:inbound] Could not register statusCallback:', scErr.message);
+      // Non-fatal — call still works, just won't auto-update status
+    }
+
     const personalGreeting = educator
       ? `Hi ${educator.first_name}, this is the AI assistant at ${tenantName}. How can I help you today?`
       : `Hi, thank you for calling ${tenantName}. This is an AI assistant. How can I help you today?`;
 
     // NOTE: Do NOT saveTurn for the greeting — it would make Claude's first message 'assistant'
     // which the API rejects. The greeting is context-only.
-    const base = getBase();
     res.send(twiml(
       (await gatherWith(`${base}/api/voice/webhook/gather/${callId}`, personalGreeting, settings)) +
       (await speak("I'm sorry, I didn't catch that. Please call back if you need assistance.", settings)) +
@@ -673,8 +688,24 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
 });
 
 webhooks.post('/status/:callId', (req, res) => {
-  const { CallStatus, CallDuration } = req.body;
-  try { setStatus(req.params.callId, CallStatus === 'completed' ? 'completed' : CallStatus, { duration: CallDuration ? parseInt(CallDuration) : undefined }); } catch(e) {}
+  const { CallStatus, CallDuration, CallSid } = req.body;
+  const callId = req.params.callId;
+  console.log(`[Voice:status] callId=${callId} status=${CallStatus} duration=${CallDuration}`);
+  try {
+    // Map Twilio statuses → our statuses
+    const terminalStatuses = ['completed','failed','busy','no-answer','canceled'];
+    const isTerminal = terminalStatuses.includes(CallStatus);
+    setStatus(callId, CallStatus, {
+      duration: CallDuration ? parseInt(CallDuration) : undefined,
+      sid: CallSid || undefined
+    });
+    // Force ended_at on any terminal status in case setStatus missed it
+    if (isTerminal) {
+      D().prepare("UPDATE voice_calls SET ended_at=COALESCE(ended_at,datetime('now')) WHERE id=?").run(callId);
+    }
+  } catch(e) {
+    console.error('[Voice:status] Error:', e.message);
+  }
   res.sendStatus(204);
 });
 
