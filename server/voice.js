@@ -1026,7 +1026,7 @@ router.get('/retell/status', requireAuth, requireTenant, async (req, res) => {
   if (!s.retell_api_key) return res.json({ configured: false, agent: null });
   try {
     const agent = s.retell_agent_id
-      ? await retellFetch(`/v2/get-agent/${s.retell_agent_id}`, 'GET', null, s.retell_api_key).catch(() => null)
+      ? await retellFetch(`/get-agent/${s.retell_agent_id}`, 'GET', null, s.retell_api_key).catch(() => null)
       : null;
     const phoneNumbers = await retellFetch('/v2/list-phone-numbers', 'GET', null, s.retell_api_key).catch(() => []);
     res.json({ configured: true, agent, phone_numbers: Array.isArray(phoneNumbers) ? phoneNumbers : [] });
@@ -1064,9 +1064,9 @@ router.post('/retell/agent', requireAuth, requireTenant, async (req, res) => {
   try {
     let agent;
     if (s.retell_agent_id) {
-      agent = await retellFetch(`/v2/update-agent/${s.retell_agent_id}`, 'PATCH', payload, s.retell_api_key);
+      agent = await retellFetch(`/update-agent/${s.retell_agent_id}`, 'PATCH', payload, s.retell_api_key);
     } else {
-      agent = await retellFetch('/v2/create-agent', 'POST', payload, s.retell_api_key);
+      agent = await retellFetch('/create-agent', 'POST', payload, s.retell_api_key);
       D().prepare('UPDATE voice_settings SET retell_agent_id=?, updated_at=datetime("now") WHERE tenant_id=?')
         .run(agent.agent_id, req.tenantId);
     }
@@ -1084,7 +1084,7 @@ router.post('/retell/link-number', requireAuth, requireTenant, async (req, res) 
   if (!s.retell_api_key || !s.retell_agent_id) return res.status(400).json({ error: 'API key and agent required' });
   const { phone_number_id } = req.body;
   try {
-    const result = await retellFetch(`/v2/update-phone-number/${phone_number_id}`, 'PATCH',
+    const result = await retellFetch(`/update-phone-number/${phone_number_id}`, 'PATCH',
       { inbound_agent_id: s.retell_agent_id }, s.retell_api_key);
     D().prepare('UPDATE voice_settings SET retell_phone_number_id=?, updated_at=datetime("now") WHERE tenant_id=?')
       .run(phone_number_id, req.tenantId);
@@ -1100,7 +1100,7 @@ router.post('/retell/test-call', requireAuth, requireTenant, async (req, res) =>
   const to = process.env.DEV_CALL_OVERRIDE || req.body.to_number;
   if (!to) return res.status(400).json({ error: 'to_number required' });
   try {
-    const call = await retellFetch('/v2/create-phone-call', 'POST', {
+    const call = await retellFetch('/create-phone-call', 'POST', {
       from_number_id: s.retell_phone_number_id,
       to_number: to,
       override_agent_id: s.retell_agent_id,
