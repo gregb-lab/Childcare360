@@ -14,7 +14,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router } from 'express';
-import { D, uuid, auditLog } from './db.js';
+import { WebSocketServer } from 'ws';
+import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
 
 const router   = Router(); // authenticated routes (agent management)
@@ -164,149 +165,14 @@ async function processConfirmedSickCall(tenantId, educatorId, shift) {
   } catch(e) { console.error('[Retell] startShiftFillCalls error:', e.message); }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  RETELL CUSTOM LLM WEBHOOK
-//  POST /api/retell/llm/:tenantId
-//
-//  Retell sends the full conversation each turn. We respond with the next
-//  agent utterance. State is carried in `call.metadata`.
-// ═══════════════════════════════════════════════════════════════════════════
-
-webhooks.post('/llm/:tenantId', async (req, res) => {
-  const { tenantId } = req.params;
-  const { llm_id, call, transcript } = req.body;
-
-  // call.metadata persists across turns (we store sick-call state here)
-  const meta    = call?.metadata || {};
-  const from    = call?.from_number || 'unknown';
-  const callId  = call?.call_id || uuid();
-
-  console.log(`[Retell:LLM] tenantId=${tenantId} callId=${callId} turns=${transcript?.length}`);
-
-  try {
-    const settings  = getSettings(tenantId);
-    const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(tenantId)?.name || 'the centre';
-
-    // Identify caller on first turn
-    if (!meta.identityChecked) {
-      const educator = identifyCaller(from, tenantId);
-      meta.educatorId   = educator?.id || null;
-      meta.educatorName = educator?.first_name || null;
-      meta.identityChecked = true;
-    }
-
-    // Build transcript for Claude (Retell format → Claude format)
-    const messages = (transcript || []).map(t => ({
-      role: t.role === 'agent' ? 'assistant' : 'user',
-      content: t.content || '',
-    })).filter(m => m.content.trim());
-
-    const lastUserMsg = [...(transcript || [])].reverse().find(t => t.role === 'user')?.content?.toLowerCase() || '';
-
-    // ── SICK CALL FLOW ─────────────────────────────────────────────────────────
-
-    const sickKeywords = ['sick','unwell','not well','not coming in',"can't come in",
-      "won't be in",'calling in sick','report sick','cancel my shift','cancel shift',
-      'miss my shift','off sick','feeling sick','feel sick','not going to make it'];
-    const confirmYes = ['yes','yeah','yep','correct','that is',"that's it","that's the one",'right','confirm','yup'];
-    const confirmNo  = ['no','nope','wrong','not that one','different','another','not right'];
-
-    const isSick      = !meta.pendingConfirm && sickKeywords.some(k => lastUserMsg.includes(k));
-    const isYes       = meta.pendingConfirm && confirmYes.some(k => lastUserMsg.includes(k));
-    const isNo        = meta.pendingConfirm && confirmNo.some(k => lastUserMsg.includes(k));
-    const isChoice    = meta.awaitingChoice && /\b(one|two|three|1|2|3)\b/.test(lastUserMsg);
-
-    // Confirmed — process
-    if (isYes || isChoice) {
-      let shift = meta.pendingShift;
-      if (isChoice) {
-        const n = lastUserMsg.includes('two') || lastUserMsg.includes('2') ? 1
-                : lastUserMsg.includes('three') || lastUserMsg.includes('3') ? 2 : 0;
-        shift = (meta.upcomingShifts || [])[n] || shift;
-      }
-      if (shift) {
-        const reply = `Perfect, I've recorded your sick day for your ${shift.room_name} shift ${shift.day_label} from ${fmtTime(shift.start_time)} to ${fmtTime(shift.end_time)}, and I'm now arranging cover. Feel better soon, goodbye!`;
-        setImmediate(() => processConfirmedSickCall(tenantId, meta.educatorId, shift).catch(console.error));
-        return res.json({ response_id: req.body.response_id, content: reply, end_call: true });
-      }
-    }
-
-    // Declined the shift we suggested — re-ask
-    if (isNo) {
-      const shifts = meta.upcomingShifts || [];
-      if (shifts.length > 1) {
-        const list = shifts.map((s, i) => `Option ${i+1}: ${s.day_label} in ${s.room_name} from ${fmtTime(s.start_time)} to ${fmtTime(s.end_time)}`).join('. ');
-        meta.awaitingChoice = true;
-        meta.pendingConfirm = true;
-        return res.json({ response_id: req.body.response_id, content: `No problem. I can see ${shifts.length} upcoming shifts for you. ${list}. Which one are you cancelling? Say the option number.`, metadata: meta });
-      }
-      meta.pendingConfirm = false;
-      return res.json({ response_id: req.body.response_id, content: `I'm sorry about that. Could you tell me which day and room your shift is so I can find it?`, metadata: meta });
-    }
-
-    // Initial sick call detected
-    if (isSick) {
-      if (!meta.educatorId) {
-        meta.sickDetected = true;
-        return res.json({ response_id: req.body.response_id, content: `I'm sorry to hear that. I wasn't able to identify your number in our system. Could you please tell me your name so I can find your shift?`, metadata: meta });
-      }
-
-      const shifts = getUpcomingShifts(meta.educatorId, tenantId);
-      if (!shifts.length) {
-        const today = new Date().toISOString().split('T')[0];
-        D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
-          .run(uuid(), tenantId, meta.educatorId, today, 'sick', 'Called in sick via Retell — no shifts in roster', 0, 'phone');
-        return res.json({ response_id: req.body.response_id, content: `I'm sorry to hear that, ${meta.educatorName || 'there'}. I don't see any upcoming shifts rostered for you in the next two weeks. I've made a note and management will be in touch. Is there anything else I can help with?`, metadata: meta });
-      }
-
-      meta.upcomingShifts = shifts;
-
-      if (shifts.length === 1) {
-        const s = shifts[0];
-        meta.pendingShift   = s;
-        meta.pendingConfirm = true;
-        return res.json({ response_id: req.body.response_id, content: `I can see you're rostered in the ${s.room_name} ${s.day_label} from ${fmtTime(s.start_time)} to ${fmtTime(s.end_time)}. Is that the shift you need to cancel?`, metadata: meta });
-      }
-
-      // Multiple shifts
-      const list = shifts.slice(0, 3).map((s, i) =>
-        `Option ${i+1}: ${s.day_label} in ${s.room_name} from ${fmtTime(s.start_time)} to ${fmtTime(s.end_time)}`
-      ).join('. ');
-      meta.pendingConfirm = true;
-      meta.awaitingChoice = true;
-      return res.json({ response_id: req.body.response_id, content: `I can see you have a few upcoming shifts, ${meta.educatorName}. ${list}. Which shift are you calling about? Say the option number.`, metadata: meta });
-    }
-
-    // ── General AI conversation ────────────────────────────────────────────────
-    const nameStr = meta.educatorName ? `, ${meta.educatorName}` : '';
-    const systemPrompt = settings.ai_persona ||
-      `You are a warm, professional AI assistant for ${tenantName}. ` +
-      `You help educators and parents with enquiries. ` +
-      `If someone mentions being sick or needing to cancel a shift, acknowledge it and help them. ` +
-      `Keep responses concise — 1 to 2 sentences. Never use lists or bullet points on a phone call.`;
-
-    const response = await askClaude(messages, systemPrompt);
-    const fallback = `I'm not quite sure I understood that${nameStr}. Could you say that again?`;
-    const content = response || fallback;
-
-    return res.json({ response_id: req.body.response_id, content, metadata: meta });
-
-  } catch(e) {
-    console.error('[Retell:LLM] Exception:', e.message, e.stack?.slice(0, 300));
-    return res.json({ response_id: req.body.response_id, content: "I'm sorry, I had a technical issue. Please call back and I'll be happy to help.", end_call: true });
-  }
-});
-
-// ── Call event webhook (optional — for status tracking) ───────────────────────
-webhooks.post('/event/:tenantId', (req, res) => {
+// ── Call event webhook (post-call analysis, status updates) ──────────────────
+webhooks.post('/event', (req, res) => {
   const { event, call } = req.body;
-  console.log(`[Retell:event] ${event} call_id=${call?.call_id} from=${call?.from_number}`);
+  console.log(`[Retell:event] ${event} call_id=${call?.call_id}`);
   try {
     if (event === 'call_ended' && call?.call_id) {
-      D().prepare(`
-        UPDATE voice_calls SET status='completed', ended_at=COALESCE(ended_at,datetime('now')),
-        duration_seconds=? WHERE call_sid=?
-      `).run(call.duration_ms ? Math.round(call.duration_ms / 1000) : null, call.call_id);
+      D().prepare(`UPDATE voice_calls SET status='completed', ended_at=COALESCE(ended_at,datetime('now')), duration_seconds=? WHERE call_sid=?`)
+        .run(call.duration_ms ? Math.round(call.duration_ms / 1000) : null, call.call_id);
     }
   } catch(e) { console.error('[Retell:event] DB error:', e.message); }
   res.sendStatus(200);
@@ -347,35 +213,37 @@ router.post('/agent', async (req, res) => {
 
   const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(req.tenantId)?.name || 'the centre';
   const base = getBase();
-  const llmUrl = `${base}/api/retell/webhook/llm/${req.tenantId}`;
+  // Retell v2 uses wss:// WebSocket URL for custom LLM
+  const llmUrl = `${base.replace('https://', 'wss://').replace('http://', 'ws://')}/api/retell/ws/${req.tenantId}`;
 
   const {
     voice_id,       // Retell voice ID
     voice_model,    // e.g. 'eleven_flash_v2_5'
     agent_name,
-    ambient_sound,  // 'coffee-shop' | 'convention-hall' | 'summer-outdoor' | 'mountain-outdoor' | null
-    responsiveness, // 0–1, default 1
-    interruption_sensitivity, // 0–1, default 1
+    responsiveness,
+    interruption_sensitivity,
   } = req.body;
 
   const agentPayload = {
-    llm_websocket_url: llmUrl, // Retell calls our endpoint each turn
-    agent_name: agent_name || `${tenantName} AI Assistant`,
-    voice_id: voice_id || 'openai-Alloy', // default safe voice
-    voice_model: voice_model || undefined,
-    language: s.call_language || 'en-AU',
+    agent_name: agent_name || s.retell_agent_name || `${tenantName} AI Assistant`,
+    // Retell v2 API: custom LLM via response_engine wrapper
+    response_engine: {
+      type: 'custom_llm',
+      llm_websocket_url: llmUrl,
+    },
+    voice_id: voice_id || 'openai-Alloy',
+    language: (s.call_language || 'en-AU').replace('-', '_'), // Retell uses en_AU format
     responsiveness: responsiveness ?? 1,
     interruption_sensitivity: interruption_sensitivity ?? 1,
-    enable_backchannel: true,      // natural "mm-hmm", "yeah" etc
+    enable_backchannel: true,
     backchannel_frequency: 0.8,
     backchannel_words: ['right', 'got it', 'sure', 'okay'],
-    reminder_trigger_ms: 10000,    // gentle prompt if silence
+    reminder_trigger_ms: 10000,
     reminder_max_count: 2,
-    ambient_sound: ambient_sound || null,
-    normalize_for_speech: true,    // handles numbers/dates naturally
+    normalize_for_speech: true,
     end_call_after_silence_ms: 30000,
-    max_call_duration_ms: 1800000, // 30 min max
-    begin_message: s.inbound_greeting || `Hi, thanks for calling ${tenantName}. This is an AI assistant. How can I help you today?`,
+    max_call_duration_ms: 1800000,
+    begin_message: s.inbound_greeting || `Hi, thanks for calling ${tenantName}. This is the AI assistant. How can I help you today?`,
     metadata: { tenant_id: req.tenantId },
   };
 
@@ -449,3 +317,163 @@ router.get('/llm-url', (req, res) => {
 
 export default router;
 export { webhooks as retellWebhooks };
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  RETELL WEBSOCKET HANDLER
+//  Retell connects via WebSocket (wss://) to this path each call turn.
+//  Path: /api/retell/ws/:tenantId
+//  Called by: setupRetellWebSocket(httpServer) in index.js
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function setupRetellWebSocket(httpServer) {
+  const wss = new WebSocketServer({ noServer: true });
+
+  // Upgrade only /api/retell/ws/* paths
+  httpServer.on('upgrade', (req, socket, head) => {
+    const match = req.url?.match(/^\/api\/retell\/ws\/([^/?]+)/);
+    if (!match) return; // not our path — let other handlers deal with it
+    const tenantId = match[1];
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req, tenantId);
+    });
+  });
+
+  wss.on('connection', (ws, req, tenantId) => {
+    console.log(`[Retell:WS] Connection tenantId=${tenantId}`);
+    const settings  = getSettings(tenantId);
+    const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(tenantId)?.name || 'the centre';
+    let meta = {};
+
+    ws.on('message', async (raw) => {
+      let msg;
+      try { msg = JSON.parse(raw.toString()); } catch(e) { return; }
+
+      // Retell sends: { interaction_type, transcript, call, response_id }
+      const { interaction_type, transcript, call, response_id } = msg;
+
+      if (interaction_type === 'call_details') {
+        // First message — identify caller
+        const from = call?.from_number || 'unknown';
+        const educator = identifyCaller(from, tenantId);
+        meta.educatorId   = educator?.id   || null;
+        meta.educatorName = educator?.first_name || null;
+        meta.tenantName   = tenantName;
+        console.log(`[Retell:WS] call_details from=${from} educator=${educator?.first_name || 'unknown'}`);
+        // Acknowledge — Retell will play begin_message from agent config
+        ws.send(JSON.stringify({ response_id, content: '', content_complete: true, end_call: false }));
+        return;
+      }
+
+      if (interaction_type === 'reminder_required') {
+        ws.send(JSON.stringify({ response_id, content: "I'm here — are you still there?", content_complete: true, end_call: false }));
+        return;
+      }
+
+      if (interaction_type !== 'response_required') return;
+
+      // Build conversation for Claude/logic
+      const lastUserMsg = [...(transcript || [])].reverse().find(t => t.role === 'user')?.content?.toLowerCase() || '';
+      const messages = (transcript || []).map(t => ({
+        role: t.role === 'agent' ? 'assistant' : 'user',
+        content: t.content || '',
+      })).filter(m => m.content.trim());
+
+      try {
+        const reply = await buildResponse(lastUserMsg, messages, meta, tenantId, settings, tenantName);
+        // Send response — if end_call, Retell hangs up after TTS finishes
+        ws.send(JSON.stringify({
+          response_id,
+          content: reply.content,
+          content_complete: true,
+          end_call: reply.end_call || false,
+        }));
+        if (reply.backgroundTask) {
+          setImmediate(() => reply.backgroundTask().catch(e => console.error('[Retell:WS] bg task error:', e.message)));
+        }
+      } catch(e) {
+        console.error('[Retell:WS] response error:', e.message);
+        ws.send(JSON.stringify({ response_id, content: "I'm sorry, I had a technical issue. Please try again.", content_complete: true, end_call: true }));
+      }
+    });
+
+    ws.on('close', () => console.log(`[Retell:WS] Disconnected tenantId=${tenantId}`));
+    ws.on('error', (e) => console.error('[Retell:WS] Error:', e.message));
+  });
+
+  console.log('[Retell] WebSocket handler attached to HTTP server');
+}
+
+// ── Core response builder (shared between WS and REST test endpoint) ─────────
+async function buildResponse(lastUserMsg, messages, meta, tenantId, settings, tenantName) {
+  const sickKeywords = ['sick','unwell','not well','not coming in',"can't come in",
+    "won't be in",'calling in sick','report sick','cancel my shift','cancel shift',
+    'miss my shift','off sick','feeling sick','feel sick','not going to make it'];
+  const confirmYes = ['yes','yeah','yep','correct','that is',"that's it","that's the one",'right','confirm','yup'];
+  const confirmNo  = ['no','nope','wrong','not that one','different','another','not right'];
+
+  const isSick      = !meta.pendingConfirm && sickKeywords.some(k => lastUserMsg.includes(k));
+  const isYes       = meta.pendingConfirm && confirmYes.some(k => lastUserMsg.includes(k));
+  const isNo        = meta.pendingConfirm && confirmNo.some(k => lastUserMsg.includes(k));
+  const isChoice    = meta.awaitingChoice && /\b(one|two|three|1|2|3)\b/.test(lastUserMsg);
+
+  if (isYes || isChoice) {
+    let shift = meta.pendingShift;
+    if (isChoice) {
+      const n = lastUserMsg.includes('two') || lastUserMsg.includes('2') ? 1
+              : lastUserMsg.includes('three') || lastUserMsg.includes('3') ? 2 : 0;
+      shift = (meta.upcomingShifts || [])[n] || shift;
+    }
+    if (shift) {
+      return {
+        content: `Perfect, I've recorded your sick day for ${shift.room_name} ${shift.day_label} from ${fmtTime(shift.start_time)} to ${fmtTime(shift.end_time)}, and I'm now arranging cover. Feel better soon, goodbye!`,
+        end_call: true,
+        backgroundTask: () => processConfirmedSickCall(tenantId, meta.educatorId, shift),
+      };
+    }
+  }
+
+  if (isNo) {
+    const shifts = meta.upcomingShifts || [];
+    if (shifts.length > 1) {
+      const list = shifts.map((s, i) => `Option ${i+1}: ${s.day_label} in ${s.room_name} from ${fmtTime(s.start_time)} to ${fmtTime(s.end_time)}`).join('. ');
+      meta.awaitingChoice = true;
+      meta.pendingConfirm = true;
+      return { content: `No problem. I can see ${shifts.length} upcoming shifts. ${list}. Which one are you cancelling?` };
+    }
+    meta.pendingConfirm = false;
+    return { content: `Could you tell me which day and room your shift is so I can find it?` };
+  }
+
+  if (isSick) {
+    if (!meta.educatorId) {
+      meta.sickDetected = true;
+      return { content: `I'm sorry to hear that. I wasn't able to identify your number in our system. Could you please tell me your name so I can find your shift?` };
+    }
+    const shifts = getUpcomingShifts(meta.educatorId, tenantId);
+    if (!shifts.length) {
+      const today = new Date().toISOString().split('T')[0];
+      D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
+        .run(uuid(), tenantId, meta.educatorId, today, 'sick', 'Called in sick via Retell — no roster shifts found', 0, 'phone');
+      return { content: `I'm sorry to hear that, ${meta.educatorName || 'there'}. I don't see any upcoming shifts for you in the next two weeks. I've made a note and management will be in touch. Is there anything else I can help with?` };
+    }
+    meta.upcomingShifts = shifts;
+    if (shifts.length === 1) {
+      const s = shifts[0];
+      meta.pendingShift   = s;
+      meta.pendingConfirm = true;
+      return { content: `I can see you're rostered in ${s.room_name} ${s.day_label} from ${fmtTime(s.start_time)} to ${fmtTime(s.end_time)}. Is that the shift you need to cancel?` };
+    }
+    const list = shifts.slice(0, 3).map((s, i) =>
+      `Option ${i+1}: ${s.day_label} in ${s.room_name} from ${fmtTime(s.start_time)} to ${fmtTime(s.end_time)}`
+    ).join('. ');
+    meta.pendingConfirm = true;
+    meta.awaitingChoice = true;
+    return { content: `I can see you have a few upcoming shifts, ${meta.educatorName}. ${list}. Which shift are you calling about?` };
+  }
+
+  // General AI conversation
+  const systemPrompt = settings.ai_persona ||
+    `You are a warm, professional AI assistant for ${tenantName}. Help educators and parents with enquiries. Keep responses to 1-2 sentences. Never use lists.`;
+  const response = await askClaude(messages, systemPrompt);
+  return { content: response || `I'm not sure I understood that. Could you say that again?` };
+}

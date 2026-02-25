@@ -30,7 +30,7 @@ import aiRoutes from './ai.js';
 import auditRoutes from './audit.js';
 import voiceRoutes, { webhookRouter, audioRouter } from './voice.js';
 import shiftVoiceRoutes, { shiftWebhooks } from './shift-voice.js';
-import retellRoutes, { retellWebhooks } from './retell.js';
+import retellRoutes, { retellWebhooks, setupRetellWebSocket } from './retell.js';
 import { globalAuditMiddleware } from './middleware.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -866,11 +866,15 @@ setTimeout(() => {
 }, 10000);
 
 // ── Start ──
-app.listen(PORT, '0.0.0.0', () => {
+import { createServer } from 'http';
+const httpServer = createServer(app);
+setupRetellWebSocket(httpServer);
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ Server listening on http://0.0.0.0:${PORT}`);
   console.log(`  ✓ Environment: ${isProd ? 'production' : 'development'}`);
   console.log(`  ✓ Auth: Email/Password, Google OAuth, Apple OAuth, TOTP, Email MFA`);
   console.log(`  ✓ Multi-tenant isolation enabled`);
   console.log(`  ✓ Document store + AI analysis enabled`);
-  console.log(`  ✓ Compliance engine: auto-scan every 6 hours\n`);
+  console.log(`  ✓ Compliance engine: auto-scan every 6 hours`);
+  console.log(`  ✓ Retell AI WebSocket handler active\n`);
 });

@@ -31,11 +31,17 @@ const RAPI = async (path, opts = {}) => {
       ...(opts.headers || {})
     }
   });
+  const text = await res.text();
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
+    let msg = `HTTP ${res.status}`;
+    try { const j = JSON.parse(text); msg = j.error || j.message || msg; } catch(e) {
+      // HTML or non-JSON — show status and first 120 chars
+      msg = `HTTP ${res.status}: ${text.replace(/<[^>]+>/g,'').trim().slice(0,120)}`;
+    }
+    throw new Error(msg);
   }
-  return res.json();
+  try { return JSON.parse(text); }
+  catch(e) { throw new Error(`Server returned non-JSON (${res.status}): ${text.slice(0,120)}`); }
 };
 
 const TTS_VOICES = [
