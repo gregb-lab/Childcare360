@@ -981,12 +981,23 @@ function getRetellSettings(tenantId) {
 }
 
 async function retellFetch(path, method, body, apiKey) {
-  const r = await fetch(`https://api.retellai.com${path}`, {
-    method,
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await r.json();
+  const url = `https://api.retellai.com${path}`;
+  console.log(`[Retell] ${method} ${url}`);
+  let r;
+  try {
+    r = await fetch(url, {
+      method,
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch(netErr) {
+    throw new Error(`Network error reaching Retell API: ${netErr.message}`);
+  }
+  const text = await r.text();
+  console.log(`[Retell] ${r.status} response (first 300): ${text.slice(0, 300)}`);
+  let data;
+  try { data = JSON.parse(text); }
+  catch(e) { throw new Error(`Retell API ${r.status} returned non-JSON: ${text.slice(0, 200)}`); }
   if (!r.ok) throw new Error(`Retell API ${r.status}: ${JSON.stringify(data).slice(0, 300)}`);
   return data;
 }

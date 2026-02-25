@@ -460,7 +460,7 @@ export default function ChildcareRosterApp() {
                 </svg>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.02em" }}>Childcare360</div>
-              <div style={{ fontSize: 11, color: "#A89DB5" }}>v2.2.14</div>
+              <div style={{ fontSize: 11, color: "#A89DB5" }}>v2.2.15</div>
             </div>
           </div>
         </div>
