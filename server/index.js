@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import helmet from 'helmet';
 import cors from 'cors';
 import path from 'path';
@@ -866,7 +867,6 @@ setTimeout(() => {
 }, 10000);
 
 // ── Start ──
-import { createServer } from 'http';
 const httpServer = createServer(app);
 setupRetellWebSocket(httpServer);
 httpServer.listen(PORT, '0.0.0.0', () => {

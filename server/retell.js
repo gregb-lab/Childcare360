@@ -21,6 +21,9 @@ import { requireAuth, requireTenant } from './middleware.js';
 const router   = Router(); // authenticated routes (agent management)
 const webhooks = Router(); // Retell webhook (no auth — called by Retell)
 
+// Public health check — no auth, confirms the retell router is reachable
+router.get('/ping', (req, res) => res.json({ ok: true, router: 'retell', ts: Date.now() }));
+
 // Apply auth to all management routes
 router.use(requireAuth);
 router.use(requireTenant);
@@ -250,9 +253,11 @@ router.post('/agent', async (req, res) => {
   try {
     let agent;
     if (s.retell_agent_id) {
+      console.log(`[Retell] Updating agent ${s.retell_agent_id} payload:`, JSON.stringify(agentPayload).slice(0, 300));
       agent = await retellFetch(`/v2/update-agent/${s.retell_agent_id}`, 'PATCH', agentPayload, s.retell_api_key);
       console.log(`[Retell] Agent updated: ${s.retell_agent_id}`);
     } else {
+      console.log(`[Retell] Creating agent payload:`, JSON.stringify(agentPayload).slice(0, 300));
       agent = await retellFetch('/v2/create-agent', 'POST', agentPayload, s.retell_api_key);
       console.log(`[Retell] Agent created: ${agent.agent_id}`);
       // Save the new agent_id
@@ -260,7 +265,10 @@ router.post('/agent', async (req, res) => {
         .run(agent.agent_id, req.tenantId);
     }
     res.json({ ok: true, agent });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) {
+    console.error('[Retell] Agent create/update error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // POST /api/retell/link-number — link a Retell phone number to the agent
