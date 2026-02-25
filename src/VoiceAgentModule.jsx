@@ -92,87 +92,145 @@ const LANGUAGES = [
 ];
 
 function SettingsTab() {
+  const purple = '#8B6DAF';
+
   const [form, setForm] = useState({
     twilio_account_sid: '', twilio_auth_token: '', twilio_phone_number: '',
-    tts_voice: 'Polly.Joanna-Neural',
-    ai_persona: 'You are a friendly, professional assistant for a childcare centre. You help parents with enquiries about enrolment, daily updates, and absences. Always be warm and reassuring.',
-    inbound_greeting: 'Hello, thank you for calling. This is the childcare centre AI assistant. How can I help you today?',
-    outbound_greeting: "Hello, this is an automated call from your childcare centre. I'm calling regarding your child's enrolment.",
+    tts_voice: 'Polly.Olivia-Neural', voice_provider: 'twilio',
+    ai_persona: 'You are a friendly, professional assistant for a childcare centre. You help parents and educators with enquiries. Always be warm, concise and reassuring.',
+    inbound_greeting: 'Hello, thank you for calling. This is the AI assistant. How can I help you today?',
+    outbound_greeting: "Hello, this is an automated call from your childcare centre.",
     active: true,
-    elevenlabs_api_key: '',
-    elevenlabs_voice_id: '21m00Tcm4TlvDq8ikWAM',
-    elevenlabs_model: 'eleven_flash_v2_5',
-    call_language: 'en-AU',
+    elevenlabs_api_key: '', elevenlabs_voice_id: '21m00Tcm4TlvDq8ikWAM',
+    elevenlabs_model: 'eleven_flash_v2_5', call_language: 'en-AU',
+    retell_api_key: '', retell_agent_id: '', retell_phone_number_id: '',
   });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
-  const [inboundUrl, setInboundUrl] = useState('');
-  const [elVoices, setElVoices] = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [saving, setSaving]             = useState(false);
+  const [msg, setMsg]                   = useState(null);
+  const [inboundUrl, setInboundUrl]     = useState('');
+  const [retellLlmUrl, setRetellLlmUrl] = useState('');
+  // ElevenLabs voices
+  const [elVoices, setElVoices]               = useState([]);
   const [elVoicesLoading, setElVoicesLoading] = useState(false);
-  const [elVoicesErr, setElVoicesErr] = useState('');
-  const [voiceFilter, setVoiceFilter] = useState('');
+  const [elVoicesErr, setElVoicesErr]         = useState('');
+  const [voiceFilter, setVoiceFilter]         = useState('');
   const [voiceCategoryFilter, setVoiceCategoryFilter] = useState('all');
-  const [testingVoice, setTestingVoice] = useState(false);
-  const [testAudioUrl, setTestAudioUrl] = useState(null);
+  const [testingVoice, setTestingVoice]       = useState(false);
+  const [testAudioUrl, setTestAudioUrl]       = useState(null);
+  // Retell
+  const [retellStatus, setRetellStatus]           = useState(null);
+  const [retellLoading, setRetellLoading]         = useState(false);
+  const [retellMsg, setRetellMsg]                 = useState(null);
+  const [creatingAgent, setCreatingAgent]         = useState(false);
+  const [retellPhoneNumbers, setRetellPhoneNumbers] = useState([]);
+  const [linkingNumber, setLinkingNumber]         = useState(false);
+  const [testingRetell, setTestingRetell]         = useState(false);
   const audioRef = useRef(null);
+
+  const F = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   useEffect(() => {
     Promise.all([
       API('/settings').catch(() => ({})),
-      API('/inbound-url').catch(() => ({}))
-    ]).then(([s, u]) => {
-      if (s) setForm(f => ({ ...f, ...s, active: !!s.active }));
+      API('/inbound-url').catch(() => ({})),
+      API('/retell/llm-url').catch(() => ({})),
+    ]).then(([s, u, r]) => {
+      if (s) setForm(f => ({ ...f, ...s, active: !!s.active, voice_provider: s.voice_provider || 'twilio' }));
       if (u?.url) setInboundUrl(u.url);
+      if (r?.url) setRetellLlmUrl(r.url);
       setLoading(false);
       if (s?.elevenlabs_configured) loadElVoices();
+      if (s?.retell_configured) loadRetellStatus();
     });
   }, []);
 
   const loadElVoices = async () => {
     setElVoicesLoading(true); setElVoicesErr('');
-    try {
-      const r = await API('/elevenlabs/voices');
-      setElVoices(r.voices || []);
-    } catch(e) { setElVoicesErr(e.message); }
+    try { const r = await API('/elevenlabs/voices'); setElVoices(r.voices || []); }
+    catch(e) { setElVoicesErr(e.message); }
     setElVoicesLoading(false);
+  };
+
+  const loadRetellStatus = async () => {
+    setRetellLoading(true);
+    try {
+      const r = await API('/retell/status');
+      setRetellStatus(r);
+      if (r.phone_numbers?.length) setRetellPhoneNumbers(r.phone_numbers);
+    } catch(e) { console.error('Retell status:', e); }
+    setRetellLoading(false);
   };
 
   const testVoice = async () => {
     setTestingVoice(true); setTestAudioUrl(null);
     try {
-      const r = await API('/elevenlabs/test', {
-        method: 'POST',
-        body: JSON.stringify({ voice_id: form.elevenlabs_voice_id })
-      });
-      if (r.url) {
-        setTestAudioUrl(r.url);
-        setTimeout(() => audioRef.current?.play(), 200);
-      }
+      const r = await API('/elevenlabs/test', { method: 'POST', body: JSON.stringify({ voice_id: form.elevenlabs_voice_id }) });
+      if (r.url) { setTestAudioUrl(r.url); setTimeout(() => audioRef.current?.play(), 200); }
     } catch(e) { setElVoicesErr('Test failed: ' + e.message); }
     setTestingVoice(false);
+  };
+
+  const createRetellAgent = async () => {
+    setCreatingAgent(true); setRetellMsg(null);
+    try {
+      const r = await API('/retell/agent', { method: 'POST', body: JSON.stringify({
+        voice_id: form.retell_voice_id,
+        voice_model: form.elevenlabs_model,
+        responsiveness: 1,
+        interruption_sensitivity: 1,
+      })});
+      if (r.ok) {
+        setRetellMsg({ type: 'success', text: `Agent ${r.agent?.agent_id ? 'updated' : 'created'} successfully!` });
+        F('retell_agent_id', r.agent?.agent_id || form.retell_agent_id);
+        loadRetellStatus();
+      } else { setRetellMsg({ type: 'error', text: r.error }); }
+    } catch(e) { setRetellMsg({ type: 'error', text: e.message }); }
+    setCreatingAgent(false);
+  };
+
+  const linkRetellNumber = async (phoneNumberId) => {
+    setLinkingNumber(true); setRetellMsg(null);
+    try {
+      const r = await API('/retell/link-number', { method: 'POST', body: JSON.stringify({ phone_number_id: phoneNumberId }) });
+      if (r.ok) { setRetellMsg({ type: 'success', text: 'Phone number linked to agent!' }); F('retell_phone_number_id', phoneNumberId); loadRetellStatus(); }
+      else setRetellMsg({ type: 'error', text: r.error });
+    } catch(e) { setRetellMsg({ type: 'error', text: e.message }); }
+    setLinkingNumber(false);
+  };
+
+  const testRetellCall = async () => {
+    setTestingRetell(true); setRetellMsg(null);
+    try {
+      const r = await API('/retell/test-call', { method: 'POST', body: JSON.stringify({}) });
+      if (r.ok) setRetellMsg({ type: 'success', text: `Test call initiated! Call ID: ${r.call_id}` });
+      else setRetellMsg({ type: 'error', text: r.error });
+    } catch(e) { setRetellMsg({ type: 'error', text: e.message }); }
+    setTestingRetell(false);
   };
 
   const save = async () => {
     setSaving(true); setMsg(null);
     try {
       const r = await API('/settings', { method: 'PUT', body: JSON.stringify(form) });
-      if (r.error) { setMsg({ type: 'error', text: 'Save failed: ' + r.error }); }
-      else { setMsg({ type: 'success', text: 'Settings saved!' }); }
+      if (r.error) setMsg({ type: 'error', text: 'Save failed: ' + r.error });
+      else setMsg({ type: 'success', text: 'Settings saved!' });
     } catch(e) { setMsg({ type: 'error', text: e.message }); }
     setSaving(false);
   };
 
-  const F = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const purple = '#8B6DAF';
-
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: purple }}>Loading…</div>;
 
+  const iStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, boxSizing: 'border-box', outline: 'none', background: '#fff' };
   const hasElKey = !!(form.elevenlabs_api_key && !form.elevenlabs_api_key.startsWith('••••'));
   const elConfigured = form.elevenlabs_configured || hasElKey;
+  const hasRetellKey = !!(form.retell_api_key && !form.retell_api_key.startsWith('••••'));
+  const retellConfigured = form.retell_configured || hasRetellKey;
+  const provider = form.voice_provider || 'twilio';
 
   return (
     <div style={{ padding: 24, maxWidth: 760 }}>
+
       {/* Active toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 12, marginBottom: 24,
         background: form.active ? '#F0FDF4' : '#FFF8F0', border: `1px solid ${form.active ? '#86EFAC' : '#FED7AA'}` }}>
@@ -182,166 +240,256 @@ function SettingsTab() {
             Voice Agent is {form.active ? 'Active' : 'Inactive'}
           </div>
           <div style={{ fontSize: 12, color: form.active ? '#166534' : '#a16207' }}>
-            {form.active ? 'AI will answer inbound calls and can make outbound calls.' : 'Enable below to activate the AI agent.'}
+            {form.active ? `Using ${provider === 'retell' ? 'Retell AI' : 'Twilio + ElevenLabs'} · AI answers inbound calls and makes outbound calls.` : 'Enable below to activate.'}
           </div>
         </div>
         <div style={{ width: 44, height: 24, borderRadius: 12, background: form.active ? purple : '#D1D5DB',
           position: 'relative', cursor: 'pointer' }} onClick={() => F('active', !form.active)}>
           <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff',
-            position: 'absolute', top: 2, left: form.active ? 22 : 2, transition: 'left 0.2s',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+            position: 'absolute', top: 2, left: form.active ? 22 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
         </div>
       </div>
 
-      {/* ElevenLabs — PRIMARY TTS */}
-      <Section title="🎙️ ElevenLabs Voice (Recommended)" hint="Ultra-realistic AI voices for your agent. Set this up first for best quality.">
-        <div style={{ background: '#F3EFF8', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#4B3B6B',
-          display: 'flex', alignItems: 'flex-start', gap: 10, border: '1px solid #D8C8F0' }}>
-          <span style={{ fontSize: 18 }}>⭐</span>
-          <div>
-            <strong>ElevenLabs gives you natural, human-sounding voices</strong> — far better than Twilio's built-in TTS. 
-            When configured, all calls will use ElevenLabs automatically. Twilio TTS is the fallback only.
-          </div>
-        </div>
-        <Field label="ElevenLabs API Key" hint="From elevenlabs.io → Profile → API Keys">
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="password" value={form.elevenlabs_api_key || ''}
-              onChange={e => { F('elevenlabs_api_key', e.target.value); setElVoices([]); }}
-              placeholder="sk_xxxxxxxxxxxxxxxxxxxxxxxx" style={{ ...iStyle, flex: 1 }} />
-            <button onClick={loadElVoices} disabled={elVoicesLoading}
-              style={{ padding: '10px 16px', borderRadius: 8, background: purple, color: '#fff', border: 'none',
-                cursor: elVoicesLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>
-              {elVoicesLoading ? 'Loading…' : '🔄 Load Voices'}
-            </button>
-          </div>
-          {elVoicesErr && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>⚠ {elVoicesErr}</div>}
-        </Field>
-
-        {elVoices.length > 0 && (() => {
-          const filtered = elVoices.filter(v => {
-            const matchText = !voiceFilter || v.name.toLowerCase().includes(voiceFilter.toLowerCase()) ||
-              (v.accent||'').toLowerCase().includes(voiceFilter.toLowerCase()) ||
-              (v.language||'').toLowerCase().includes(voiceFilter.toLowerCase());
-            const matchCat = voiceCategoryFilter === 'all' || v.category === voiceCategoryFilter;
-            return matchText && matchCat;
-          });
-          const categories = ['all', ...new Set(elVoices.map(v => v.category).filter(Boolean))];
-          return (
-            <Field label="Voice Selection" hint={`${filtered.length} of ${elVoices.length} voices shown`}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <input value={voiceFilter} onChange={e => setVoiceFilter(e.target.value)}
-                  placeholder="🔍 Search by name, accent, language…"
-                  style={{ ...iStyle, flex: 1, fontSize: 12 }} />
-                <select value={voiceCategoryFilter} onChange={e => setVoiceCategoryFilter(e.target.value)}
-                  style={{ ...iStyle, width: 130, fontSize: 12 }}>
-                  {categories.map(c => <option key={c} value={c}>{c === 'all' ? 'All categories' : c === 'my_library' ? '⭐ My Library' : c === 'shared' ? '🌐 Shared' : c}</option>)}
-                </select>
+      {/* ── PROVIDER SELECTOR ── */}
+      <Section title="🔀 Voice Provider" hint="Choose your voice engine. Both can be configured — switch anytime to compare.">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {[
+            { id: 'twilio', icon: '📞', name: 'Twilio + ElevenLabs', desc: 'Our custom stack. Full control, ElevenLabs voices, streaming TTS. ~600ms latency.' },
+            { id: 'retell', icon: '🚀', name: 'Retell AI', desc: 'Purpose-built voice AI platform. WebSocket audio, natural interruptions, ~300ms latency.' },
+          ].map(p => (
+            <div key={p.id} onClick={() => F('voice_provider', p.id)} style={{
+              padding: '14px 16px', borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',
+              border: `2px solid ${provider === p.id ? purple : '#E5E7EB'}`,
+              background: provider === p.id ? '#F3EFF8' : '#FAFAFA',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 20 }}>{p.icon}</span>
+                <span style={{ fontWeight: 700, fontSize: 13, color: provider === p.id ? purple : '#374151' }}>{p.name}</span>
+                {provider === p.id && <span style={{ marginLeft: 'auto', fontSize: 11, background: purple, color: '#fff', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>ACTIVE</span>}
               </div>
-              <select value={form.elevenlabs_voice_id || ''} onChange={e => { F('elevenlabs_voice_id', e.target.value); setTestAudioUrl(null); }}
-                size={8} style={{ ...iStyle, cursor: 'pointer', height: 'auto', fontFamily: 'monospace', fontSize: 12 }}>
-                {filtered.map(v => (
-                  <option key={v.voice_id} value={v.voice_id}>
-                    {v.category === 'my_library' ? '⭐ ' : ''}{v.name}{v.gender ? ` · ${v.gender}` : ''}{v.accent ? ` · ${v.accent}` : ''}{v.language ? ` · ${v.language}` : ''}
+              <p style={{ fontSize: 12, color: '#6B7280', margin: 0, lineHeight: 1.4 }}>{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ── TWILIO + ELEVENLABS CONFIG ── */}
+      {provider === 'twilio' && (<>
+
+        <Section title="🎙️ ElevenLabs Voice" hint="Ultra-realistic streaming voices. Recommended for best quality.">
+          <Field label="ElevenLabs API Key" hint="From elevenlabs.io → Profile → API Keys">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="password" value={form.elevenlabs_api_key || ''} style={{ ...iStyle, flex: 1 }}
+                onChange={e => { F('elevenlabs_api_key', e.target.value); setElVoices([]); }}
+                placeholder="sk_xxxxxxxxxxxxxxxxxxxxxxxx" />
+              <button onClick={loadElVoices} disabled={elVoicesLoading} style={{
+                padding: '10px 16px', borderRadius: 8, background: purple, color: '#fff', border: 'none',
+                cursor: elVoicesLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>
+                {elVoicesLoading ? 'Loading…' : '🔄 Load Voices'}
+              </button>
+            </div>
+            {elVoicesErr && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>⚠ {elVoicesErr}</div>}
+          </Field>
+
+          {elVoices.length > 0 && (() => {
+            const filtered = elVoices.filter(v => {
+              const t = voiceFilter.toLowerCase();
+              const matchText = !t || v.name.toLowerCase().includes(t) || (v.accent||'').toLowerCase().includes(t) || (v.language||'').toLowerCase().includes(t);
+              const matchCat = voiceCategoryFilter === 'all' || v.category === voiceCategoryFilter;
+              return matchText && matchCat;
+            });
+            const categories = ['all', ...new Set(elVoices.map(v => v.category).filter(Boolean))];
+            return (
+              <Field label="Voice Selection" hint={`${filtered.length} of ${elVoices.length} voices shown`}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input value={voiceFilter} onChange={e => setVoiceFilter(e.target.value)}
+                    placeholder="🔍 Search by name, accent, language…" style={{ ...iStyle, flex: 1, fontSize: 12 }} />
+                  <select value={voiceCategoryFilter} onChange={e => setVoiceCategoryFilter(e.target.value)}
+                    style={{ ...iStyle, width: 130, fontSize: 12 }}>
+                    {categories.map(c => <option key={c} value={c}>{c === 'all' ? 'All' : c === 'my_library' ? '⭐ My Library' : c === 'shared' ? '🌐 Shared' : c}</option>)}
+                  </select>
+                </div>
+                <select value={form.elevenlabs_voice_id || ''} onChange={e => { F('elevenlabs_voice_id', e.target.value); setTestAudioUrl(null); }}
+                  size={7} style={{ ...iStyle, height: 'auto', fontFamily: 'monospace', fontSize: 12, cursor: 'pointer' }}>
+                  {filtered.map(v => (
+                    <option key={v.voice_id} value={v.voice_id}>
+                      {v.category === 'my_library' ? '⭐ ' : ''}{v.name}{v.gender ? ` · ${v.gender}` : ''}{v.accent ? ` · ${v.accent}` : ''}{v.language ? ` · ${v.language}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                  <button onClick={testVoice} disabled={testingVoice} style={{
+                    padding: '8px 16px', borderRadius: 8, background: '#F3EFF8', color: purple,
+                    border: `1px solid ${purple}`, cursor: testingVoice ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12 }}>
+                    {testingVoice ? '⏳ Generating…' : '▶ Preview Voice'}
+                  </button>
+                  {testAudioUrl && <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>✅ Playing…</span>}
+                </div>
+                {testAudioUrl && <audio ref={audioRef} src={testAudioUrl} style={{ display: 'none' }} />}
+              </Field>
+            );
+          })()}
+
+          <Field label="ElevenLabs Model" hint="Flash is fastest for phone calls. Use Multilingual v2 for non-English.">
+            <select value={form.elevenlabs_model || 'eleven_flash_v2_5'} onChange={e => F('elevenlabs_model', e.target.value)} style={{ ...iStyle, cursor: 'pointer' }}>
+              {EL_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </Field>
+
+          <Field label="Call Language" hint="Language for speech recognition. Use Multilingual v2 for non-English.">
+            <select value={form.call_language || 'en-AU'} onChange={e => F('call_language', e.target.value)} style={{ ...iStyle, cursor: 'pointer' }}>
+              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+          </Field>
+        </Section>
+
+        <Section title="📞 Twilio Credentials" hint="Required for making and receiving calls — from console.twilio.com">
+          <Field label="Account SID" hint="Starts with AC...">
+            <input value={form.twilio_account_sid || ''} onChange={e => F('twilio_account_sid', e.target.value)} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={iStyle} />
+          </Field>
+          <Field label="Auth Token" hint="Keep this secret">
+            <input type="password" value={form.twilio_auth_token || ''} onChange={e => F('twilio_auth_token', e.target.value)} placeholder="Your Twilio Auth Token" style={iStyle} />
+          </Field>
+          <Field label="Twilio Phone Number" hint="In E.164 format e.g. +61291234567">
+            <input value={form.twilio_phone_number || ''} onChange={e => F('twilio_phone_number', e.target.value)} placeholder="+61291234567" style={iStyle} />
+          </Field>
+        </Section>
+
+        <Section title="🔈 Fallback Voice (Twilio)" hint="Used if ElevenLabs is unavailable">
+          <Field label="Twilio Built-in Voice">
+            <select value={form.tts_voice || 'Polly.Olivia-Neural'} onChange={e => F('tts_voice', e.target.value)} style={{ ...iStyle, cursor: 'pointer' }}>
+              {TTS_VOICES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+            </select>
+          </Field>
+        </Section>
+
+        {inboundUrl && (
+          <Section title="🔗 Twilio Inbound Webhook URL" hint="Paste this into your Twilio phone number settings → A Call Comes In">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <code style={{ flex: 1, background: '#F3EFF8', padding: '10px 14px', borderRadius: 8, fontSize: 12, color: '#4B3B6B', wordBreak: 'break-all' }}>{inboundUrl}</code>
+              <button onClick={() => navigator.clipboard.writeText(inboundUrl)} style={{ padding: '10px 14px', borderRadius: 8, background: purple, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>Copy</button>
+            </div>
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>Twilio → Phone Numbers → Manage → Active Numbers → your number → "A Call Comes In" → Webhook → paste above → HTTP POST</div>
+          </Section>
+        )}
+      </>)}
+
+      {/* ── RETELL AI CONFIG ── */}
+      {provider === 'retell' && (<>
+
+        <Section title="🚀 Retell AI Setup" hint="Sign up at retell.ai — free tier available for testing">
+          <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#0C4A6E' }}>
+            <strong>How Retell works with Childcare360:</strong> Retell handles all audio (STT + TTS + turn-taking). Your conversation logic (sick calls, shift checks) runs on our server. Retell calls our Custom LLM endpoint each turn to get the next response.
+          </div>
+
+          <Field label="Retell API Key" hint="From dashboard.retellai.com → API Keys">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="password" value={form.retell_api_key || ''} style={{ ...iStyle, flex: 1 }}
+                onChange={e => { F('retell_api_key', e.target.value); setRetellStatus(null); }}
+                placeholder="key_xxxxxxxxxxxxxxxxxxxxxxxx" />
+              <button onClick={loadRetellStatus} disabled={retellLoading} style={{
+                padding: '10px 16px', borderRadius: 8, background: '#0EA5E9', color: '#fff', border: 'none',
+                cursor: retellLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>
+                {retellLoading ? 'Checking…' : '🔍 Check'}
+              </button>
+            </div>
+          </Field>
+
+          {retellStatus?.configured && (
+            <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#15803d', marginBottom: 8 }}>
+              ✅ Connected to Retell AI {retellStatus.agent ? `· Agent: ${retellStatus.agent.agent_name || retellStatus.agent.agent_id}` : '· No agent created yet'}
+            </div>
+          )}
+
+          <Field label="Agent Name" hint="What shows in your Retell dashboard">
+            <input value={form.retell_agent_name || ''} onChange={e => F('retell_agent_name', e.target.value)} placeholder="Childcare Centre AI Assistant" style={iStyle} />
+          </Field>
+
+          <Field label="Voice (Retell)" hint="Retell voice ID — find these in the Retell dashboard under Voices">
+            <input value={form.retell_voice_id || ''} onChange={e => F('retell_voice_id', e.target.value)}
+              placeholder="e.g. openai-Alloy or a custom ElevenLabs voice ID" style={iStyle} />
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+              Retell supports: OpenAI voices (openai-Alloy, openai-Nova, openai-Shimmer), ElevenLabs voices (paste your ElevenLabs voice ID), Deepgram, Cartesia. Find IDs at <a href="https://dashboard.retellai.com" target="_blank" rel="noreferrer" style={{ color: '#0EA5E9' }}>dashboard.retellai.com</a> → Voices.
+            </div>
+          </Field>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+            <button onClick={createRetellAgent} disabled={creatingAgent || !retellConfigured} style={{
+              padding: '10px 20px', borderRadius: 8, background: creatingAgent ? '#93C5FD' : '#0EA5E9',
+              color: '#fff', border: 'none', cursor: (creatingAgent || !retellConfigured) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13 }}>
+              {creatingAgent ? '⏳ Saving…' : form.retell_agent_id ? '🔄 Update Agent' : '✨ Create Agent'}
+            </button>
+            {form.retell_agent_id && (
+              <button onClick={testRetellCall} disabled={testingRetell} style={{
+                padding: '10px 20px', borderRadius: 8, background: testingRetell ? '#A7F3D0' : '#10B981',
+                color: '#fff', border: 'none', cursor: testingRetell ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13 }}>
+                {testingRetell ? '⏳ Calling…' : '📞 Test Call'}
+              </button>
+            )}
+          </div>
+          {retellMsg && (
+            <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: retellMsg.type === 'success' ? '#F0FDF4' : '#FEF2F2',
+              border: `1px solid ${retellMsg.type === 'success' ? '#86EFAC' : '#FECACA'}`,
+              color: retellMsg.type === 'success' ? '#15803d' : '#991b1b' }}>
+              {retellMsg.type === 'success' ? '✅ ' : '❌ '}{retellMsg.text}
+            </div>
+          )}
+        </Section>
+
+        {/* Phone number linking */}
+        {retellStatus?.phone_numbers?.length > 0 && (
+          <Section title="📱 Link Phone Number" hint="Assign a Retell phone number to your agent for inbound calls">
+            <Field label="Retell Phone Number">
+              <select style={{ ...iStyle, cursor: 'pointer' }}
+                value={form.retell_phone_number_id || ''}
+                onChange={e => F('retell_phone_number_id', e.target.value)}>
+                <option value="">Select a phone number…</option>
+                {retellStatus.phone_numbers.map(n => (
+                  <option key={n.phone_number_id || n.phone_number} value={n.phone_number_id || n.phone_number}>
+                    {n.phone_number} {n.inbound_agent_id ? `(linked to ${n.inbound_agent_id === form.retell_agent_id ? 'this agent ✅' : 'another agent'})` : '(unlinked)'}
                   </option>
                 ))}
               </select>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                <button onClick={testVoice} disabled={testingVoice}
-                  style={{ padding: '8px 16px', borderRadius: 8, background: '#F3EFF8', color: purple,
-                    border: `1px solid ${purple}`, cursor: testingVoice ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12 }}>
-                  {testingVoice ? '⏳ Generating…' : '▶ Preview Selected Voice'}
-                </button>
-                {testAudioUrl && <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>✅ Playing…</span>}
-              </div>
-              {testAudioUrl && <audio ref={audioRef} src={testAudioUrl} style={{ display: 'none' }} />}
             </Field>
-          );
-        })()}
-
-        <Field label="ElevenLabs Model" hint="Flash is fastest for phone calls. Multilingual v2 for non-English.">
-          <select value={form.elevenlabs_model || 'eleven_flash_v2_5'} onChange={e => F('elevenlabs_model', e.target.value)}
-            style={{ ...iStyle, cursor: 'pointer' }}>
-            {EL_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </Field>
-
-        <Field label="Call Language" hint="Language for speech recognition. Use Multilingual v2 model for non-English voices.">
-          <select value={form.call_language || 'en-AU'} onChange={e => F('call_language', e.target.value)}
-            style={{ ...iStyle, cursor: 'pointer' }}>
-            {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-          </select>
-        </Field>
-
-        {elVoices.length === 0 && !elVoicesLoading && (
-          <div style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', marginTop: 8 }}>
-            Enter your API key above and click "Load Voices" to browse available voices.
-          </div>
+            <button onClick={() => linkRetellNumber(form.retell_phone_number_id)} disabled={!form.retell_phone_number_id || linkingNumber}
+              style={{ padding: '10px 20px', borderRadius: 8, background: '#0EA5E9', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, marginTop: 8 }}>
+              {linkingNumber ? '⏳ Linking…' : '🔗 Link to Agent'}
+            </button>
+          </Section>
         )}
-      </Section>
 
-      {/* Twilio credentials */}
-      <Section title="📞 Twilio Credentials" hint="Required for making and receiving calls — from console.twilio.com">
-        <Field label="Account SID" hint="Starts with AC...">
-          <input value={form.twilio_account_sid || ''} onChange={e => F('twilio_account_sid', e.target.value)}
-            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={iStyle} />
-        </Field>
-        <Field label="Auth Token" hint="Keep this secret">
-          <input type="password" value={form.twilio_auth_token || ''} onChange={e => F('twilio_auth_token', e.target.value)}
-            placeholder="Your Twilio Auth Token" style={iStyle} />
-        </Field>
-        <Field label="Twilio Phone Number" hint="In E.164 format e.g. +61291234567">
-          <input value={form.twilio_phone_number || ''} onChange={e => F('twilio_phone_number', e.target.value)}
-            placeholder="+61291234567" style={iStyle} />
-        </Field>
-      </Section>
+        {/* Custom LLM URL */}
+        {retellLlmUrl && (
+          <Section title="🔗 Custom LLM Endpoint" hint="Already configured automatically when you create/update the agent — shown here for reference">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <code style={{ flex: 1, background: '#F0F9FF', padding: '10px 14px', borderRadius: 8, fontSize: 11, color: '#0C4A6E', wordBreak: 'break-all' }}>{retellLlmUrl}</code>
+              <button onClick={() => navigator.clipboard.writeText(retellLlmUrl)} style={{ padding: '10px 14px', borderRadius: 8, background: '#0EA5E9', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>Copy</button>
+            </div>
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>This is the URL Retell calls each turn to get the AI response. It is set automatically on your agent.</div>
+          </Section>
+        )}
+      </>)}
 
-      {/* Fallback voice (Twilio) */}
-      <Section title="🔈 Fallback Voice (Twilio TTS)" hint="Used only if ElevenLabs is not configured or fails">
-        <Field label="Twilio Built-in Voice">
-          <select value={form.tts_voice || 'Polly.Joanna-Neural'} onChange={e => F('tts_voice', e.target.value)} style={{ ...iStyle, cursor: 'pointer' }}>
-            {TTS_VOICES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-          </select>
-        </Field>
-      </Section>
-
-      {/* Personality */}
-      <Section title="🤖 Agent Personality" hint="How the AI agent sounds and behaves">
-        <Field label="AI Persona" hint="Instructions for the agent's personality and knowledge">
+      {/* ── SHARED: AGENT PERSONALITY ── */}
+      <Section title="🤖 Agent Personality" hint="How the AI sounds and what it knows — applies to both providers">
+        <Field label="AI Persona" hint="Instructions for personality and knowledge">
           <textarea value={form.ai_persona || ''} onChange={e => F('ai_persona', e.target.value)}
             rows={4} style={{ ...iStyle, resize: 'vertical', lineHeight: 1.6 }} />
         </Field>
-        <Field label="Inbound Greeting" hint="What callers hear when they call your number">
+        <Field label="Inbound Greeting" hint="What callers hear when they ring in">
           <textarea value={form.inbound_greeting || ''} onChange={e => F('inbound_greeting', e.target.value)}
             rows={2} style={{ ...iStyle, resize: 'vertical' }} />
         </Field>
-        <Field label="Outbound Opening" hint="How the agent introduces outbound calls">
+        <Field label="Outbound Opening" hint="How the agent introduces itself on outbound calls">
           <textarea value={form.outbound_greeting || ''} onChange={e => F('outbound_greeting', e.target.value)}
             rows={2} style={{ ...iStyle, resize: 'vertical' }} />
         </Field>
       </Section>
 
-      {/* Inbound webhook URL */}
-      {inboundUrl && (
-        <Section title="🔗 Twilio Inbound Webhook URL" hint="Paste this into your Twilio phone number settings">
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <code style={{ flex: 1, background: '#F3EFF8', padding: '10px 14px', borderRadius: 8, fontSize: 12, color: '#4B3B6B', wordBreak: 'break-all' }}>
-              {inboundUrl}
-            </code>
-            <button onClick={() => navigator.clipboard.writeText(inboundUrl)}
-              style={{ padding: '10px 14px', borderRadius: 8, background: purple, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-              Copy
-            </button>
-          </div>
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
-            Twilio → Phone Numbers → Manage → Active Numbers → your number → "A Call Comes In" Webhook → paste URL above
-          </div>
-        </Section>
-      )}
-
       {msg && (
-        <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16,
+        <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 8,
           background: msg.type === 'success' ? '#F0FDF4' : '#FEF2F2',
-          color: msg.type === 'success' ? '#15803d' : '#dc2626',
           border: `1px solid ${msg.type === 'success' ? '#86EFAC' : '#FECACA'}`,
           fontSize: 13, fontWeight: 600 }}>
           {msg.type === 'success' ? '✅ ' : '❌ '}{msg.text}
@@ -357,7 +505,6 @@ function SettingsTab() {
     </div>
   );
 }
-
 // ── Debug Panel ───────────────────────────────────────────────────────────────
 function DebugPanel() {
   const [open, setOpen] = useState(false);

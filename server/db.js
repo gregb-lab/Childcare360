@@ -2108,5 +2108,10 @@ function initLearningTables(db) {
     'ALTER TABLE voice_settings ADD COLUMN elevenlabs_voice_id TEXT DEFAULT \'21m00Tcm4TlvDq8ikWAM\'',
     'ALTER TABLE voice_settings ADD COLUMN elevenlabs_model TEXT DEFAULT \'eleven_flash_v2_5\'',
     'ALTER TABLE voice_settings ADD COLUMN call_language TEXT DEFAULT \'en-AU\'',
+    // v2.2.9 — Retell AI provider
+    'ALTER TABLE voice_settings ADD COLUMN voice_provider TEXT DEFAULT \'twilio\'',
+    'ALTER TABLE voice_settings ADD COLUMN retell_api_key TEXT',
+    'ALTER TABLE voice_settings ADD COLUMN retell_agent_id TEXT',
+    'ALTER TABLE voice_settings ADD COLUMN retell_phone_number_id TEXT',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

@@ -54,9 +54,13 @@ function getSettings(tenantId) {
     twilio_auth_token:   process.env.TWILIO_AUTH_TOKEN   || db.twilio_auth_token,
     twilio_phone_number: process.env.TWILIO_PHONE_NUMBER || db.twilio_phone_number,
     elevenlabs_api_key:  process.env.ELEVENLABS_API_KEY  || db.elevenlabs_api_key,
-    elevenlabs_voice_id: db.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM',
-    elevenlabs_model:    db.elevenlabs_model    || 'eleven_flash_v2_5',
-    call_language:       db.call_language       || 'en-AU',
+    elevenlabs_voice_id:     db.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM',
+    elevenlabs_model:        db.elevenlabs_model    || 'eleven_flash_v2_5',
+    call_language:           db.call_language       || 'en-AU',
+    voice_provider:          db.voice_provider      || 'twilio',
+    retell_api_key:          process.env.RETELL_API_KEY || db.retell_api_key,
+    retell_agent_id:         db.retell_agent_id,
+    retell_phone_number_id:  db.retell_phone_number_id,
     tts_voice:           db.tts_voice || 'Polly.Joanna-Neural',
     ai_persona:          db.ai_persona || 'You are a friendly assistant for a childcare centre.',
     inbound_greeting:    db.inbound_greeting || 'Hello, thank you for calling. How can I help you today?',
@@ -366,8 +370,11 @@ router.get('/settings', requireAuth, requireTenant, (req, res) => {
       ...s,
       configured:            !!(s.twilio_account_sid && s.twilio_auth_token && s.twilio_phone_number),
       elevenlabs_configured: !!(s.elevenlabs_api_key),
+      retell_configured:     !!(s.retell_api_key),
+      voice_provider:        s.voice_provider || 'twilio',
       twilio_auth_token:     s.twilio_auth_token  ? '••••' + s.twilio_auth_token.slice(-4)  : null,
       elevenlabs_api_key:    s.elevenlabs_api_key ? '••••' + s.elevenlabs_api_key.slice(-4) : null,
+      retell_api_key:        s.retell_api_key     ? '••••' + s.retell_api_key.slice(-4)     : null,
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -376,16 +383,19 @@ router.put('/settings', requireAuth, requireTenant, (req, res) => {
   try {
     const { twilio_account_sid, twilio_auth_token, twilio_phone_number,
             tts_voice, ai_persona, inbound_greeting, outbound_greeting, active,
-            elevenlabs_api_key, elevenlabs_voice_id, elevenlabs_model, call_language } = req.body;
+            elevenlabs_api_key, elevenlabs_voice_id, elevenlabs_model, call_language,
+            voice_provider, retell_api_key, retell_agent_id, retell_phone_number_id } = req.body;
     const existing = getSettings(req.tenantId);
     const id = existing?.id || uuid();
-    const authToken = twilio_auth_token?.startsWith('••••') ? existing?.twilio_auth_token : twilio_auth_token;
-    const elKey     = elevenlabs_api_key?.startsWith('••••') ? existing?.elevenlabs_api_key : elevenlabs_api_key;
+    const authToken    = twilio_auth_token?.startsWith('••••') ? existing?.twilio_auth_token : twilio_auth_token;
+    const elKey        = elevenlabs_api_key?.startsWith('••••')  ? existing?.elevenlabs_api_key  : elevenlabs_api_key;
+    const retellKey    = retell_api_key?.startsWith('••••')      ? existing?.retell_api_key      : retell_api_key;
     D().prepare(`
       INSERT INTO voice_settings (id,tenant_id,twilio_account_sid,twilio_auth_token,twilio_phone_number,
         tts_voice,ai_persona,inbound_greeting,outbound_greeting,active,
-        elevenlabs_api_key,elevenlabs_voice_id,elevenlabs_model,call_language,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        elevenlabs_api_key,elevenlabs_voice_id,elevenlabs_model,call_language,
+        voice_provider,retell_api_key,retell_agent_id,retell_phone_number_id,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
       ON CONFLICT(tenant_id) DO UPDATE SET
         twilio_account_sid=excluded.twilio_account_sid, twilio_auth_token=excluded.twilio_auth_token,
         twilio_phone_number=excluded.twilio_phone_number, tts_voice=excluded.tts_voice,
@@ -393,6 +403,8 @@ router.put('/settings', requireAuth, requireTenant, (req, res) => {
         outbound_greeting=excluded.outbound_greeting, active=excluded.active,
         elevenlabs_api_key=excluded.elevenlabs_api_key, elevenlabs_voice_id=excluded.elevenlabs_voice_id,
         elevenlabs_model=excluded.elevenlabs_model, call_language=excluded.call_language,
+        voice_provider=excluded.voice_provider, retell_api_key=excluded.retell_api_key,
+        retell_agent_id=excluded.retell_agent_id, retell_phone_number_id=excluded.retell_phone_number_id,
         updated_at=excluded.updated_at
     `).run(id, req.tenantId, twilio_account_sid, authToken, twilio_phone_number,
            tts_voice || 'Polly.Joanna-Neural',
@@ -402,7 +414,9 @@ router.put('/settings', requireAuth, requireTenant, (req, res) => {
            active ? 1 : 0, elKey || null,
            elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM',
            elevenlabs_model || 'eleven_flash_v2_5',
-           call_language || 'en-AU');
+           call_language || 'en-AU',
+           voice_provider || 'twilio',
+           retellKey || null, retell_agent_id || null, retell_phone_number_id || null);
     auditLog(req.userId, req.tenantId, 'voice_settings_updated', {}, req.ip, req.headers['user-agent']);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

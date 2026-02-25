@@ -30,6 +30,7 @@ import aiRoutes from './ai.js';
 import auditRoutes from './audit.js';
 import voiceRoutes, { webhookRouter, audioRouter } from './voice.js';
 import shiftVoiceRoutes, { shiftWebhooks } from './shift-voice.js';
+import retellRoutes, { retellWebhooks } from './retell.js';
 import { globalAuditMiddleware } from './middleware.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -300,6 +301,7 @@ app.use('/auth', authRoutes);
 app.use('/api/voice/webhook', webhookRouter);
 app.use('/api/voice/audio', audioRouter);
 app.use('/api/shift-voice/webhook', shiftWebhooks);
+app.use('/api/retell/webhook', retellWebhooks); // no auth — called by Retell
 
 // ── One-shot CN seed endpoint ─────────────────────────────────────────────
 // Hit: GET /admin-seed-cn?token=childcare360seed
@@ -499,6 +501,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/shift-voice', shiftVoiceRoutes);
+app.use('/api/retell', retellRoutes);
 app.use('/api/wellbeing', wellbeingRoutes);
 app.use('/api/settings', settingsRoutes);
 
