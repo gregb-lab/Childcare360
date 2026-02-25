@@ -97,7 +97,7 @@ async function speak(text, settings) {
 
 async function gather(action, text, settings) {
   const inner = await speak(text, settings);
-  return `<Gather input="speech dtmf" action="${action}" method="POST" timeout="8" speechTimeout="2" numDigits="1" language="en-AU" speechModel="phone_call" enhanced="true">
+  return `<Gather input="speech dtmf" action="${action}" method="POST" timeout="8" speechTimeout="auto" numDigits="1" language="en-AU" speechModel="phone_call" enhanced="true">
   ${inner}
 </Gather>`;
 }

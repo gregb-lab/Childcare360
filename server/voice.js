@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router } from 'express';
 import { mkdirSync, existsSync, writeFileSync, createReadStream } from 'fs';
+import { Readable } from 'stream';
 import { join } from 'path';
 import { D, uuid, auditLog } from './db.js';
 import { requireAuth, requireTenant, requireRole } from './middleware.js';
@@ -78,77 +79,119 @@ async function getTwilioClient(settings) {
 
 // ElevenLabs model options (exposed to frontend)
 const EL_MODELS = [
-  { id: 'eleven_flash_v2_5',       name: 'Flash v2.5 (fastest, lowest latency)',  multilingual: true  },
-  { id: 'eleven_turbo_v2_5',       name: 'Turbo v2.5 (fast, high quality)',        multilingual: true  },
-  { id: 'eleven_multilingual_v2',  name: 'Multilingual v2 (best quality)',         multilingual: true  },
-  { id: 'eleven_turbo_v2',         name: 'Turbo v2 (English only)',               multilingual: false },
-  { id: 'eleven_monolingual_v1',   name: 'Monolingual v1 (legacy)',               multilingual: false },
+  { id: 'eleven_flash_v2_5',       name: 'Flash v2.5 — fastest, lowest latency (recommended)', multilingual: true  },
+  { id: 'eleven_turbo_v2_5',       name: 'Turbo v2.5 — fast, high quality',                    multilingual: true  },
+  { id: 'eleven_multilingual_v2',  name: 'Multilingual v2 — best quality',                     multilingual: true  },
+  { id: 'eleven_turbo_v2',         name: 'Turbo v2 — English only',                            multilingual: false },
+  { id: 'eleven_monolingual_v1',   name: 'Monolingual v1 — legacy',                            multilingual: false },
 ];
 
-async function elevenLabsTTS(text, apiKey, voiceId, modelId) {
-  const model = modelId || 'eleven_flash_v2_5';
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000); // 4s hard timeout
-  try {
-    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId || '21m00Tcm4TlvDq8ikWAM'}?optimize_streaming_latency=4&output_format=mp3_44100_64`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Accept': 'audio/mpeg', 'Content-Type': 'application/json', 'xi-api-key': apiKey },
-      body: JSON.stringify({
-        text,
-        model_id: model,
-        voice_settings: { stability: 0.45, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false }
-      })
-    });
-    if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 200)}`);
-    return Buffer.from(await r.arrayBuffer());
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+// ─── ElevenLabs streaming TTS ────────────────────────────────────────────────
+// Architecture: start the EL request immediately, store the response stream in
+// a Map, respond to Twilio with a <Play> pointing to our stream proxy endpoint.
+// Twilio fetches that URL and we pipe EL bytes as they arrive — first audio
+// bytes reach Twilio in ~250ms instead of waiting for the full file (~800ms).
 
-// TTS response cache — avoid re-generating identical phrases (greetings, farewells etc)
-const ttsCache = new Map();
-const TTS_CACHE_MAX = 50;
+const streamTokens = new Map(); // token -> { stream: NodeReadable, expires: ms }
 
-// Returns a hosted audio URL, or null to fall back to Twilio <Say>
-async function toAudioUrl(text, settings) {
+// Periodically clean up expired tokens (shouldn't accumulate but belt+suspenders)
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of streamTokens) { if (v.expires < now) streamTokens.delete(k); }
+}, 60000);
+
+// In-process URL cache for repeated phrases (greetings, farewells etc)
+const ttsUrlCache = new Map();
+const TTS_URL_CACHE_MAX = 100;
+
+async function elevenLabsStream(text, settings) {
   const key = settings?.elevenlabs_api_key;
   if (!key) return null;
-  // In-memory cache key
-  const cacheKey = `${settings.elevenlabs_voice_id}|${settings.elevenlabs_model}|${text}`;
-  if (ttsCache.has(cacheKey)) {
-    console.log('[ElevenLabs] cache hit');
-    return ttsCache.get(cacheKey);
+
+  const voiceId = settings.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM';
+  const model   = settings.elevenlabs_model    || 'eleven_flash_v2_5';
+
+  // Check URL cache for identical phrases
+  const cacheKey = `${voiceId}|${model}|${text}`;
+  if (ttsUrlCache.has(cacheKey)) {
+    return `<Play>${ttsUrlCache.get(cacheKey)}</Play>`;
   }
+
   try {
-    mkdirSync(TTS_CACHE_DIR, { recursive: true });
-    const filename = `${uuid()}.mp3`;
-    const audio = await elevenLabsTTS(text, key, settings.elevenlabs_voice_id, settings.elevenlabs_model);
-    writeFileSync(join(TTS_CACHE_DIR, filename), audio);
-    const url = `${getBase()}/api/voice/audio/${filename}`;
-    // Cache it (evict oldest if over limit)
-    if (ttsCache.size >= TTS_CACHE_MAX) ttsCache.delete(ttsCache.keys().next().value);
-    ttsCache.set(cacheKey, url);
-    return url;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const r = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?optimize_streaming_latency=4&output_format=mp3_44100_64`,
+      {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Accept': 'audio/mpeg', 'Content-Type': 'application/json', 'xi-api-key': key },
+        body: JSON.stringify({
+          text,
+          model_id: model,
+          voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.0, use_speaker_boost: true }
+        })
+      }
+    );
+    clearTimeout(timeout);
+    if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 150)}`);
+
+    // Convert Web ReadableStream → Node.js Readable so we can pipe it
+    const nodeStream = Readable.fromWeb(r.body);
+    const token = uuid();
+    streamTokens.set(token, { stream: nodeStream, expires: Date.now() + 30000 });
+    setTimeout(() => streamTokens.delete(token), 30000);
+
+    const url = `${getBase()}/api/voice/audio/stream/${token}`;
+    console.log(`[ElevenLabs] stream token created: ${token}`);
+    return `<Play>${url}</Play>`;
+
   } catch(e) {
-    console.error('[ElevenLabs] FAIL:', e.message, '— falling back to Twilio TTS');
+    console.error('[ElevenLabs] stream FAIL:', e.message, '— falling back to Polly');
     return null;
   }
 }
 
-async function speak(text, settings) {
-  const url = await toAudioUrl(text, settings);
-  if (url) return `<Play>${url}</Play>`;
-  return `<Say voice="${settings?.tts_voice || 'Polly.Joanna-Neural'}">${safeXml(text)}</Say>`;
+// Twilio neural voice map by language
+const POLLY_VOICE_MAP = {
+  'en-AU': 'Polly.Olivia-Neural',
+  'en-US': 'Polly.Joanna-Neural',
+  'en-GB': 'Polly.Amy-Neural',
+  'zh-CN': 'Polly.Zhiyu-Neural',
+  'ja-JP': 'Polly.Kazuha-Neural',
+  'ko-KR': 'Polly.Seoyeon-Neural',
+  'fr-FR': 'Polly.Lea-Neural',
+  'de-DE': 'Polly.Vicki-Neural',
+  'it-IT': 'Polly.Bianca-Neural',
+  'es-ES': 'Polly.Lucia-Neural',
+  'pt-BR': 'Polly.Vitoria-Neural',
+  'ar-SA': 'Polly.Zeina',
+  'vi-VN': 'Polly.Joanna-Neural',  // fallback
+  'hi-IN': 'Polly.Aditi',
+};
+
+function speakPolly(text, settings) {
+  const lang  = settings?.call_language || 'en-AU';
+  const voice = POLLY_VOICE_MAP[lang] || settings?.tts_voice || 'Polly.Olivia-Neural';
+  return `<Say voice="${voice}">${safeXml(text)}</Say>`;
 }
 
+// speak — tries ElevenLabs streaming, falls back to Polly immediately.
+// EL stream is kicked off and handed to Twilio as it arrives — no full-file wait.
+async function speak(text, settings) {
+  const el = await elevenLabsStream(text, settings);
+  if (el) return el;
+  return speakPolly(text, settings);
+}
+
+// gatherWith — speechTimeout="auto" is THE key latency fix.
+// Twilio uses speech-end detection instead of waiting N seconds of silence.
 async function gatherWith(action, text, settings) {
   const inner = await speak(text, settings);
-  const lang = settings?.call_language || 'en-AU';
-  return `<Gather input="speech" action="${action}" method="POST" timeout="8" speechTimeout="2" language="${lang}" speechModel="phone_call" enhanced="true">\n  ${inner}\n</Gather>`;
+  const lang  = settings?.call_language || 'en-AU';
+  return `<Gather input="speech" action="${action}" method="POST" timeout="10" speechTimeout="auto" language="${lang}" speechModel="phone_call" enhanced="true">\n  ${inner}\n</Gather>`;
 }
-
 // ─── Conversation helpers ──────────────────────────────────────────────────────
 
 function saveTurn(callId, role, content) {
@@ -585,15 +628,109 @@ webhooks.post('/gather/:callId', async (req, res) => {
     }
 
     // ── SICK CALL DETECTION ─────────────────────────────────────────────────────
-    const sickKeywords = ['sick','unwell','not well','not feeling well','not coming in',"can't come in","cannot come in","won't be in","wont be in",'calling in sick','report sick','cancel my shift','cancel shift','miss my shift'];
-    const isSickCall = sickKeywords.some(k => speech.includes(k));
+    const sickKeywords = ['sick','unwell','not well','not feeling well','not coming in',
+      "can't come in","cannot come in","won't be in","wont be in",'calling in sick',
+      'report sick','cancel my shift','cancel shift','miss my shift','off sick',
+      'feeling sick','feel sick','not going to make it'];
+    const confirmYes = ['yes','yeah','yep','correct','that is','that's it','that's the one','right','confirm','yup','affirmative'];
+    const confirmNo  = ['no','nope','wrong','not that one','different','another','not right'];
 
+    const isSickCall  = !ctx.pendingShiftConfirm && sickKeywords.some(k => speech.includes(k));
+    const isConfirmYes = ctx.pendingShiftConfirm && confirmYes.some(k => speech.includes(k));
+    const isConfirmNo  = ctx.pendingShiftConfirm && confirmNo.some(k => speech.includes(k));
+
+    // ── Step 2: Confirmation response ───────────────────────────────────────────
+    if (isConfirmNo) {
+      // Caller said no to the shift we found — ask them to clarify
+      const upcomingShifts = ctx.upcomingShifts || [];
+      if (upcomingShifts.length > 1) {
+        // We had multiple — re-list them
+        const fmtT = t => { const [h,m] = t.split(':').map(Number); const ap=h<12?'AM':'PM'; const h12=h%12||12; return m?`${h12}:${String(m).padStart(2,'0')} ${ap}`:`${h12} ${ap}`; };
+        const listStr = upcomingShifts.map((s,i) => `Option ${i+1}: ${s.day_label} in ${s.room_name} from ${fmtT(s.start_time)} to ${fmtT(s.end_time)}`).join('. ');
+        const ask = `No problem. I can see ${upcomingShifts.length} upcoming shifts for you. ${listStr}. Which shift are you cancelling? Say the option number.`;
+        saveTurn(callId, 'assistant', ask);
+        ctx.pendingShiftConfirm = true;
+        ctx.awaitingShiftChoice = true;
+        D().prepare("UPDATE voice_calls SET transcript=? WHERE id=?")
+          .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+      }
+      const ask = `I'm sorry about that. Could you tell me which day and room your shift is so I can find it?`;
+      saveTurn(callId, 'assistant', ask);
+      ctx.pendingShiftConfirm = false;
+      ctx.sickCallDetected = true;
+      D().prepare("UPDATE voice_calls SET transcript=? WHERE id=?")
+        .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
+      return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+    }
+
+    // ── Step 3: Process confirmed shift ─────────────────────────────────────────
+    if (isConfirmYes || (ctx.awaitingShiftChoice && /(one|two|three|1|2|3)/.test(speech))) {
+      let confirmedShift = ctx.pendingShift;
+
+      // Handle numbered choice
+      if (ctx.awaitingShiftChoice && !isConfirmYes) {
+        const num = speech.includes('two') || speech.includes('2') ? 2
+                  : speech.includes('three') || speech.includes('3') ? 3 : 1;
+        const shifts = ctx.upcomingShifts || [];
+        confirmedShift = shifts[num - 1] || shifts[0];
+      }
+
+      if (!confirmedShift) {
+        const err = "I'm sorry, I lost track of the shift details. Could you call back and I'll get that sorted for you?";
+        saveTurn(callId, 'assistant', err);
+        return res.send(twiml((await speak(err, settings)) + '<Hangup/>'));
+      }
+
+      const fmtT = t => { const [h,m] = t.split(':').map(Number); const ap=h<12?'AM':'PM'; const h12=h%12||12; return m?`${h12}:${String(m).padStart(2,'0')} ${ap}`:`${h12} ${ap}`; };
+      const confirmMsg = `Perfect. I've recorded your absence for your ${confirmedShift.room_name} shift on ${confirmedShift.day_label} from ${fmtT(confirmedShift.start_time)} to ${fmtT(confirmedShift.end_time)}, and I'm now finding cover. Feel better soon, goodbye!`;
+      saveTurn(callId, 'assistant', confirmMsg);
+      setStatus(callId, 'completed', { outcome: 'sick_call_processed' });
+      D().prepare("UPDATE voice_calls SET purpose='sick_call' WHERE id=?").run(callId);
+
+      const tenantId = call.tenant_id;
+      const educatorId = ctx.educatorId;
+      const shiftSnap = { ...confirmedShift };
+      setImmediate(async () => {
+        try {
+          const shiftDate = new Date(shiftSnap.date + 'T12:00:00');
+          const dayOfWeek = shiftDate.getDay();
+          const qualOrder = ['ect','diploma','cert3','working_towards'];
+          const reqQualIdx = qualOrder.indexOf(shiftSnap.qualification_required || 'cert3');
+
+          const absId = uuid();
+          D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
+            .run(absId, tenantId, educatorId, shiftSnap.date, 'sick', 'Called in sick via voice agent', 0, 'phone');
+          D().prepare("UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime('now') WHERE id=?").run(educatorId);
+          D().prepare("UPDATE roster_entries SET status='unfilled', notes='Educator called in sick via voice agent', updated_at=datetime('now') WHERE id=?").run(shiftSnap.id);
+
+          const candidates = D().prepare(`
+            SELECT e.* FROM educators e JOIN educator_availability ea ON ea.educator_id=e.id
+            WHERE e.tenant_id=? AND e.status='active' AND e.id!=? AND ea.day_of_week=? AND ea.available=1
+            AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date=? AND tenant_id=?)
+            ORDER BY e.reliability_score DESC, e.distance_km ASC
+          `).all(tenantId, educatorId, dayOfWeek, shiftSnap.date, tenantId)
+            .filter(c => qualOrder.indexOf(c.qualification) <= reqQualIdx).slice(0, 10);
+
+          if (!candidates.length) { console.log('[Voice] Sick call — no eligible candidates'); return; }
+
+          const fillId = uuid();
+          D().prepare(`INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+            .run(fillId, tenantId, absId, educatorId, shiftSnap.id, shiftSnap.room_id, shiftSnap.date, shiftSnap.start_time, shiftSnap.end_time, shiftSnap.qualification_required, 'open', 1);
+          candidates.forEach(c => D().prepare('INSERT INTO shift_fill_attempts (id,request_id,educator_id,contact_method,status) VALUES(?,?,?,?,?)').run(uuid(), fillId, c.id, 'call', 'queued'));
+          const { startShiftFillCalls } = await import('./shift-voice.js');
+          await startShiftFillCalls(tenantId, fillId);
+        } catch(err) { console.error('[Voice] Sick call background error:', err.message); }
+      });
+      return res.send(twiml((await speak(confirmMsg, settings)) + '<Hangup/>'));
+    }
+
+    // ── Step 1: Initial sick call — look up their shifts ────────────────────────
     if (isSickCall) {
-      console.log(`[Voice:gather] SICK CALL DETECTED educatorId=${ctx.educatorId}`);
+      console.log(`[Voice:gather] SICK CALL educatorId=${ctx.educatorId}`);
 
-      // Unknown caller — ask for name
       if (!ctx.educatorId) {
-        const ask = "I'm sorry to hear that. Could you please tell me your name and which shift you need to cancel?";
+        const ask = "I'm sorry to hear that. I wasn't able to identify your number in our system. Could you please tell me your name so I can find your shift?";
         saveTurn(callId, 'assistant', ask);
         ctx.sickCallDetected = true;
         D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
@@ -601,77 +738,65 @@ webhooks.post('/gather/:callId', async (req, res) => {
         return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
       }
 
-      // Known caller — find their next shift today or tomorrow
+      // Look up to 14 days for upcoming shifts
       const today = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-      const shift = D().prepare(`
+      const in14  = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+      const DAYS  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+      const upcomingShifts = D().prepare(`
         SELECT re.*, r.name as room_name
         FROM roster_entries re LEFT JOIN rooms r ON r.id = re.room_id
-        WHERE re.educator_id=? AND re.tenant_id=? AND re.date IN (?,?)
+        WHERE re.educator_id=? AND re.tenant_id=? AND re.date BETWEEN ? AND ?
         AND re.status NOT IN ('cancelled','unfilled')
-        ORDER BY re.date ASC, re.start_time ASC LIMIT 1
-      `).get(ctx.educatorId, call.tenant_id, today, tomorrow);
+        ORDER BY re.date ASC, re.start_time ASC LIMIT 5
+      `).all(ctx.educatorId, call.tenant_id, today, in14).map(s => ({
+        ...s,
+        day_label: s.date === today
+          ? 'today'
+          : s.date === new Date(Date.now() + 86400000).toISOString().split('T')[0]
+            ? 'tomorrow'
+            : `${DAYS[new Date(s.date + 'T12:00:00').getDay()]} the ${new Date(s.date + 'T12:00:00').getDate()}`
+      }));
 
       const fmtT = t => { const [h,m] = t.split(':').map(Number); const ap=h<12?'AM':'PM'; const h12=h%12||12; return m?`${h12}:${String(m).padStart(2,'0')} ${ap}`:`${h12} ${ap}`; };
 
-      if (!shift) {
-        const reply = `Got it ${ctx.educatorName || 'there'}, I've noted you're unwell today. There's no shift showing for you today or tomorrow so I'll let management know you called. Feel better soon!`;
-        saveTurn(callId, 'assistant', reply);
-        setStatus(callId, 'completed', { outcome: 'sick_call_no_shift' });
+      if (!upcomingShifts.length) {
+        // No shifts found — record absence, notify manager, ask what shift
+        const ask = `I'm sorry to hear that, ${ctx.educatorName || 'there'}. I don't see any upcoming shifts rostered for you in the next two weeks. I'll make a note and let management know you called. Is there anything else I can help with?`;
+        saveTurn(callId, 'assistant', ask);
         const absId = uuid();
         D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
-          .run(absId, call.tenant_id, ctx.educatorId, today, 'sick', 'Called in sick via voice agent - no shift found', 0, 'phone');
-        D().prepare("UPDATE voice_calls SET purpose='sick_call', outcome='noted_no_shift' WHERE id=?").run(callId);
-        return res.send(twiml((await speak(reply, settings)) + '<Hangup/>'));
+          .run(absId, call.tenant_id, ctx.educatorId, today, 'sick', 'Called in sick — no shifts found in roster', 0, 'phone');
+        D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
+          .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
       }
 
-      const dateLabel = shift.date === today ? 'today' : 'tomorrow';
-      const confirmMsg = `Got it ${ctx.educatorName}, I've recorded your sick day and I'm now calling available educators to cover your ${shift.room_name} shift ${dateLabel} from ${fmtT(shift.start_time)} to ${fmtT(shift.end_time)}. Feel better soon, goodbye!`;
-      saveTurn(callId, 'assistant', confirmMsg);
-      setStatus(callId, 'completed', { outcome: 'sick_call_processed' });
-      D().prepare("UPDATE voice_calls SET purpose='sick_call' WHERE id=?").run(callId);
+      if (upcomingShifts.length === 1) {
+        const s = upcomingShifts[0];
+        const ask = `I can see you're rostered in the ${s.room_name} ${s.day_label} from ${fmtT(s.start_time)} to ${fmtT(s.end_time)}. Is that the shift you need to cancel?`;
+        saveTurn(callId, 'assistant', ask);
+        ctx.pendingShiftConfirm = true;
+        ctx.pendingShift = s;
+        ctx.upcomingShifts = upcomingShifts;
+        D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
+          .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+      }
 
-      // Process shift replacement in background — respond to Twilio first
-      const tenantId = call.tenant_id;
-      const educatorId = ctx.educatorId;
-      setImmediate(async () => {
-        try {
-          const shiftDate = new Date(shift.date + 'T12:00:00');
-          const dayOfWeek = shiftDate.getDay();
-          const qualOrder = ['ect','diploma','cert3','working_towards'];
-          const reqQualIdx = qualOrder.indexOf(shift.qualification_required || 'cert3');
-
-          const absId = uuid();
-          D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
-            .run(absId, tenantId, educatorId, shift.date, 'sick', 'Called in sick via voice agent', 0, 'phone');
-          D().prepare("UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime('now') WHERE id=?").run(educatorId);
-          D().prepare("UPDATE roster_entries SET status='unfilled', notes='Educator called in sick via voice agent', updated_at=datetime('now') WHERE id=?").run(shift.id);
-
-          const candidates = D().prepare(`
-            SELECT e.* FROM educators e JOIN educator_availability ea ON ea.educator_id=e.id
-            WHERE e.tenant_id=? AND e.status='active' AND e.id!=? AND ea.day_of_week=? AND ea.available=1
-            AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date=? AND tenant_id=?)
-            ORDER BY e.reliability_score DESC, e.distance_km ASC
-          `).all(tenantId, educatorId, dayOfWeek, shift.date, tenantId)
-            .filter(c => qualOrder.indexOf(c.qualification) <= reqQualIdx).slice(0, 10);
-
-          if (!candidates.length) { console.log('[Voice:gather] Sick call — no eligible candidates'); return; }
-
-          const fillId = uuid();
-          D().prepare(`INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
-            .run(fillId, tenantId, absId, educatorId, shift.id, shift.room_id, shift.date, shift.start_time, shift.end_time, shift.qualification_required, 'open', 1);
-          candidates.forEach(c => D().prepare('INSERT INTO shift_fill_attempts (id,request_id,educator_id,contact_method,status) VALUES(?,?,?,?,?)').run(uuid(), fillId, c.id, 'call', 'queued'));
-
-          const { startShiftFillCalls } = await import('./shift-voice.js');
-          await startShiftFillCalls(tenantId, fillId);
-        } catch(err) {
-          console.error('[Voice:gather] Sick call background error:', err.message);
-        }
-      });
-
-      return res.send(twiml((await speak(confirmMsg, settings)) + '<Hangup/>'));
+      // Multiple shifts — list them
+      const list = upcomingShifts.slice(0, 3).map((s, i) =>
+        `Option ${i+1}: ${s.day_label} in ${s.room_name} from ${fmtT(s.start_time)} to ${fmtT(s.end_time)}`
+      ).join('. ');
+      const ask = `I can see you have a few upcoming shifts, ${ctx.educatorName}. ${list}. Which shift are you calling about? Say the option number.`;
+      saveTurn(callId, 'assistant', ask);
+      ctx.pendingShiftConfirm = true;
+      ctx.awaitingShiftChoice = true;
+      ctx.upcomingShifts = upcomingShifts.slice(0, 3);
+      D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
+        .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
+      return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
     }
-
     // ── General AI conversation ─────────────────────────────────────────────────
     const tenantName = ctx.tenantName || 'the childcare centre';
     const persona = settings?.ai_persona ||
@@ -798,6 +923,23 @@ router.use('/webhook', webhooks);
 // Separate router for audio — mounted WITHOUT auth so Twilio can fetch files
 import { Router as AudioRouter } from 'express';
 const audioRouter = AudioRouter();
+
+// ── Stream proxy: Twilio hits this and we pipe ElevenLabs bytes in real-time ──
+audioRouter.get('/stream/:token', (req, res) => {
+  const entry = streamTokens.get(req.params.token);
+  if (!entry) {
+    console.warn(`[Stream] token not found: ${req.params.token}`);
+    return res.status(404).send('Stream expired');
+  }
+  streamTokens.delete(req.params.token); // one-time use
+  console.log(`[Stream] piping ElevenLabs stream to Twilio for token ${req.params.token}`);
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  entry.stream.pipe(res);
+  entry.stream.on('error', (e) => { console.error('[Stream] pipe error:', e.message); res.end(); });
+});
+
+// ── Static cached MP3 files ───────────────────────────────────────────────────
 audioRouter.get('/:filename', (req, res) => {
   const { filename } = req.params;
   if (!/^[a-f0-9-]{36}\.mp3$/.test(filename)) return res.status(400).send('Invalid');
