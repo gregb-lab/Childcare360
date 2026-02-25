@@ -22,7 +22,7 @@ const API = async (path, opts = {}) => {
 const RAPI = async (path, opts = {}) => {
   const token = localStorage.getItem('c360_token');
   const tenantId = localStorage.getItem('c360_tenant');
-  const res = await fetch(`/api/retell${path}`, {
+  const res = await fetch(`/api/voice/retell${path}`, {
     ...opts,
     headers: {
       'Content-Type': 'application/json',

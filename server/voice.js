@@ -964,5 +964,140 @@ audioRouter.get('/:filename', (req, res) => {
   createReadStream(fp).pipe(res);
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  RETELL AI ROUTES — embedded here to guarantee loading
+//  Frontend calls these via API('/retell/...') → /api/voice/retell/...
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getRetellSettings(tenantId) {
+  const db = D().prepare('SELECT * FROM voice_settings WHERE tenant_id=?').get(tenantId) || {};
+  return {
+    ...db,
+    retell_api_key:   process.env.RETELL_API_KEY || db.retell_api_key,
+    retell_agent_id:  db.retell_agent_id,
+    call_language:    db.call_language || 'en-AU',
+    inbound_greeting: db.inbound_greeting || 'Hello, thanks for calling. How can I help?',
+  };
+}
+
+async function retellFetch(path, method, body, apiKey) {
+  const r = await fetch(`https://api.retellai.com${path}`, {
+    method,
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(`Retell API ${r.status}: ${JSON.stringify(data).slice(0, 300)}`);
+  return data;
+}
+
+function getPublicBase() {
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  return '';
+}
+
+// GET /api/voice/retell/ping — routing sanity check (no auth)
+router.get('/retell/ping', (req, res) => {
+  res.json({ ok: true, router: 'voice/retell', ts: Date.now() });
+});
+
+// GET /api/voice/retell/llm-url — the wss:// URL for Retell agent config
+router.get('/retell/llm-url', requireAuth, requireTenant, (req, res) => {
+  const base = getPublicBase();
+  const wsUrl = base.replace('https://', 'wss://').replace('http://', 'ws://');
+  res.json({ url: `${wsUrl}/api/retell/ws/${req.tenantId}` });
+});
+
+// GET /api/voice/retell/status — check API key + fetch agent details
+router.get('/retell/status', requireAuth, requireTenant, async (req, res) => {
+  const s = getRetellSettings(req.tenantId);
+  if (!s.retell_api_key) return res.json({ configured: false, agent: null });
+  try {
+    const agent = s.retell_agent_id
+      ? await retellFetch(`/v2/get-agent/${s.retell_agent_id}`, 'GET', null, s.retell_api_key).catch(() => null)
+      : null;
+    const phoneNumbers = await retellFetch('/v2/list-phone-numbers', 'GET', null, s.retell_api_key).catch(() => []);
+    res.json({ configured: true, agent, phone_numbers: Array.isArray(phoneNumbers) ? phoneNumbers : [] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/voice/retell/agent — create or update Retell agent
+router.post('/retell/agent', requireAuth, requireTenant, async (req, res) => {
+  const s = getRetellSettings(req.tenantId);
+  if (!s.retell_api_key) return res.status(400).json({ error: 'Retell API key not configured. Add it in settings and save first.' });
+
+  const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(req.tenantId)?.name || 'the centre';
+  const base = getPublicBase();
+  const wsBase = base.replace('https://', 'wss://').replace('http://', 'ws://');
+  const llmWsUrl = `${wsBase}/api/retell/ws/${req.tenantId}`;
+  const { voice_id, agent_name, responsiveness, interruption_sensitivity } = req.body;
+
+  const payload = {
+    agent_name: agent_name || s.retell_agent_name || `${tenantName} AI Assistant`,
+    response_engine: { type: 'custom_llm', llm_websocket_url: llmWsUrl },
+    voice_id: voice_id || 'openai-Alloy',
+    language: (s.call_language || 'en-AU').replace('-', '_'),
+    responsiveness: responsiveness ?? 1,
+    interruption_sensitivity: interruption_sensitivity ?? 1,
+    enable_backchannel: true,
+    backchannel_frequency: 0.8,
+    normalize_for_speech: true,
+    end_call_after_silence_ms: 30000,
+    begin_message: s.inbound_greeting || `Hi, thanks for calling ${tenantName}. How can I help?`,
+    metadata: { tenant_id: req.tenantId },
+  };
+
+  console.log('[Retell] POST /retell/agent tenantId:', req.tenantId, 'agent_id:', s.retell_agent_id || 'new');
+
+  try {
+    let agent;
+    if (s.retell_agent_id) {
+      agent = await retellFetch(`/v2/update-agent/${s.retell_agent_id}`, 'PATCH', payload, s.retell_api_key);
+    } else {
+      agent = await retellFetch('/v2/create-agent', 'POST', payload, s.retell_api_key);
+      D().prepare('UPDATE voice_settings SET retell_agent_id=?, updated_at=datetime("now") WHERE tenant_id=?')
+        .run(agent.agent_id, req.tenantId);
+    }
+    console.log('[Retell] Agent ok:', agent.agent_id);
+    res.json({ ok: true, agent });
+  } catch(e) {
+    console.error('[Retell] Agent error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/voice/retell/link-number
+router.post('/retell/link-number', requireAuth, requireTenant, async (req, res) => {
+  const s = getRetellSettings(req.tenantId);
+  if (!s.retell_api_key || !s.retell_agent_id) return res.status(400).json({ error: 'API key and agent required' });
+  const { phone_number_id } = req.body;
+  try {
+    const result = await retellFetch(`/v2/update-phone-number/${phone_number_id}`, 'PATCH',
+      { inbound_agent_id: s.retell_agent_id }, s.retell_api_key);
+    D().prepare('UPDATE voice_settings SET retell_phone_number_id=?, updated_at=datetime("now") WHERE tenant_id=?')
+      .run(phone_number_id, req.tenantId);
+    res.json({ ok: true, result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/voice/retell/test-call
+router.post('/retell/test-call', requireAuth, requireTenant, async (req, res) => {
+  const s = getRetellSettings(req.tenantId);
+  if (!s.retell_api_key || !s.retell_agent_id) return res.status(400).json({ error: 'API key and agent required' });
+  if (!s.retell_phone_number_id) return res.status(400).json({ error: 'No phone number linked' });
+  const to = process.env.DEV_CALL_OVERRIDE || req.body.to_number;
+  if (!to) return res.status(400).json({ error: 'to_number required' });
+  try {
+    const call = await retellFetch('/v2/create-phone-call', 'POST', {
+      from_number_id: s.retell_phone_number_id,
+      to_number: to,
+      override_agent_id: s.retell_agent_id,
+    }, s.retell_api_key);
+    res.json({ ok: true, call_id: call.call_id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
 export default router;
 export { webhooks as webhookRouter, audioRouter };

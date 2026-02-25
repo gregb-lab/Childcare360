@@ -1,6 +1,6 @@
 {
   "name": "childcare360",
-  "version": "2.2.13",
+  "version": "2.2.14",
   "description": "NSW Childcare Rostering & Compliance Platform \u2014 Multi-Tenant",
   "private": true,
   "type": "module",
