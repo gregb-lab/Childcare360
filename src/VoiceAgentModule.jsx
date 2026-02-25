@@ -63,6 +63,34 @@ function timeStr(iso) {
 }
 
 // ── Settings Tab ──────────────────────────────────────────────────────────────
+const EL_MODELS = [
+  { id: 'eleven_flash_v2_5',      name: 'Flash v2.5 — fastest, lowest latency (recommended)' },
+  { id: 'eleven_turbo_v2_5',      name: 'Turbo v2.5 — fast, high quality' },
+  { id: 'eleven_multilingual_v2', name: 'Multilingual v2 — best quality, slower' },
+  { id: 'eleven_turbo_v2',        name: 'Turbo v2 — English only' },
+  { id: 'eleven_monolingual_v1',  name: 'Monolingual v1 — legacy' },
+];
+
+const LANGUAGES = [
+  { code: 'en-AU', label: '🇦🇺 English (Australian)' },
+  { code: 'en-US', label: '🇺🇸 English (US)' },
+  { code: 'en-GB', label: '🇬🇧 English (UK)' },
+  { code: 'zh-CN', label: '🇨🇳 Chinese (Mandarin)' },
+  { code: 'zh-TW', label: '🇹🇼 Chinese (Traditional)' },
+  { code: 'ar-SA', label: '🇸🇦 Arabic' },
+  { code: 'vi-VN', label: '🇻🇳 Vietnamese' },
+  { code: 'ko-KR', label: '🇰🇷 Korean' },
+  { code: 'hi-IN', label: '🇮🇳 Hindi' },
+  { code: 'es-ES', label: '🇪🇸 Spanish' },
+  { code: 'fr-FR', label: '🇫🇷 French' },
+  { code: 'de-DE', label: '🇩🇪 German' },
+  { code: 'it-IT', label: '🇮🇹 Italian' },
+  { code: 'ja-JP', label: '🇯🇵 Japanese' },
+  { code: 'pt-BR', label: '🇧🇷 Portuguese (Brazil)' },
+  { code: 'id-ID', label: '🇮🇩 Indonesian' },
+  { code: 'tl-PH', label: '🇵🇭 Filipino' },
+];
+
 function SettingsTab() {
   const [form, setForm] = useState({
     twilio_account_sid: '', twilio_auth_token: '', twilio_phone_number: '',
@@ -73,6 +101,8 @@ function SettingsTab() {
     active: true,
     elevenlabs_api_key: '',
     elevenlabs_voice_id: '21m00Tcm4TlvDq8ikWAM',
+    elevenlabs_model: 'eleven_flash_v2_5',
+    call_language: 'en-AU',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -81,6 +111,8 @@ function SettingsTab() {
   const [elVoices, setElVoices] = useState([]);
   const [elVoicesLoading, setElVoicesLoading] = useState(false);
   const [elVoicesErr, setElVoicesErr] = useState('');
+  const [voiceFilter, setVoiceFilter] = useState('');
+  const [voiceCategoryFilter, setVoiceCategoryFilter] = useState('all');
   const [testingVoice, setTestingVoice] = useState(false);
   const [testAudioUrl, setTestAudioUrl] = useState(null);
   const audioRef = useRef(null);
@@ -185,29 +217,60 @@ function SettingsTab() {
           {elVoicesErr && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>⚠ {elVoicesErr}</div>}
         </Field>
 
-        {elVoices.length > 0 && (
-          <Field label="Voice Selection" hint={`${elVoices.length} voices available`}>
-            <select value={form.elevenlabs_voice_id || ''} onChange={e => { F('elevenlabs_voice_id', e.target.value); setTestAudioUrl(null); }}
-              style={{ ...iStyle, cursor: 'pointer' }}>
-              {elVoices.map(v => (
-                <option key={v.voice_id} value={v.voice_id}>
-                  {v.name}{v.accent ? ` — ${v.accent}` : ''}{v.gender ? ` (${v.gender})` : ''}{v.category === 'premade' ? ' ⭐' : ''}
-                </option>
-              ))}
-            </select>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-              <button onClick={testVoice} disabled={testingVoice}
-                style={{ padding: '8px 16px', borderRadius: 8, background: '#F3EFF8', color: purple,
-                  border: `1px solid ${purple}`, cursor: testingVoice ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12 }}>
-                {testingVoice ? '⏳ Generating…' : '▶ Preview Voice'}
-              </button>
-              {testAudioUrl && (
-                <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>✅ Playing audio…</span>
-              )}
-            </div>
-            {testAudioUrl && <audio ref={audioRef} src={testAudioUrl} style={{ display: 'none' }} />}
-          </Field>
-        )}
+        {elVoices.length > 0 && (() => {
+          const filtered = elVoices.filter(v => {
+            const matchText = !voiceFilter || v.name.toLowerCase().includes(voiceFilter.toLowerCase()) ||
+              (v.accent||'').toLowerCase().includes(voiceFilter.toLowerCase()) ||
+              (v.language||'').toLowerCase().includes(voiceFilter.toLowerCase());
+            const matchCat = voiceCategoryFilter === 'all' || v.category === voiceCategoryFilter;
+            return matchText && matchCat;
+          });
+          const categories = ['all', ...new Set(elVoices.map(v => v.category).filter(Boolean))];
+          return (
+            <Field label="Voice Selection" hint={`${filtered.length} of ${elVoices.length} voices shown`}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <input value={voiceFilter} onChange={e => setVoiceFilter(e.target.value)}
+                  placeholder="🔍 Search by name, accent, language…"
+                  style={{ ...iStyle, flex: 1, fontSize: 12 }} />
+                <select value={voiceCategoryFilter} onChange={e => setVoiceCategoryFilter(e.target.value)}
+                  style={{ ...iStyle, width: 130, fontSize: 12 }}>
+                  {categories.map(c => <option key={c} value={c}>{c === 'all' ? 'All categories' : c === 'my_library' ? '⭐ My Library' : c === 'shared' ? '🌐 Shared' : c}</option>)}
+                </select>
+              </div>
+              <select value={form.elevenlabs_voice_id || ''} onChange={e => { F('elevenlabs_voice_id', e.target.value); setTestAudioUrl(null); }}
+                size={8} style={{ ...iStyle, cursor: 'pointer', height: 'auto', fontFamily: 'monospace', fontSize: 12 }}>
+                {filtered.map(v => (
+                  <option key={v.voice_id} value={v.voice_id}>
+                    {v.category === 'my_library' ? '⭐ ' : ''}{v.name}{v.gender ? ` · ${v.gender}` : ''}{v.accent ? ` · ${v.accent}` : ''}{v.language ? ` · ${v.language}` : ''}
+                  </option>
+                ))}
+              </select>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                <button onClick={testVoice} disabled={testingVoice}
+                  style={{ padding: '8px 16px', borderRadius: 8, background: '#F3EFF8', color: purple,
+                    border: `1px solid ${purple}`, cursor: testingVoice ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 12 }}>
+                  {testingVoice ? '⏳ Generating…' : '▶ Preview Selected Voice'}
+                </button>
+                {testAudioUrl && <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>✅ Playing…</span>}
+              </div>
+              {testAudioUrl && <audio ref={audioRef} src={testAudioUrl} style={{ display: 'none' }} />}
+            </Field>
+          );
+        })()}
+
+        <Field label="ElevenLabs Model" hint="Flash is fastest for phone calls. Multilingual v2 for non-English.">
+          <select value={form.elevenlabs_model || 'eleven_flash_v2_5'} onChange={e => F('elevenlabs_model', e.target.value)}
+            style={{ ...iStyle, cursor: 'pointer' }}>
+            {EL_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </Field>
+
+        <Field label="Call Language" hint="Language for speech recognition. Use Multilingual v2 model for non-English voices.">
+          <select value={form.call_language || 'en-AU'} onChange={e => F('call_language', e.target.value)}
+            style={{ ...iStyle, cursor: 'pointer' }}>
+            {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </Field>
 
         {elVoices.length === 0 && !elVoicesLoading && (
           <div style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', marginTop: 8 }}>

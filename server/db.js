@@ -2106,5 +2106,7 @@ function initLearningTables(db) {
   [
     'ALTER TABLE voice_settings ADD COLUMN elevenlabs_api_key TEXT',
     'ALTER TABLE voice_settings ADD COLUMN elevenlabs_voice_id TEXT DEFAULT \'21m00Tcm4TlvDq8ikWAM\'',
+    'ALTER TABLE voice_settings ADD COLUMN elevenlabs_model TEXT DEFAULT \'eleven_flash_v2_5\'',
+    'ALTER TABLE voice_settings ADD COLUMN call_language TEXT DEFAULT \'en-AU\'',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

@@ -54,6 +54,8 @@ function getSettings(tenantId) {
     twilio_phone_number: process.env.TWILIO_PHONE_NUMBER || db.twilio_phone_number,
     elevenlabs_api_key:  process.env.ELEVENLABS_API_KEY  || db.elevenlabs_api_key,
     elevenlabs_voice_id: db.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM',
+    elevenlabs_model:    db.elevenlabs_model    || 'eleven_flash_v2_5',
+    call_language:       db.call_language       || 'en-AU',
     tts_voice:           db.tts_voice || 'Polly.Joanna-Neural',
     ai_persona:          db.ai_persona || 'You are a friendly assistant for a childcare centre.',
     inbound_greeting:    db.inbound_greeting || 'Hello, thank you for calling. How can I help you today?',
@@ -74,30 +76,61 @@ async function getTwilioClient(settings) {
 
 // ─── ElevenLabs TTS ──────────────────────────────────────────────────────────
 
-async function elevenLabsTTS(text, apiKey, voiceId) {
-  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId || '21m00Tcm4TlvDq8ikWAM'}`, {
-    method: 'POST',
-    headers: { 'Accept': 'audio/mpeg', 'Content-Type': 'application/json', 'xi-api-key': apiKey },
-    body: JSON.stringify({
-      text,
-      model_id: 'eleven_turbo_v2_5',
-      voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.0, use_speaker_boost: true }
-    })
-  });
-  if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return Buffer.from(await r.arrayBuffer());
+// ElevenLabs model options (exposed to frontend)
+const EL_MODELS = [
+  { id: 'eleven_flash_v2_5',       name: 'Flash v2.5 (fastest, lowest latency)',  multilingual: true  },
+  { id: 'eleven_turbo_v2_5',       name: 'Turbo v2.5 (fast, high quality)',        multilingual: true  },
+  { id: 'eleven_multilingual_v2',  name: 'Multilingual v2 (best quality)',         multilingual: true  },
+  { id: 'eleven_turbo_v2',         name: 'Turbo v2 (English only)',               multilingual: false },
+  { id: 'eleven_monolingual_v1',   name: 'Monolingual v1 (legacy)',               multilingual: false },
+];
+
+async function elevenLabsTTS(text, apiKey, voiceId, modelId) {
+  const model = modelId || 'eleven_flash_v2_5';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000); // 4s hard timeout
+  try {
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId || '21m00Tcm4TlvDq8ikWAM'}?optimize_streaming_latency=4&output_format=mp3_44100_64`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Accept': 'audio/mpeg', 'Content-Type': 'application/json', 'xi-api-key': apiKey },
+      body: JSON.stringify({
+        text,
+        model_id: model,
+        voice_settings: { stability: 0.45, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false }
+      })
+    });
+    if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    return Buffer.from(await r.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
 }
+
+// TTS response cache — avoid re-generating identical phrases (greetings, farewells etc)
+const ttsCache = new Map();
+const TTS_CACHE_MAX = 50;
 
 // Returns a hosted audio URL, or null to fall back to Twilio <Say>
 async function toAudioUrl(text, settings) {
   const key = settings?.elevenlabs_api_key;
   if (!key) return null;
+  // In-memory cache key
+  const cacheKey = `${settings.elevenlabs_voice_id}|${settings.elevenlabs_model}|${text}`;
+  if (ttsCache.has(cacheKey)) {
+    console.log('[ElevenLabs] cache hit');
+    return ttsCache.get(cacheKey);
+  }
   try {
     mkdirSync(TTS_CACHE_DIR, { recursive: true });
     const filename = `${uuid()}.mp3`;
-    const audio = await elevenLabsTTS(text, key, settings.elevenlabs_voice_id);
+    const audio = await elevenLabsTTS(text, key, settings.elevenlabs_voice_id, settings.elevenlabs_model);
     writeFileSync(join(TTS_CACHE_DIR, filename), audio);
-    return `${getBase()}/api/voice/audio/${filename}`;
+    const url = `${getBase()}/api/voice/audio/${filename}`;
+    // Cache it (evict oldest if over limit)
+    if (ttsCache.size >= TTS_CACHE_MAX) ttsCache.delete(ttsCache.keys().next().value);
+    ttsCache.set(cacheKey, url);
+    return url;
   } catch(e) {
     console.error('[ElevenLabs] FAIL:', e.message, '— falling back to Twilio TTS');
     return null;
@@ -112,7 +145,8 @@ async function speak(text, settings) {
 
 async function gatherWith(action, text, settings) {
   const inner = await speak(text, settings);
-  return `<Gather input="speech" action="${action}" method="POST" timeout="10" speechTimeout="3" language="en-AU" speechModel="phone_call" enhanced="true">\n  ${inner}\n</Gather>`;
+  const lang = settings?.call_language || 'en-AU';
+  return `<Gather input="speech" action="${action}" method="POST" timeout="8" speechTimeout="2" language="${lang}" speechModel="phone_call" enhanced="true">\n  ${inner}\n</Gather>`;
 }
 
 // ─── Conversation helpers ──────────────────────────────────────────────────────
@@ -210,18 +244,57 @@ router.get('/elevenlabs/voices', requireAuth, requireTenant, async (req, res) =>
   const key = settings?.elevenlabs_api_key;
   if (!key) return res.status(400).json({ error: 'ElevenLabs API key not configured. Add it in Voice Settings first.' });
   try {
-    const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': key } });
-    if (!r.ok) return res.status(r.status).json({ error: `ElevenLabs returned ${r.status}` });
-    const data = await r.json();
-    res.json({
-      voices: (data.voices || []).map(v => ({
-        voice_id: v.voice_id, name: v.name, category: v.category,
-        description: v.labels?.description || '', accent: v.labels?.accent || '',
-        gender: v.labels?.gender || '', age: v.labels?.age || '',
-        use_case: v.labels?.use_case || '', preview_url: v.preview_url || null,
-      }))
+    const headers = { 'xi-api-key': key };
+    const mapVoice = (v, source) => ({
+      voice_id: v.voice_id, name: v.name,
+      category: source || v.category || 'library',
+      accent: v.labels?.accent || v.accent || '',
+      gender: v.labels?.gender || v.gender || '',
+      age: v.labels?.age || '',
+      language: v.labels?.language || v.language || '',
+      use_case: v.labels?.use_case || v.use_case || '',
+      preview_url: v.preview_url || null,
     });
+
+    // 1. Fetch user's own voices (library)
+    const myR = await fetch('https://api.elevenlabs.io/v1/voices', { headers });
+    const myData = myR.ok ? await myR.json() : { voices: [] };
+    const myVoices = (myData.voices || []).map(v => mapVoice(v, 'my_library'));
+
+    // 2. Fetch shared voice library with pagination (up to 500)
+    let sharedVoices = [];
+    try {
+      let page = 0;
+      while (sharedVoices.length < 500) {
+        const sR = await fetch(
+          `https://api.elevenlabs.io/v1/shared-voices?page_size=100&page=${page}&sort=trending`,
+          { headers }
+        );
+        if (!sR.ok) break;
+        const sData = await sR.json();
+        const batch = (sData.voices || []).map(v => mapVoice(v, 'shared'));
+        sharedVoices.push(...batch);
+        if (batch.length < 100) break;
+        page++;
+      }
+    } catch(e) {
+      console.warn('[ElevenLabs] shared voices fetch failed:', e.message);
+    }
+
+    // Dedupe by voice_id — own library first
+    const seen = new Set();
+    const all = [...myVoices, ...sharedVoices].filter(v => {
+      if (seen.has(v.voice_id)) return false;
+      seen.add(v.voice_id);
+      return true;
+    });
+
+    res.json({ voices: all, models: EL_MODELS, total: all.length, my_library: myVoices.length, shared: sharedVoices.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/elevenlabs/models', requireAuth, requireTenant, (req, res) => {
+  res.json({ models: EL_MODELS });
 });
 
 // ─── ELEVENLABS TEST AUDIO ────────────────────────────────────────────────────
@@ -260,28 +333,33 @@ router.put('/settings', requireAuth, requireTenant, (req, res) => {
   try {
     const { twilio_account_sid, twilio_auth_token, twilio_phone_number,
             tts_voice, ai_persona, inbound_greeting, outbound_greeting, active,
-            elevenlabs_api_key, elevenlabs_voice_id } = req.body;
+            elevenlabs_api_key, elevenlabs_voice_id, elevenlabs_model, call_language } = req.body;
     const existing = getSettings(req.tenantId);
     const id = existing?.id || uuid();
     const authToken = twilio_auth_token?.startsWith('••••') ? existing?.twilio_auth_token : twilio_auth_token;
     const elKey     = elevenlabs_api_key?.startsWith('••••') ? existing?.elevenlabs_api_key : elevenlabs_api_key;
     D().prepare(`
       INSERT INTO voice_settings (id,tenant_id,twilio_account_sid,twilio_auth_token,twilio_phone_number,
-        tts_voice,ai_persona,inbound_greeting,outbound_greeting,active,elevenlabs_api_key,elevenlabs_voice_id,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        tts_voice,ai_persona,inbound_greeting,outbound_greeting,active,
+        elevenlabs_api_key,elevenlabs_voice_id,elevenlabs_model,call_language,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
       ON CONFLICT(tenant_id) DO UPDATE SET
         twilio_account_sid=excluded.twilio_account_sid, twilio_auth_token=excluded.twilio_auth_token,
         twilio_phone_number=excluded.twilio_phone_number, tts_voice=excluded.tts_voice,
         ai_persona=excluded.ai_persona, inbound_greeting=excluded.inbound_greeting,
         outbound_greeting=excluded.outbound_greeting, active=excluded.active,
         elevenlabs_api_key=excluded.elevenlabs_api_key, elevenlabs_voice_id=excluded.elevenlabs_voice_id,
+        elevenlabs_model=excluded.elevenlabs_model, call_language=excluded.call_language,
         updated_at=excluded.updated_at
     `).run(id, req.tenantId, twilio_account_sid, authToken, twilio_phone_number,
            tts_voice || 'Polly.Joanna-Neural',
            ai_persona || 'You are a friendly assistant for a childcare centre.',
            inbound_greeting || 'Hello, thank you for calling. How can I help you today?',
            outbound_greeting || 'Hello, this is a call from your childcare centre.',
-           active ? 1 : 0, elKey || null, elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM');
+           active ? 1 : 0, elKey || null,
+           elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM',
+           elevenlabs_model || 'eleven_flash_v2_5',
+           call_language || 'en-AU');
     auditLog(req.userId, req.tenantId, 'voice_settings_updated', {}, req.ip, req.headers['user-agent']);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
