@@ -14,6 +14,19 @@ const webhooks = Router();
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
 const TTS_CACHE_DIR = DATA_DIR + '/tts_cache';
 
+// ── DEVELOPMENT SAFETY OVERRIDE ──────────────────────────────────────────────
+// All outbound calls are redirected to this number regardless of the intended
+// recipient. Remove DEV_CALL_OVERRIDE from env (or set to empty) to disable.
+// This prevents accidental calls to real parents/staff during testing.
+const DEV_CALL_OVERRIDE = process.env.DEV_CALL_OVERRIDE || '+61413880015';
+function safeNumber(intended) {
+  if (DEV_CALL_OVERRIDE) {
+    console.log(`[Voice] DEV OVERRIDE: redirecting ${intended} → ${DEV_CALL_OVERRIDE}`);
+    return DEV_CALL_OVERRIDE;
+  }
+  return intended;
+}
+
 // ─── Core helpers ─────────────────────────────────────────────────────────────
 
 function getBase() {
@@ -266,16 +279,17 @@ router.post('/call', requireAuth, requireTenant, async (req, res) => {
   if (!to_number) return res.status(400).json({ error: 'to_number required' });
   const settings = getSettings(req.tenantId);
   if (!settings?.twilio_account_sid) return res.status(400).json({ error: 'Voice not configured' });
+  const actualNumber = safeNumber(to_number);
   const callId = uuid();
   try {
     D().prepare(`INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,context_type,context_id,initiated_by,transcript) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, to_number,
+      .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, actualNumber,
            purpose || 'general', context_type || null, context_id || null, req.userId,
            context_data ? JSON.stringify([{ role: '_context', content: JSON.stringify(context_data) }]) : '[]');
     const client = await getTwilioClient(settings);
     const base = getBase();
     const call = await client.calls.create({
-      to: to_number, from: settings.twilio_phone_number,
+      to: actualNumber, from: settings.twilio_phone_number,
       url: `${base}/api/voice/webhook/answer/${callId}`,
       statusCallback: `${base}/api/voice/webhook/status/${callId}`,
       statusCallbackMethod: 'POST', statusCallbackEvent: ['initiated','ringing','answered','completed'],
@@ -294,14 +308,15 @@ router.post('/test', requireAuth, requireTenant, async (req, res) => {
   if (!to_number) return res.status(400).json({ error: 'to_number required' });
   const settings = getSettings(req.tenantId);
   if (!settings?.twilio_account_sid) return res.status(400).json({ error: 'Voice not configured' });
+  const actualNumber = safeNumber(to_number);
   const callId = uuid();
   try {
     D().prepare(`INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,initiated_by,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
-      .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, to_number, 'test', req.userId, '[]');
+      .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, actualNumber, 'test', req.userId, '[]');
     const client = await getTwilioClient(settings);
     const base = getBase();
     const call = await client.calls.create({
-      to: to_number, from: settings.twilio_phone_number,
+      to: actualNumber, from: settings.twilio_phone_number,
       url: `${base}/api/voice/webhook/answer/${callId}?test=1`,
       statusCallback: `${base}/api/voice/webhook/status/${callId}`,
       statusCallbackMethod: 'POST', statusCallbackEvent: ['initiated','ringing','answered','completed']
