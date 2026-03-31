@@ -538,7 +538,7 @@ router.delete('/:id/collection-persons/:pid', requireAuth, requireTenant, (req, 
 });
 
 // GET /:id/focus (AI-generated focus profile - cached)
-router.get('/:id/focus', (req, res) => {
+router.get('/:id/focus', requireAuth, requireTenant, (req, res) => {
   try {
     D().prepare(`CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)`).run();
     const row = D().prepare('SELECT * FROM child_focus_profiles WHERE child_id=?').get(req.params.id);
@@ -618,6 +618,22 @@ router.get('/:id/immunisations', (req, res) => {
   try { res.json(D().prepare('SELECT * FROM immunisation_records WHERE child_id=? AND tenant_id=? ORDER BY date_given DESC').all(req.params.id, req.tenantId)); }
   catch { res.json([]); }
 });
+// DELETE /:id/immunisations/:rid
+router.delete('/:id/immunisations/:rid', requireAuth, requireTenant, (req, res) => {
+  try {
+    D().prepare('DELETE FROM immunisation_records WHERE id=? AND child_id=? AND tenant_id=?').run(req.params.rid, req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /:id/equipment/:eid
+router.delete('/:id/equipment/:eid', requireAuth, requireTenant, (req, res) => {
+  try {
+    D().prepare('DELETE FROM equipment_register WHERE id=? AND child_id=? AND tenant_id=?').run(req.params.eid, req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /:id/parental-requests (standalone)
 router.get('/:id/parental-requests', (req, res) => {
   try { res.json(D().prepare("SELECT * FROM parental_requests WHERE child_id=? AND status='active' AND tenant_id=?").all(req.params.id, req.tenantId)); }

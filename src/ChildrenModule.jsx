@@ -288,7 +288,6 @@ function ProfileTab({ child, rooms, onSaved }) {
             <FRow label="Parent / Guardian 2" k="parent2_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Email" k="parent2_email" type="email" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Phone" k="parent2_phone" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
-            <FRow label="Centrelink CRN" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
           </div>
         </div>
 
@@ -296,7 +295,14 @@ function ProfileTab({ child, rooms, onSaved }) {
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🏥 Medical Summary</h4>
           <div style={{ display: "grid", gap: 8 }}>
             <FRow label="Known Allergies" k="allergies" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
-            <div>
+          </div>
+          {/* CCS / Centrelink */}
+          <div style={{ gridColumn: "1/-1", fontWeight: 700, fontSize: 11, color: "#8A7F96", marginTop: 4, marginBottom: 2, letterSpacing: 1 }}>CCS / CENTRELINK</div>
+          <div style={{ gridColumn: "1/-1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <FRow label="Centrelink CRN (Child)" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Parent CRN" k="parent_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+          </div>
+          <div  <div>
               <label style={lbl}>Notes</label>
               <textarea value={f.medical_notes || ""} onChange={e => u("medical_notes", e.target.value)} disabled={!ed}
                 style={{ ...inp, height: 60, resize: "vertical" }} />
@@ -601,6 +607,7 @@ function MedicalTab({ child, onSaved }) {
   const [equipment, setEquipment] = useState([]);
   const [showAddMed, setShowAddMed] = useState(false);
   const [showAddEq, setShowAddEq] = useState(false);
+  const [editEq, setEditEq] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -684,7 +691,13 @@ function MedicalTab({ child, onSaved }) {
             <div style={{ width: "100%", textAlign: "center", padding: 20, color: "#B0AAB9", fontSize: 12 }}>No equipment registered (e.g. EpiPen, inhaler)</div>
           ) : equipment.map(eq => (
             <div key={eq.id} style={{ background: "#FDFBF9", borderRadius: 8, padding: "10px 14px", border: `1px solid ${isExpiringSoon(eq.expiry_date) ? "#FFCC80" : "#EDE8F4"}` }}>
-              <div style={{ fontWeight: 700, fontSize: 12, color: "#3D3248" }}>{eq.name}</div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: "#3D3248" }}>{eq.name}</div>
+                <div style={{ display:"flex", gap:4 }}>
+                  <button onClick={() => setEditEq(eq)} style={{ fontSize:10, padding:"2px 8px", borderRadius:6, border:"1px solid #DDD6EE", background:"#F8F5FF", color:"#7C3AED", cursor:"pointer" }}>Edit</button>
+                  <button onClick={async() => { if(!confirm("Remove this equipment?"))return; await API(`/api/children/${child.id}/equipment/${eq.id}`,{method:"DELETE"}); load(); }} style={{ fontSize:10, padding:"2px 8px", borderRadius:6, border:"1px solid #FCA5A5", background:"#FEF2F2", color:"#DC2626", cursor:"pointer" }}>✕</button>
+                </div>
+              </div>
               <div style={{ fontSize: 10, color: "#8A7F96" }}>Location: {eq.location || "—"}</div>
               {eq.expiry_date && <div style={{ fontSize: 10, color: isExpiringSoon(eq.expiry_date) ? "#E65100" : "#8A7F96", fontWeight: isExpiringSoon(eq.expiry_date) ? 700 : 400 }}>
                 Expires: {fmtDate(eq.expiry_date)} {isExpiringSoon(eq.expiry_date) && "⚠"}
@@ -693,6 +706,7 @@ function MedicalTab({ child, onSaved }) {
           ))}
         </div>
         {showAddEq && <EquipmentForm childId={child.id} onSaved={() => { setShowAddEq(false); load(); }} onClose={() => setShowAddEq(false)} />}
+        {editEq && <EquipmentForm childId={child.id} existing={editEq} onSaved={() => { setEditEq(null); load(); }} onClose={() => setEditEq(null)} />}
       </div>
     </div>
   );
