@@ -60,6 +60,7 @@ function DailyInfoTab({ childId, children }) {
   ];
   const meals = record ? JSON.parse(record.meals_data||"{}") : {};
   const child = children?.find(c=>c.id===selChild);
+  const WA2="#D97706";
   const P2="#7C3AED",MU2="#8A7F96",OK2="#16A34A",WA2="#D97706";
 
   return (
@@ -515,8 +516,17 @@ export default function ParentPortalModule() {
 }
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
-function ParentHome({ child }) {
+function ParentHome({ child })
 
+      {/* ── TODAY'S DAILY INFO ── */}
+      {tab === "daily_info" && (
+        <DailyInfoTab childId={selectedChildId} children={children} />
+      )}
+
+      {/* ── DDR / CWA FORMS ── */}
+      {tab === "ddr_cwa" && (
+        <DDRCWATab children={children} selectedChildId={selectedChildId} />
+      )} {
   const [todayUpdates, setTodayUpdates] = useState([]);
   const [alerts, setAlerts] = useState([]);
 

@@ -105,6 +105,8 @@ export function RatioLiveWidget({ onNavigate }) {
         </div>
       ))}
     </div>
+      )}
+    </div>
   );
 }
 
