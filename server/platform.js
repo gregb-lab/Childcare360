@@ -533,7 +533,7 @@ r.get('/ccs/overview', (req, res) => {
 
 r.post('/ccs/submit/:id', (req, res) => {
   // Simulate CCS submission
-  D().prepare((() => 'UPDATE ccs_session_reports SET status=\'submitted\', submitted_at=datetime(\'now\'),'
+  D().prepare(`UPDATE ccs_session_reports SET status='submitted', submitted_at=datetime('now'),
     response_code='200', response_message='Session report queued for processing',
     updated_at=datetime('now') WHERE id=?`).run(req.params.id);
   auditLog(req.userId, null, 'ccs.session.submitted', { reportId: req.params.id }, req.ip, req.get('user-agent'));
@@ -543,7 +543,7 @@ r.post('/ccs/submit/:id', (req, res) => {
 r.post('/ccs/submit-batch', (req, res) => {
   const { ids } = req.body;
   if (!ids?.length) return res.status(400).json({ error: 'No report IDs provided' });
-  const stmt = D().prepare((() => 'UPDATE ccs_session_reports SET status=\'submitted\', submitted_at=datetime(\'now\'),'
+  const stmt = D().prepare(`UPDATE ccs_session_reports SET status='submitted', submitted_at=datetime('now'),
     response_code='200', response_message='Batch submitted', updated_at=datetime('now') WHERE id=?`);
   ids.forEach(id => stmt.run(id));
   auditLog(req.userId, null, 'ccs.batch.submitted', { count: ids.length }, req.ip, req.get('user-agent'));

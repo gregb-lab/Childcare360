@@ -159,7 +159,7 @@ router.post('/payments', (req, res) => {
     .run(id, req.tenantId, invoiceId, inv.child_id, amount, method||'card', reference);
   const totalPaid = (inv.amount_paid||0) + amount;
   const newStatus = totalPaid >= inv.amount_due ? 'paid' : 'partial';
-  D().prepare('UPDATE invoices SET amount_paid=?,status=?,paid_at=CASE WHEN ?>=amount_due THEN datetime(\'now\') ELSE paid_at END WHERE id=?')
+  D().prepare('UPDATE invoices SET amount_paid=?,status=?,paid_at=CASE WHEN ?>=amount_due THEN datetime(\'now\') ELSE paid_at END WHERE id=? AND tenant_id=?')
     .run(+totalPaid.toFixed(2), newStatus, totalPaid, invoiceId);
   res.json({ id, invoiceStatus: newStatus });
 });

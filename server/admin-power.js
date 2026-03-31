@@ -534,7 +534,7 @@ r.post('/debt/:id/reminder', (req, res) => {
     if (!debt) return res.status(404).json({ error: 'Not found' });
 
     const col = `reminder_${reminder_number}_sent`;
-    D().prepare('UPDATE debt_records SET ' + (col) + '=datetime(\'now\') WHERE id=?').run(req.params.id);
+    D().prepare('UPDATE debt_records SET ' + (col) + '=datetime(\'now\') WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
 
     res.json({
       ok: true,

@@ -104,7 +104,7 @@ r.post('/absences', (req, res) => {
   D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
     .run(id, req.tenantId, b.educator_id, b.date, b.type||'sick', b.reason, b.notice_given_mins||0, b.notified_via||'phone');
   // Update educator stats
-  D().prepare('UPDATE educators SET total_sick_days = total_sick_days + 1, sick_leave_balance_hours = MAX(0, sick_leave_balance_hours - 7.6), reliability_score = MAX(0, reliability_score - 2), updated_at = datetime(\'now\') WHERE id = ?').run(b.educator_id);
+  D().prepare('UPDATE educators SET total_sick_days = total_sick_days + 1, sick_leave_balance_hours = MAX(0, sick_leave_balance_hours - 7.6), reliability_score = MAX(0, reliability_score - 2), updated_at = datetime(\'now\') WHERE id = ? AND tenant_id = ?').run(b.educator_id, req.tenantId);
   res.json({ id });
 });
 
@@ -461,7 +461,7 @@ r.post('/fill-requests/:id/accept', (req, res) => {
   db.prepare("UPDATE shift_fill_attempts SET status='cancelled' WHERE request_id=? AND educator_id!=? AND status IN ('queued','pending')")
     .run(req.params.id, educator_id);
   // Update educator reliability
-  db.prepare('UPDATE educators SET total_shifts_accepted = total_shifts_accepted + 1, total_shifts_offered = total_shifts_offered + 1, reliability_score = MIN(100, reliability_score + 1), updated_at = datetime(\'now\') WHERE id = ?').run(educator_id);
+  db.prepare('UPDATE educators SET total_shifts_accepted = total_shifts_accepted + 1, total_shifts_offered = total_shifts_offered + 1, reliability_score = MIN(100, reliability_score + 1), updated_at = datetime(\'now\') WHERE id = ? AND tenant_id = ?').run(educator_id, tenantId);
   res.json({ ok: true });
 });
 
@@ -469,7 +469,7 @@ r.post('/fill-requests/:id/decline', (req, res) => {
   const { educator_id, reason } = req.body;
   D().prepare("UPDATE shift_fill_attempts SET status='declined', accepted=0, decline_reason=?, responded_at=datetime('now') WHERE request_id=? AND educator_id=?")
     .run(reason, req.params.id, educator_id);
-  D().prepare('UPDATE educators SET total_shifts_offered = total_shifts_offered + 1, reliability_score = MAX(0, reliability_score - 0.5), updated_at = datetime(\'now\') WHERE id = ?').run(educator_id);
+  D().prepare('UPDATE educators SET total_shifts_offered = total_shifts_offered + 1, reliability_score = MAX(0, reliability_score - 0.5), updated_at = datetime(\'now\') WHERE id = ? AND tenant_id = ?').run(educator_id, req.tenantId);
   res.json({ ok: true });
 });
 

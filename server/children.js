@@ -140,7 +140,7 @@ router.post('/:id/permissions', (req, res) => {
     // Upsert
     const existing = tryQuery(() => D().prepare('SELECT id FROM child_permissions WHERE child_id = ? AND permission_type = ? AND tenant_id = ?').get(req.params.id, permission_type, req.tenantId));
     if (existing) {
-      D().prepare('UPDATE child_permissions SET granted = ?, granted_by = ?, granted_at = datetime(\'now\'), notes = ?, expiry_date = ? WHERE id = ?')
+      D().prepare('UPDATE child_permissions SET granted = ?, granted_by = ?, granted_at = datetime(\'now\'), notes = ?, expiry_date = ? WHERE id = ? AND tenant_id = ?')
         .run(granted ? 1 : 0, granted_by||null, notes||null, expiry_date||null, existing.id);
       return res.json({ id: existing.id });
     }

@@ -216,7 +216,7 @@ router.post('/:id/leave', (req, res) => {
 router.put('/:id/leave/:leaveId', (req, res) => {
   try {
     const { status, notes } = req.body;
-    D().prepare('UPDATE leave_requests SET status = ?, notes = ?, approved_by = ?, approved_at = datetime(\'now\') WHERE id = ?')
+    D().prepare('UPDATE leave_requests SET status = ?, notes = ?, approved_by = ?, approved_at = datetime(\'now\') WHERE id = ? AND tenant_id = ?')
       .run(status, notes||null, req.userId, req.params.leaveId);
     res.json({ success: true });
   } catch (err) {
