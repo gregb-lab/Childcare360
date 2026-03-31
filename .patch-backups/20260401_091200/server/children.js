@@ -565,19 +565,20 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
     let focusData = { strengths: [], next_steps: [], eylf_focus: [], summary: 'Based on available observations.' };
     if (provider) {
       try {
-        // Direct SDK call — relative URLs don't work server-side
-        try {
-          const Anthropic = (await import('@anthropic-ai/sdk')).default;
-          const client = new Anthropic({ apiKey: provider.api_key });
-          const msg = await client.messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 600,
-            system: 'You are an early childhood educator. Return ONLY valid JSON. Keys: strengths (array, max 3), next_steps (array, max 3), eylf_focus (array of integers 1-5), summary (string). No markdown.',
-            messages: [{ role: 'user', content: `Learning focus profile for:\n${contextText}` }],
-          });
-          const txt = msg.content?.[0]?.text || '';
-          if (txt) { try { focusData = JSON.parse(txt.replace(/```json|```/g,'').trim()); } catch(pe) {} }
-        } catch(ae) { console.error('[AI Focus] SDK error:', ae.message); }
+        const aiRes = await fetch('/api/ai/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': req.headers.authorization, 'x-tenant-id': req.tenantId },
+          body: JSON.stringify({
+            feature: 'child_focus',
+            system: 'You are an early childhood educator. Return ONLY valid JSON with keys: strengths (array of strings), next_steps (array), eylf_focus (array of outcome ids 1-5), summary (string).',
+            messages: [{ role: 'user', content: `Generate a learning focus profile for this child:\n${contextText}` }],
+            max_tokens: 500,
+          }),
+        });
+        const aiData = await aiRes.json();
+        if (aiData.content) {
+          try { focusData = JSON.parse(aiData.content.replace(/```json|```/g,'')); } catch{}
+        }
       } catch{}
     }
     const id = uuid();
@@ -621,16 +622,6 @@ router.get('/:id/immunisations', (req, res) => {
 router.delete('/:id/immunisations/:rid', requireAuth, requireTenant, (req, res) => {
   try {
     D().prepare('DELETE FROM immunisation_records WHERE id=? AND child_id=? AND tenant_id=?').run(req.params.rid, req.params.id, req.tenantId);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// PUT /:id/equipment/:eid
-router.put('/:id/equipment/:eid', requireAuth, requireTenant, (req, res) => {
-  try {
-    const { name, location, expiry_date, notes, category, description, quantity, batch_number, supplier } = req.body;
-    D().prepare("UPDATE equipment_register SET name=COALESCE(?,name), location=COALESCE(?,location), expiry_date=COALESCE(?,expiry_date), notes=COALESCE(?,notes), updated_at=datetime('now') WHERE id=? AND child_id=? AND tenant_id=?")
-      .run(name||null, location||null, expiry_date||null, notes||null, req.params.eid, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -707,8 +698,8 @@ router.post('/:id/immunisations', requireAuth, requireTenant, (req, res) => {
     const _dd = due_date || dueDate || null;
     const _bn = batch_number || batchNumber || null;
     const id = uuid();
-    D().prepare('INSERT INTO immunisation_records (id,child_id,tenant_id,vaccine_name,date_given,given_date,next_due_date,due_date,batch_number,provider,notes,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(id, req.params.id, req.tenantId, vaccine_name, _gd, _gd, _dd, _dd, _bn, provider||null, notes||null, 'current');
+    D().prepare('INSERT INTO immunisation_records (id,child_id,tenant_id,vaccine_name,date_given,given_date,due_date,batch_number,provider,notes,status) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, req.params.id, req.tenantId, vaccine_name, _gd, _gd, _dd, _bn, provider||null, notes||null, 'current');
     res.json({ id, vaccine_name, date_given: _gd, given_date: _gd, due_date: _dd, batch_number: _bn, provider });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });

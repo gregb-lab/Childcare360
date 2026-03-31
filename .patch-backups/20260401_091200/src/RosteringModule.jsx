@@ -71,7 +71,7 @@ export function RosteringModule() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const loadPeriod = async id => { try { const d = await API("/api/rostering/periods/" + id); if (d && !d.error) setSelPeriod(d); else console.error("loadPeriod error:", d?.error); } catch(e) { console.error("loadPeriod:", e.message); } };
+  const loadPeriod = async id => { try { const d = await API("/api/rostering/periods/" + id); setSelPeriod(d); } catch(e) {} };
   const loadEd = async id => { try { const d = await API("/api/rostering/educators/" + id); setSelEd(d); } catch(e) {} };
 
   const pendingCount = data.proposals.filter(p => p.status === "pending").length;
@@ -115,7 +115,7 @@ export function RosteringModule() {
       {tab === "educators" && <EducatorsTab educators={data.educators} loadEd={loadEd} selEd={selEd} setSelEd={setSelEd} reload={load} />}
       {tab === "roster" && <RosterTab educators={data.educators} periods={data.periods} templates={data.templates} archived={archived} sp={selPeriod} loadP={loadPeriod} reload={load} />}
       {tab === "timesheet" && <TimesheetTab educators={data.educators} periods={data.periods} />}
-      {tab === "sickcover" && <SickCoverTab educators={data?.educators || []} fills={data?.fills || []} reload={load} />}
+      {tab === "sickcover" && <SickCoverTab educators={data.educators} fills={data.fills} reload={load} />}
       {tab === "patterns" && <PatternsTab />}
       {tab === "proposals" && <ProposalsTab proposals={data.proposals} reload={load} />}
       {tab === "reports" && <RosterReportsTab educators={data.educators} periods={data.periods} />}

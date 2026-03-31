@@ -2661,12 +2661,6 @@ export function initDatabase() {
     'ALTER TABLE immunisation_records ADD COLUMN given INTEGER DEFAULT 0',
     'ALTER TABLE immunisation_records ADD COLUMN given_date TEXT',
     'ALTER TABLE medications ADD COLUMN dose TEXT',
-    'ALTER TABLE medications ADD COLUMN instructions TEXT',
-    'ALTER TABLE medical_plans ADD COLUMN expiry_date TEXT',
-    'ALTER TABLE medical_plans ADD COLUMN document_url TEXT',
-    'ALTER TABLE medical_plans ADD COLUMN extended_notes TEXT',
-    'ALTER TABLE immunisation_records ADD COLUMN due_date TEXT',
-    'ALTER TABLE immunisation_records ADD COLUMN given INTEGER DEFAULT 0',
     'ALTER TABLE educators ADD COLUMN fatigue_consecutive_days INTEGER DEFAULT 0',
   ];
   educatorV241Cols.forEach(sql => { try { db.exec(sql); } catch(e) {} });

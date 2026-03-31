@@ -1084,7 +1084,7 @@ function ImmunisationTab({ child }) {
   ];
 
   const given = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && r.given);
-  const upcoming = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && (r.due_date || r.next_due_date));
+  const upcoming = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && !r.given && r.due_date);
 
   const addRecord = async (f) => {
     let r;
@@ -1216,18 +1216,14 @@ function PermissionsTab({ child }) {
   ];
 
   const toggle = async (permType, currentVal) => {
-    try {
-      const existing = perms.find(p => p.permission_type === permType);
-      const newVal = currentVal ? 0 : 1;
-      if (existing) {
-        await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: newVal } });
-        setPerms(prev => prev.map(p => p.permission_type === permType ? { ...p, granted: newVal } : p));
-      } else {
-        const r = await API(`/api/children/${child.id}/permissions`, { method: "POST", body: { permission_type: permType, granted: 1 } });
-        if (r && r.id) setPerms(prev => [...prev, { ...r, granted: 1 }]);
-        else setPerms(prev => [...prev, { permission_type: permType, granted: 1 }]);
-      }
-    } catch(e) { toast("Failed to update permission", "error"); }
+    const existing = perms.find(p => p.permission_type === permType);
+    if (existing) {
+      const r = await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: !currentVal } }).catch(e=>console.error('API error:',e));
+      if (r.id) setPerms(prev => prev.map(p => p.id === r.id ? r : p));
+    } else {
+      const r = await API(`/api/children/${child.id}/permissions`, { method: "POST", body: { permission_type: permType, granted: true } }).catch(e=>console.error('API error:',e));
+      if (r.id) setPerms(p => [...p, r]);
+    }
   };
 
   return (
