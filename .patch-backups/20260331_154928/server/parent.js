@@ -11,22 +11,32 @@ r.use(requireAuth);
 function userEmail(userId) {
   return D().prepare('SELECT email FROM users WHERE id=?').get(userId)?.email || null;
 }
+
 function parentChildIds(userId) {
   const email = userEmail(userId);
   if (!email) return [];
-  const membership = D().prepare("SELECT role FROM tenant_members WHERE user_id=? AND role IN ('owner','admin','director','educator','manager') LIMIT 1").get(userId);
+  const membership = D().prepare(
+    "SELECT role FROM tenant_members WHERE user_id=? AND role IN ('owner','admin','director','educator','manager') LIMIT 1"
+  ).get(userId);
   if (membership) {
-    const tenantIds = D().prepare("SELECT DISTINCT tenant_id FROM tenant_members WHERE user_id=? AND role IN ('owner','admin','director','educator','manager')").all(userId).map(r => r.tenant_id);
+    const tenantIds = D().prepare(
+      "SELECT DISTINCT tenant_id FROM tenant_members WHERE user_id=? AND role IN ('owner','admin','director','educator','manager')"
+    ).all(userId).map(row => row.tenant_id);
     if (tenantIds.length) {
       const ph = tenantIds.map(() => '?').join(',');
-      return D().prepare(`SELECT id as child_id FROM children WHERE tenant_id IN (${ph}) AND active=1`).all(...tenantIds).map(r => r.child_id);
+      return D().prepare(
+        `SELECT id as child_id FROM children WHERE tenant_id IN (${ph}) AND active=1`
+      ).all(...tenantIds).map(row => row.child_id);
     }
   }
-  return D().prepare('SELECT DISTINCT child_id FROM parent_contacts WHERE email=?').all(email).map(r => r.child_id);
+  return D().prepare('SELECT DISTINCT child_id FROM parent_contacts WHERE email=?')
+    .all(email).map(row => row.child_id);
 }
+
 function childTenantId(childId) {
   return D().prepare('SELECT tenant_id FROM children WHERE id=?').get(childId)?.tenant_id || null;
 }
+
 function sinceDate(period) {
   if (period === 'all') return '1970-01-01';
   const days = { today: 0, week: 7, month: 30, year: 365 }[period] ?? 30;
@@ -38,91 +48,124 @@ r.get('/children', (req, res) => {
     const childIds = parentChildIds(req.userId);
     if (!childIds.length) return res.json([]);
     const ph = childIds.map(() => '?').join(',');
-    const children = D().prepare(`SELECT c.*, r.name as room_name, (SELECT COUNT(*) FROM learning_stories ls WHERE ls.tenant_id=c.tenant_id AND ls.published=1 AND ls.child_ids LIKE '%'||c.id||'%') as story_count, (SELECT COUNT(*) FROM daily_updates du WHERE du.child_id=c.id AND du.tenant_id=c.tenant_id AND du.update_date=date('now','localtime')) as today_update_count FROM children c LEFT JOIN rooms r ON r.id=c.room_id WHERE c.id IN (${ph}) AND c.active=1`).all(...childIds);
+    const children = D().prepare(`
+      SELECT c.*, r.name as room_name,
+        (SELECT COUNT(*) FROM learning_stories ls WHERE ls.tenant_id=c.tenant_id AND ls.published=1 AND ls.child_ids LIKE '%'||c.id||'%') as story_count,
+        (SELECT COUNT(*) FROM daily_updates du WHERE du.child_id=c.id AND du.tenant_id=c.tenant_id AND du.update_date=date('now','localtime')) as today_update_count
+      FROM children c LEFT JOIN rooms r ON r.id=c.room_id
+      WHERE c.id IN (${ph}) AND c.active=1
+    `).all(...childIds);
     res.json(children);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.put('/children/:id', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.includes(req.params.id)) return res.status(403).json({ error: 'Access denied' });
     const { parent1_phone, parent2_phone, parent2_email } = req.body;
-    D().prepare(`UPDATE children SET parent1_phone=COALESCE(?,parent1_phone), parent2_phone=COALESCE(?,parent2_phone), parent2_email=COALESCE(?,parent2_email), updated_at=datetime('now') WHERE id=?`).run(parent1_phone||null, parent2_phone||null, parent2_email||null, req.params.id);
+    D().prepare(`UPDATE children SET parent1_phone=COALESCE(?,parent1_phone), parent2_phone=COALESCE(?,parent2_phone), parent2_email=COALESCE(?,parent2_email), updated_at=datetime('now') WHERE id=?`)
+      .run(parent1_phone || null, parent2_phone || null, parent2_email || null, req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/alerts', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     const alerts = [];
     if (childIds.length) {
       const ph = childIds.map(() => '?').join(',');
-      const incidents = D().prepare(`SELECT du.*, c.first_name FROM daily_updates du JOIN children c ON c.id=du.child_id WHERE du.child_id IN (${ph}) AND du.category='incident' AND du.update_date >= date('now','-7 days','localtime') ORDER BY du.created_at DESC LIMIT 5`).all(...childIds);
-      incidents.forEach(i => alerts.push({ severity:'urgent', title:`Incident — ${i.first_name}`, message: i.summary||i.notes||'An incident was recorded.' }));
+      const incidents = D().prepare(`
+        SELECT du.*, c.first_name FROM daily_updates du JOIN children c ON c.id=du.child_id
+        WHERE du.child_id IN (${ph}) AND du.category='incident' AND du.update_date >= date('now','-7 days','localtime')
+        ORDER BY du.created_at DESC LIMIT 5
+      `).all(...childIds);
+      incidents.forEach(i => alerts.push({ severity: 'urgent', title: `Incident — ${i.first_name}`, message: i.summary || i.notes || 'An incident was recorded. Please contact the centre.' }));
     }
     res.json(alerts);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/documents/:childId', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.includes(req.params.childId)) return res.status(403).json({ error: 'Not authorised' });
     const tenantId = childTenantId(req.params.childId);
-    res.json(D().prepare(`SELECT * FROM child_documents WHERE child_id=? AND tenant_id=? AND (pending_review=0 OR pending_review IS NULL) ORDER BY created_at DESC`).all(req.params.childId, tenantId));
+    const docs = D().prepare(`SELECT * FROM child_documents WHERE child_id=? AND tenant_id=? AND (pending_review=0 OR pending_review IS NULL) ORDER BY created_at DESC`).all(req.params.childId, tenantId);
+    res.json(docs);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/invoices', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.length) return res.json([]);
     const ph = childIds.map(() => '?').join(',');
     const invoices = D().prepare(`SELECT i.*, c.first_name, c.last_name FROM invoices i JOIN children c ON c.id=i.child_id WHERE i.child_id IN (${ph}) AND i.status != 'draft' ORDER BY i.created_at DESC LIMIT 30`).all(...childIds);
-    res.json(invoices.map(inv => ({ ...inv, sessions: JSON.parse(inv.sessions||'[]') })));
+    res.json(invoices.map(inv => ({ ...inv, sessions: JSON.parse(inv.sessions || '[]') })));
   } catch { res.json([]); }
 });
+
 r.get('/daily-updates/:childId', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.includes(req.params.childId)) return res.status(403).json({ error: 'Not authorised' });
-    const { date = new Date().toISOString().slice(0,10) } = req.query;
+    const { date = new Date().toISOString().slice(0, 10) } = req.query;
     const tenantId = childTenantId(req.params.childId);
-    res.json(D().prepare(`SELECT * FROM daily_updates WHERE child_id=? AND tenant_id=? AND update_date=? ORDER BY created_at DESC`).all(req.params.childId, tenantId, date));
+    const updates = D().prepare(`SELECT * FROM daily_updates WHERE child_id=? AND tenant_id=? AND update_date=? ORDER BY created_at DESC`).all(req.params.childId, tenantId, date);
+    res.json(updates);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/siblings', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.length) return res.json([]);
     const ph = childIds.map(() => '?').join(',');
-    res.json(D().prepare(`SELECT c.*, r.name as room_name FROM children c LEFT JOIN rooms r ON r.id=c.room_id WHERE c.id IN (${ph}) AND c.active=1`).all(...childIds));
+    const children = D().prepare(`SELECT c.*, r.name as room_name FROM children c LEFT JOIN rooms r ON r.id=c.room_id WHERE c.id IN (${ph}) AND c.active=1`).all(...childIds);
+    res.json(children);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.post('/messages', (req, res) => {
   try {
     const { child_id, subject, body } = req.body;
     const user = D().prepare('SELECT email, name FROM users WHERE id=?').get(req.userId);
-    if (!user?.email || !body) return res.status(400).json({ error: 'body required' });
+    const email = user?.email;
+    if (!email || !body) return res.status(400).json({ error: 'body required' });
     const childIds = parentChildIds(req.userId);
     const targetChildId = child_id || childIds[0];
     if (!targetChildId || !childIds.includes(targetChildId)) return res.status(400).json({ error: 'No child found' });
     const tenantId = childTenantId(targetChildId);
     if (!tenantId) return res.status(400).json({ error: 'No child found' });
     const id = uuid();
-    try { D().prepare(`INSERT INTO parent_messages (id,tenant_id,child_id,parent_email,parent_name,subject,body,direction,created_at) VALUES(?,?,?,?,?,?,?,?,datetime('now'))`).run(id, tenantId, targetChildId, user.email, user.name||user.email, subject||'Message from Parent', body, 'inbound'); }
-    catch { D().prepare(`INSERT INTO parent_messages (id,tenant_id,child_id,parent_email,parent_name,subject,body,created_at) VALUES(?,?,?,?,?,?,?,datetime('now'))`).run(id, tenantId, targetChildId, user.email, user.name||user.email, subject||'Message from Parent', body); }
+    try {
+      D().prepare(`INSERT INTO parent_messages (id,tenant_id,child_id,parent_email,parent_name,subject,body,direction,created_at) VALUES(?,?,?,?,?,?,?,?,datetime('now'))`)
+        .run(id, tenantId, targetChildId, email, user?.name || email, subject || 'Message from Parent', body, 'inbound');
+    } catch {
+      D().prepare(`INSERT INTO parent_messages (id,tenant_id,child_id,parent_email,parent_name,subject,body,created_at) VALUES(?,?,?,?,?,?,?,datetime('now'))`)
+        .run(id, tenantId, targetChildId, email, user?.name || email, subject || 'Message from Parent', body);
+    }
     res.json({ id, ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/learning/:childId', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.includes(req.params.childId)) return res.status(403).json({ error: 'Not authorised' });
-    const since = sinceDate(req.query.period || 'month');
+    const { period = 'month' } = req.query;
+    const since = sinceDate(period);
     const tenantId = childTenantId(req.params.childId);
     const rows = D().prepare(`SELECT ls.*, u.name as educator_name FROM learning_stories ls LEFT JOIN users u ON u.id=ls.educator_id WHERE ls.tenant_id=? AND ls.published=1 AND ls.date >= ? ORDER BY ls.date DESC LIMIT 50`).all(tenantId, since);
-    res.json(rows.filter(s => { try { return JSON.parse(s.child_ids||'[]').includes(req.params.childId); } catch { return false; } }).map(s => ({ ...s, child_ids: JSON.parse(s.child_ids||'[]'), eylf_outcomes: JSON.parse(s.eylf_outcomes||'[]'), tags: JSON.parse(s.tags||'[]'), photo_rows: [] })));
+    const stories = rows
+      .filter(s => { try { return JSON.parse(s.child_ids || '[]').includes(req.params.childId); } catch { return false; } })
+      .map(s => ({ ...s, child_ids: JSON.parse(s.child_ids || '[]'), eylf_outcomes: JSON.parse(s.eylf_outcomes || '[]'), tags: JSON.parse(s.tags || '[]'), photo_rows: [] }));
+    res.json(stories);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/learning/:childId/weekly-report', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
@@ -130,29 +173,37 @@ r.get('/learning/:childId/weekly-report', (req, res) => {
     const tenantId = childTenantId(req.params.childId);
     const rep = D().prepare(`SELECT * FROM weekly_reports WHERE child_id=? AND tenant_id=? ORDER BY week_start DESC LIMIT 1`).get(req.params.childId, tenantId);
     if (!rep) return res.json(null);
-    const stories = D().prepare(`SELECT eylf_outcomes, child_ids FROM learning_stories WHERE tenant_id=? AND published=1 AND date >= ?`).all(tenantId, sinceDate('month')).filter(s => { try { return JSON.parse(s.child_ids||'[]').includes(req.params.childId); } catch { return false; } });
-    const counts = {}; stories.forEach(s => { try { JSON.parse(s.eylf_outcomes||'[]').forEach(o => { counts[o]=(counts[o]||0)+1; }); } catch {} });
-    const maxCount = Math.max(1, ...Object.values(counts)); const outcomes = {};
-    Object.entries(counts).forEach(([k,v]) => { outcomes[k]=Math.round((v/maxCount)*100); });
-    res.json({ ...rep, outcomes, eylf_summary: JSON.parse(rep.eylf_summary||'{}'), progressions: JSON.parse(rep.progressions||'[]') });
+    const stories = D().prepare(`SELECT eylf_outcomes, child_ids FROM learning_stories WHERE tenant_id=? AND published=1 AND date >= ?`).all(tenantId, sinceDate('month'))
+      .filter(s => { try { return JSON.parse(s.child_ids || '[]').includes(req.params.childId); } catch { return false; } });
+    const counts = {};
+    stories.forEach(s => { try { JSON.parse(s.eylf_outcomes || '[]').forEach(o => { counts[o] = (counts[o] || 0) + 1; }); } catch {} });
+    const maxCount = Math.max(1, ...Object.values(counts));
+    const outcomes = {};
+    Object.entries(counts).forEach(([k, v]) => { outcomes[k] = Math.round((v / maxCount) * 100); });
+    res.json({ ...rep, outcomes, eylf_summary: JSON.parse(rep.eylf_summary || '{}'), progressions: JSON.parse(rep.progressions || '[]') });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/eylf/:childId', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.includes(req.params.childId)) return res.status(403).json({ error: 'Not authorised' });
     const tenantId = childTenantId(req.params.childId);
-    res.json(D().prepare(`SELECT * FROM child_eylf_progress WHERE child_id=? AND tenant_id=? ORDER BY eylf_outcome, sub_outcome`).all(req.params.childId, tenantId));
+    const progress = D().prepare(`SELECT * FROM child_eylf_progress WHERE child_id=? AND tenant_id=? ORDER BY eylf_outcome, sub_outcome`).all(req.params.childId, tenantId);
+    res.json(progress);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 r.get('/absences/:childId', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
     if (!childIds.includes(req.params.childId)) return res.status(403).json({ error: 'Not authorised' });
     const tenantId = childTenantId(req.params.childId);
-    res.json(D().prepare(`SELECT * FROM child_absences WHERE child_id=? AND tenant_id=? ORDER BY start_date DESC LIMIT 30`).all(req.params.childId, tenantId));
+    const rows = D().prepare(`SELECT * FROM child_absences WHERE child_id=? AND tenant_id=? ORDER BY start_date DESC LIMIT 30`).all(req.params.childId, tenantId);
+    res.json(rows);
   } catch { res.json([]); }
 });
+
 r.post('/absences/:childId', (req, res) => {
   try {
     const childIds = parentChildIds(req.userId);
@@ -162,9 +213,16 @@ r.post('/absences/:childId', (req, res) => {
     const tenantId = childTenantId(req.params.childId);
     if (!tenantId) return res.status(400).json({ error: 'Child not found' });
     const id = uuid();
-    try { D().prepare(`INSERT INTO child_absences (id,tenant_id,child_id,start_date,end_date,reason,notes,acknowledged,created_at) VALUES(?,?,?,?,?,?,?,0,datetime('now'))`).run(id, tenantId, req.params.childId, start_date, end_date||null, reason, notes||null); }
-    catch { D().prepare(`CREATE TABLE IF NOT EXISTS child_absences (id TEXT PRIMARY KEY, tenant_id TEXT, child_id TEXT, start_date TEXT, end_date TEXT, reason TEXT, notes TEXT, acknowledged INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`).run(); D().prepare(`INSERT INTO child_absences (id,tenant_id,child_id,start_date,end_date,reason,notes,acknowledged) VALUES(?,?,?,?,?,?,?,0)`).run(id, tenantId, req.params.childId, start_date, end_date||null, reason, notes||null); }
+    try {
+      D().prepare(`INSERT INTO child_absences (id,tenant_id,child_id,start_date,end_date,reason,notes,acknowledged,created_at) VALUES(?,?,?,?,?,?,?,0,datetime('now'))`)
+        .run(id, tenantId, req.params.childId, start_date, end_date || null, reason, notes || null);
+    } catch {
+      D().prepare(`CREATE TABLE IF NOT EXISTS child_absences (id TEXT PRIMARY KEY, tenant_id TEXT, child_id TEXT, start_date TEXT, end_date TEXT, reason TEXT, notes TEXT, acknowledged INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`).run();
+      D().prepare(`INSERT INTO child_absences (id,tenant_id,child_id,start_date,end_date,reason,notes,acknowledged) VALUES(?,?,?,?,?,?,?,0)`)
+        .run(id, tenantId, req.params.childId, start_date, end_date || null, reason, notes || null);
+    }
     res.json({ id, ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 export default r;
