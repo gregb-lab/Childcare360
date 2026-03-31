@@ -92,8 +92,8 @@ router.post('/', (req, res) => {
         b.wwcc_expiry||null, b.photo_url||null, 'active');
     // Create default availability (Mon-Fri)
     for (let d = 0; d < 7; d++) {
-      D().prepare('INSERT OR IGNORE INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time) VALUES(?,?,?,?,?,?)')
-        .run(uuid(), id, d, d < 5 ? 1 : 0, '06:00', '18:30');
+      D().prepare('INSERT OR IGNORE INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,tenant_id) VALUES(?,?,?,?,?,?,?)')
+        .run(uuid(), id, d, d < 5 ? 1 : 0, '06:00', '18:30', req.tenantId);
     }
     res.json({ id });
   } catch (err) {

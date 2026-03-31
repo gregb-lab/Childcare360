@@ -44,8 +44,8 @@ r.post('/educators', (req, res) => {
       b.can_start_earlier_mins||0, b.can_finish_later_mins||0, b.is_lunch_cover?1:0, 'active');
   // Save availability
   if (b.availability) {
-    const stmt = D().prepare('INSERT OR REPLACE INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,preferred) VALUES(?,?,?,?,?,?,?)');
-    b.availability.forEach(a => stmt.run(uuid(), id, a.day, a.available?1:0, a.start_time||'06:00', a.end_time||'18:30', a.preferred?1:0));
+    const stmt = D().prepare('INSERT OR REPLACE INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,preferred,tenant_id) VALUES(?,?,?,?,?,?,?,?)');
+    b.availability.forEach(a => stmt.run(uuid(), id, a.day, a.available?1:0, a.start_time||'06:00', a.end_time||'18:30', a.preferred?1:0, req.tenantId));
   }
   res.json({ id });
 });
@@ -73,8 +73,8 @@ r.put('/educators/:id', (req, res) => {
   // Update availability if provided
   if (b.availability) {
     D().prepare('DELETE FROM educator_availability WHERE educator_id = ? AND tenant_id = ?').run(req.params.id, req.tenantId);
-    const stmt = D().prepare('INSERT INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,preferred) VALUES(?,?,?,?,?,?,?)');
-    b.availability.forEach(a => stmt.run(uuid(), req.params.id, a.day, a.available?1:0, a.start_time||'06:00', a.end_time||'18:30', a.preferred?1:0));
+    const stmt = D().prepare('INSERT INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,preferred,tenant_id) VALUES(?,?,?,?,?,?,?,?)');
+    b.availability.forEach(a => stmt.run(uuid(), req.params.id, a.day, a.available?1:0, a.start_time||'06:00', a.end_time||'18:30', a.preferred?1:0, req.tenantId));
   }
   res.json({ ok: true });
   } catch(err) { console.error('Update educator error:', err); res.status(500).json({ error: err.message }); }

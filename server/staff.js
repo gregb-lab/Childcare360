@@ -76,8 +76,8 @@ r.put('/my-availability', (req, res) => {
         D().prepare('UPDATE educator_availability SET available=?,start_time=?,end_time=?,can_start_earlier_mins=?,can_finish_later_mins=? WHERE id=? AND tenant_id=?')
           .run(a.available?1:0, a.start_time||'07:00', a.end_time||'18:00', a.can_start_earlier_mins||0, a.can_finish_later_mins||0, ex.id);
       } else {
-        D().prepare('INSERT INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,can_start_earlier_mins,can_finish_later_mins) VALUES(?,?,?,?,?,?,?,?)')
-          .run(uuid(), e.id, a.day_of_week, a.available?1:0, a.start_time||'07:00', a.end_time||'18:00', a.can_start_earlier_mins||0, a.can_finish_later_mins||0);
+        D().prepare('INSERT INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,can_start_earlier_mins,can_finish_later_mins,tenant_id) VALUES(?,?,?,?,?,?,?,?,?)')
+          .run(uuid(), e.id, a.day_of_week, a.available?1:0, a.start_time||'07:00', a.end_time||'18:00', a.can_start_earlier_mins||0, a.can_finish_later_mins||0, req.tenantId);
       }
     }
     res.json({ ok: true });
