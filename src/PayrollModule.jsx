@@ -143,7 +143,7 @@ export default function PayrollModule() {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {data.educators.map(e=>(
+                    {data.educators?.map(e=>(
                       <tr key={e.educator_id} style={{borderBottom:"1px solid #F0EBF8"}}>
                         <td style={{padding:"8px 10px",fontWeight:600,color:DARK}}>{e.name}</td>
                         <td style={{padding:"8px 10px"}}>
