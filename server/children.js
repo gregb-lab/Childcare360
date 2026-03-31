@@ -693,8 +693,8 @@ router.post('/:id/medications', requireAuth, requireTenant, (req, res) => {
   try {
     const { name, dose: _df, dosage: _dag, frequency, location, expiry_date, instructions, active } = req.body; const dose = _df || _dag || null;
     const id = uuid();
-    D().prepare('INSERT INTO medications (id,child_id,tenant_id,name,dosage,dose,frequency,location,expiry_date,instructions,status,active) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(id, req.params.id, req.tenantId, name, dose, dose, frequency||null, location||null, expiry_date||null, instructions||null, 'active', active===false?0:1);
+    D().prepare('INSERT INTO medications (id,child_id,tenant_id,name,dosage,dose,frequency,location,expiry_date,instructions,administration_plan,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, req.params.id, req.tenantId, name, dose, dose, frequency||null, location||null, expiry_date||null, instructions||null, instructions||null, 'active');
     res.json({ id, name, dose, dosage: dose, frequency, location, expiry_date, instructions, active: 1 });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -707,8 +707,8 @@ router.post('/:id/immunisations', requireAuth, requireTenant, (req, res) => {
     const _dd = due_date || dueDate || null;
     const _bn = batch_number || batchNumber || null;
     const id = uuid();
-    D().prepare('INSERT INTO immunisation_records (id,child_id,tenant_id,vaccine_name,date_given,given_date,next_due_date,due_date,batch_number,provider,notes,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(id, req.params.id, req.tenantId, vaccine_name, _gd, _gd, _dd, _dd, _bn, provider||null, notes||null, 'current');
+    D().prepare('INSERT INTO immunisation_records (id,child_id,tenant_id,vaccine_name,date_given,given_date,next_due_date,due_date,batch_number,provider,status) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, req.params.id, req.tenantId, vaccine_name, _gd, _gd, _dd, _dd, _bn, provider||null, 'current');
     res.json({ id, vaccine_name, date_given: _gd, given_date: _gd, due_date: _dd, batch_number: _bn, provider });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -716,14 +716,18 @@ router.post('/:id/immunisations', requireAuth, requireTenant, (req, res) => {
 // POST /:id/medical-plans
 router.post('/:id/medical-plans', requireAuth, requireTenant, (req, res) => {
   try {
-    const { plan_type, expiry_date, notes, document_url } = req.body;
+    const { plan_type, condition_name, severity, triggers, symptoms, action_steps, doctor_name, doctor_phone, review_date, expiry_date, extended_notes, notes, document_url } = req.body;
     const id = uuid();
     tryQuery(() => D().prepare('CREATE TABLE IF NOT EXISTS medical_plans (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, plan_type TEXT, expiry_date TEXT, notes TEXT, document_url TEXT, status TEXT DEFAULT "current", created_at TEXT DEFAULT (datetime("now")))').run());
     // Upsert — replace existing plan of same type
     tryQuery(() => D().prepare('DELETE FROM medical_plans WHERE child_id=? AND plan_type=?').run(req.params.id, plan_type));
-    D().prepare('INSERT INTO medical_plans (id,child_id,tenant_id,plan_type,expiry_date,notes,document_url,status) VALUES(?,?,?,?,?,?,?,?)')
-      .run(id, req.params.id, req.tenantId, plan_type, expiry_date||null, notes||null, document_url||null, 'current');
-    res.json({ id, plan_type, expiry_date, notes, document_url, status: 'current' });
+    D().prepare('INSERT INTO medical_plans (id,child_id,tenant_id,plan_type,condition_name,severity,triggers,symptoms,action_steps,doctor_name,doctor_phone,review_date,expiry_date,extended_notes,notes,document_url,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, req.params.id, req.tenantId, plan_type||'general',
+        condition_name||plan_type||'General Plan', severity||null, triggers||null,
+        symptoms||null, action_steps||null, doctor_name||null, doctor_phone||null,
+        review_date||null, expiry_date||null, extended_notes||null, notes||null,
+        document_url||null, 'current');
+    res.json({ id, plan_type, condition_name, expiry_date, notes, document_url, status: 'current' });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
