@@ -279,7 +279,7 @@ function CommunityTab() {
   };
 
   const del=async(id)=>{
-    await API(`/api/engagement/posts/${id}`,{method:"DELETE"});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/posts/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));load();
   };
 
   const pin=async(id,pinned)=>{
