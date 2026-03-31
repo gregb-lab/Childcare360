@@ -1,0 +1,44 @@
+{
+  "name": "childcare360",
+  "version": "2.2.18",
+  "description": "NSW Childcare Rostering & Compliance Platform \u2014 Multi-Tenant",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:frontend": "vite --port 5173 --host 0.0.0.0",
+    "dev:backend": "node server/index.js",
+    "dev": "node server/index.js",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server/index.js",
+    "preview": "vite build && NODE_ENV=production node server/index.js",
+    "check": "node scripts/release-agent.js --skip-ai",
+    "check:full": "node scripts/release-agent.js",
+    "fix": "node scripts/release-agent.js --fix",
+    "release": "node scripts/release-agent.js --fix --package",
+    "release:dry": "node scripts/release-agent.js --fix --package --dry-run",
+    "release:static": "node scripts/release-agent.js --skip-ai --fix --package",
+    "release:v": "node scripts/release-agent.js --fix --package --version"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "recharts": "^2.12.7",
+    "lodash": "^4.17.21",
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.3.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "otplib": "^12.0.1",
+    "helmet": "^8.0.0",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "vite": "^5.4.2",
+    "@vitejs/plugin-react": "^4.2.1",
+    "twilio": "^5.3.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0"
+  }
+}

@@ -1,0 +1,246 @@
+nohup: ignoring input
+
+  ╔══════════════════════════════════════════╗
+  ║  Childcare360 v2.6.0 — Starting Server    ║
+  ╚══════════════════════════════════════════╝
+
+Learning tables: no such column: created_at
+  ✓ v2.6.2: roster-schema-migration tables created
+  ⚠ v2.6.2 roster seed error: FOREIGN KEY constraint failed
+  → Seeding demo data...
+  ✓ Demo: 1 tenant, 1 admin, 4 rooms, 8 children seeded
+  ✓ Login: admin@sunshinelc.com.au / Childcare3602024!
+  ✓ Owner login: owner@childcare360.com.au / Childcare3602024!
+  ✓ Platform: 5 tenants, subscriptions, 30-day metrics, waitlist, incidents, wellbeing seeded
+  ✓ v1.8.0: permissions, pickups, excursion seeded
+  ✓ v1.9.2: Waitlist(8), Daily Updates, Med Register(16), Fee Schedules, Invoices(4 months), Parent logins seeded
+  ✓ v1.9.2b: 30 days attendance sessions seeded for peak-time graph
+  ✓ v2.6.2: Story seed data added — observations, learning stories, activities, EYLF progress, photos
+  ✓ v2.6.2: Educator clock records seeded for ratio report (30 days)
+  ✓ Database initialised: /root/childcare360-app/data/childcare360.db
+  ✓ Server listening on http://0.0.0.0:3003
+  ✓ Environment: development
+  ✓ Auth: Email/Password, Google OAuth, Apple OAuth, TOTP, Email MFA
+  ✓ Multi-tenant isolation enabled
+  ✓ Document store + AI analysis enabled
+  ✓ Compliance engine: auto-scan every 6 hours
+  ✓ Retell AI WebSocket handler active
+
+[Retell] WebSocket handler attached to HTTP server
+  [33mGET /notifications/inbox → 401[0m (3ms)
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-001
+  ✓ Compliance scan complete: 8 children checked, 8 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-002
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-003
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-004
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-005
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+  [33mGET /notifications/inbox → 401[0m (1ms)
+  [33mGET /notifications/inbox → 401[0m (1ms)
+  [32mPOST /login → 200[0m (244ms)
+  [32mGET /debug-count → 200[0m (5ms)
+  [33mGET /all-leave → 404[0m (3ms)
+  [32mGET /inbox → 200[0m (2ms)
+  [32mGET / → 200[0m (3ms)
+  [32mGET / → 200[0m (10ms)
+[GET /rooms] tenant=demo-tenant-001 role=admin found=4 rooms
+  [32mGET /rooms → 200[0m (2ms)
+  [33mGET /attendance-today → 404[0m (3ms)
+  [32mGET /0d78c8a4-b5eb-4444-b6ea-82e531c2025d → 200[0m (3ms)
+  [32mGET /0d78c8a4-b5eb-4444-b6ea-82e531c2025d/collection-persons → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909 → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/collection-persons → 200[0m (4ms)
+  [32mGET /591a4c43-3a56-4001-9b44-04da6b6a6e77 → 200[0m (5ms)
+  [32mGET /591a4c43-3a56-4001-9b44-04da6b6a6e77/collection-persons → 200[0m (3ms)
+  [32mGET /591a4c43-3a56-4001-9b44-04da6b6a6e77/attendance → 200[0m (4ms)
+  [32mGET /591a4c43-3a56-4001-9b44-04da6b6a6
+  🔍 Running daily compliance scan for tenant: demo-tenant-001
+  ✓ Compliance scan complete: 8 children checked, 8 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-002
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-003
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-004
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-005
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+ox → 304[0m (3ms)
+  [32mGET / → 304[0m (4ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mG
+  🔍 Running daily compliance scan for tenant: demo-tenant-001
+  ✓ Compliance scan complete: 8 children checked, 8 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-002
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-003
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-004
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+
+  🔍 Running daily compliance scan for tenant: demo-tenant-005
+  ✓ Compliance scan complete: 0 children checked, 0 alerts generated
+ → 200[0m (2ms)
+  [32mGET /periods → 200[0m (3ms)
+  [32mGET /fill-requests → 304[0m (2ms)
+  [32mGET /ai-config → 304[0m (2ms)
+  [32mGET /change-proposals → 304[0m (1ms)
+  [32mGET /me → 200[0m (5ms)
+  [32mPOST /refresh → 200[0m (4ms)
+  [32mGET /debug-count → 304[0m (4ms)
+  [33mGET /all-leave → 404[0m (4ms)
+  [32mGET / → 200[0m (6ms)
+  [32mGET /inbox → 304[0m (9ms)
+  [32mGET /stats → 304[0m (5ms)
+  [32mGET /templates → 304[0m (3ms)
+  [32mGET /educators → 304[0m (5ms)
+  [32mGET /periods → 304[0m (3ms)
+  [32mGET /fill-requests → 304[0m (3ms)
+  [32mGET /ai-config → 304[0m (2ms)
+  [32mGET /change-proposals → 304[0m (15ms)
+  [32mGET /inbox → 304[0m (8ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (5ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (4ms)
+  [32mGET /inbox → 304[0m (4ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (4ms)
+  [32mGET /inbox → 304[0m (1ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (1ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (4ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (4ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (45ms)
+  [32mGET /inbox → 304[0m (26ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [31mGET /dashboard/today → 500[0m (3ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (1ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (7ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET / → 304[0m (3ms)
+  [33mGET /attendance-today → 404[0m (4ms)
+[GET /rooms] tenant=demo-tenant-001 role=admin found=4 rooms
+  [32mGET /rooms → 304[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909 → 304[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/collection-persons → 304[0m (2ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/focus → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/educator-notes → 200[0m (2ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/attendance → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/attendance-summary → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/medications → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/equipment → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/medical-plans → 200[0m (2ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/dietary → 200[0m (3ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/parental-requests → 200[0m (2ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/immunisations → 200[0m (5ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /41a6ce23-fc35-4ed8-87d0-818209b9f909/permissions → 200[0m (3ms)
+  [32mGET /educator-notes → 200[0m (3ms)
+  [32mGET /inbox → 304[0m (8ms)
+  [32mGET /today → 200[0m (5ms)
+  [32mGET /pins → 200[0m (5ms)
+  [33mGET /simple → 404[0m (2ms)
+  [32mPOST /refresh → 200[0m (2ms)
+  [32mGET /debug-count → 304[0m (9ms)
+  [32mGET / → 304[0m (4ms)
+  [32mGET /inbox → 304[0m (4ms)
+  [33mGET /all-leave → 404[0m (2ms)
+  [32mGET /pins → 304[0m (2ms)
+  [32mGET /today → 304[0m (2ms)
+  [33mGET /simple → 404[0m (4ms)
+  [32mGET /inbox → 304[0m (2ms)
+  [32mGET /inbox → 304[0m (4ms)
+[GET /rooms] tenant=demo-tenant-001 role=admin found=4 rooms
+  [32mGET /rooms → 304[0m (2ms)
+  [32mGET / → 304[0m (4ms)
+  [32mGET /age-groups → 200[0m (3ms)
+  [32mGET /me → 304[0m (1ms)
+  [32mPOST /refresh → 200[0m (5ms)
+  [32mGET /debug-count → 304[0m (6ms)
+  [32mGET / → 304[0m (13ms)
+  [33mGET /all-leave → 404[0m (4ms)
+  [32mGET /inbox → 304[0m (2ms)
+[GET /rooms] tenant=demo-tenant-001 role=admin found=4 rooms
+  [32mGET /rooms → 304[0m (4ms)
+  [32mGET / → 304[0m (3ms)
+  [32mGET /age-groups → 304[0m (9ms)
+  [32mGET /me → 304[0m (2ms)
+  [32mPOST /refresh → 200[0m (4ms)
+  [32mGET /debug-count → 304[0m (3ms)
+  [32mGET / → 304[0m (3ms)
+  [33mGET /all-leave → 404[0m (4ms)
+  [32mGET /inbox → 304[0m (3ms)
+[GET /rooms] tenant=demo-tenant-001 role=admin found=4 rooms
+  [32mGET /rooms → 304[0m (3ms)
+  [32mGET / → 304[0m (5ms)
+  [32mGET /age-groups → 304[0m (3ms)
+  [32mGET /me → 304[0m (2ms)
+  [32mPOST /refresh → 200[0m (2ms)
+  [32mGET /debug-count → 304[0m (5ms)
+  [32mGET /inbox → 304[0m (3ms)
+  [33mGET /all-leave → 404[0m (1ms)
+  [32mGET / → 304[0m (5ms)
+  [32mGET / → 304[0m (5ms)
+  [32mGET /age-groups → 304[0m (4ms)
+[GET /rooms] tenant=demo-tenant-001 role=admin found=4 rooms
+  [32mGET /rooms → 304[0m (4ms)
