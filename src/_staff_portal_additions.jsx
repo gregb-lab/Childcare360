@@ -1,3 +1,4 @@
+import React from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // STAFF PORTAL ADDITIONS — v2.6.7
 // Paste these functions into StaffPortalModule.jsx before the final export
