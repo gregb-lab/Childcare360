@@ -199,14 +199,14 @@ router.get('/summary', (req, res) => {
 router.post('/invoices/:id/email', requireAuth, requireTenant, async (req, res) => {
   try {
     const db = D();
-    const inv = db.prepare('
+    const inv = db.prepare(`
       SELECT i.*, c.first_name, c.last_name,
              pc.email as parent_email, pc.name as parent_name
       FROM invoices i
       JOIN children c ON c.id=i.child_id
       LEFT JOIN parent_contacts pc ON pc.child_id=c.id AND pc.is_primary=1
       WHERE i.id=? AND i.tenant_id=?
-    ').get(req.params.id, req.tenantId);
+    `).get(req.params.id, req.tenantId);
     if (!inv) return res.status(404).json({ error: 'Invoice not found' });
     if (!inv.parent_email) return res.status(400).json({ error: 'No parent email address on file for this child' });
 

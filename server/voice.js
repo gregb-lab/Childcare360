@@ -217,7 +217,7 @@ function setStatus(callId, status, extra = {}) {
   if (['completed','failed','no-answer','busy','canceled'].includes(status))
     sets.push("ended_at=datetime('now')");
   vals.push(callId);
-  try { const _vSql = 'UPDATE voice_calls SET ' + sets.join(',') + ' WHERE id=?'; D().prepare(_vSql).run(...vals); } catch(e) {}
+  try { D().prepare('UPDATE voice_calls SET ' + sets.join(',') + ' WHERE id=?').run(...vals); } catch(e) {}
 }
 
 async function askClaude(transcript, systemPrompt, context) {
@@ -390,12 +390,12 @@ router.put('/settings', requireAuth, requireTenant, (req, res) => {
     const authToken    = twilio_auth_token?.startsWith('••••') ? existing?.twilio_auth_token : twilio_auth_token;
     const elKey        = elevenlabs_api_key?.startsWith('••••')  ? existing?.elevenlabs_api_key  : elevenlabs_api_key;
     const retellKey    = retell_api_key?.startsWith('••••')      ? existing?.retell_api_key      : retell_api_key;
-    D().prepare('
+    D().prepare(`
       INSERT INTO voice_settings (id,tenant_id,twilio_account_sid,twilio_auth_token,twilio_phone_number,
         tts_voice,ai_persona,inbound_greeting,outbound_greeting,active,
         elevenlabs_api_key,elevenlabs_voice_id,elevenlabs_model,call_language,
         voice_provider,retell_api_key,retell_agent_id,retell_phone_number_id,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
       ON CONFLICT(tenant_id) DO UPDATE SET
         twilio_account_sid=excluded.twilio_account_sid, twilio_auth_token=excluded.twilio_auth_token,
         twilio_phone_number=excluded.twilio_phone_number, tts_voice=excluded.tts_voice,
@@ -406,7 +406,7 @@ router.put('/settings', requireAuth, requireTenant, (req, res) => {
         voice_provider=excluded.voice_provider, retell_api_key=excluded.retell_api_key,
         retell_agent_id=excluded.retell_agent_id, retell_phone_number_id=excluded.retell_phone_number_id,
         updated_at=excluded.updated_at
-    ').run(id, req.tenantId, twilio_account_sid, authToken, twilio_phone_number,
+    `).run(id, req.tenantId, twilio_account_sid, authToken, twilio_phone_number,
            tts_voice || 'Polly.Joanna-Neural',
            ai_persona || 'You are a friendly assistant for a childcare centre.',
            inbound_greeting || 'Hello, thank you for calling. How can I help you today?',
@@ -426,8 +426,8 @@ router.put('/settings', requireAuth, requireTenant, (req, res) => {
 
 router.get('/calls', requireAuth, requireTenant, (req, res) => {
   try {
-    const calls = D().prepare('SELECT vc.*, u.name as initiated_by_name FROM voice_calls vc
-      LEFT JOIN users u ON u.id=vc.initiated_by WHERE vc.tenant_id=? ORDER BY vc.created_at DESC LIMIT 100')
+    const calls = D().prepare(`SELECT vc.*, u.name as initiated_by_name FROM voice_calls vc
+      LEFT JOIN users u ON u.id=vc.initiated_by WHERE vc.tenant_id=? ORDER BY vc.created_at DESC LIMIT 100`)
       .all(req.tenantId);
     res.json(calls.map(c => ({ ...c, transcript: undefined })));
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -451,7 +451,7 @@ router.post('/call', requireAuth, requireTenant, async (req, res) => {
   const actualNumber = safeNumber(to_number);
   const callId = uuid();
   try {
-    D().prepare('INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,context_type,context_id,initiated_by,transcript) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    D().prepare(`INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,context_type,context_id,initiated_by,transcript) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
       .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, actualNumber,
            purpose || 'general', context_type || null, context_id || null, req.userId,
            context_data ? JSON.stringify([{ role: '_context', content: JSON.stringify(context_data) }]) : '[]');
@@ -480,7 +480,7 @@ router.post('/test', requireAuth, requireTenant, async (req, res) => {
   const actualNumber = safeNumber(to_number);
   const callId = uuid();
   try {
-    D().prepare('INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,initiated_by,transcript) VALUES (?,?,?,?,?,?,?,?,?)')
+    D().prepare(`INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,initiated_by,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, actualNumber, 'test', req.userId, '[]');
     const client = await getTwilioClient(settings);
     const base = getBase();
@@ -530,7 +530,7 @@ router.post('/force-active', requireAuth, requireTenant, (req, res) => {
 // ─── CALL LOGS (last 20 voice_calls with error details) ─────────────────────
 router.get('/logs', requireAuth, requireTenant, (req, res) => {
   try {
-    const calls = D().prepare('SELECT id, direction, status, from_number, to_number, purpose, error_message, created_at, ended_at, duration_seconds FROM voice_calls WHERE tenant_id=? ORDER BY created_at DESC LIMIT 20').all(req.tenantId);
+    const calls = D().prepare(`SELECT id, direction, status, from_number, to_number, purpose, error_message, created_at, ended_at, duration_seconds FROM voice_calls WHERE tenant_id=? ORDER BY created_at DESC LIMIT 20`).all(req.tenantId);
     res.json({ calls });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -713,23 +713,23 @@ webhooks.post('/gather/:callId', async (req, res) => {
           const reqQualIdx = qualOrder.indexOf(shiftSnap.qualification_required || 'cert3');
 
           const absId = uuid();
-          D().prepare('INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)')
+          D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
             .run(absId, tenantId, educatorId, shiftSnap.date, 'sick', 'Called in sick via voice agent', 0, 'phone');
           D().prepare("UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime('now') WHERE id=?").run(educatorId);
           D().prepare("UPDATE roster_entries SET status='unfilled', notes='Educator called in sick via voice agent', updated_at=datetime('now') WHERE id=?").run(shiftSnap.id);
 
-          const candidates = D().prepare('
+          const candidates = D().prepare(`
             SELECT e.* FROM educators e JOIN educator_availability ea ON ea.educator_id=e.id
-            WHERE e.tenant_id=? AND e.status=\'active\' AND e.id!=? AND ea.day_of_week=? AND ea.available=1
+            WHERE e.tenant_id=? AND e.status='active' AND e.id!=? AND ea.day_of_week=? AND ea.available=1
             AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date=? AND tenant_id=?)
             ORDER BY e.reliability_score DESC, e.distance_km ASC
-          ').all(tenantId, educatorId, dayOfWeek, shiftSnap.date, tenantId)
+          `).all(tenantId, educatorId, dayOfWeek, shiftSnap.date, tenantId)
             .filter(c => qualOrder.indexOf(c.qualification) <= reqQualIdx).slice(0, 10);
 
           if (!candidates.length) { console.log('[Voice] Sick call — no eligible candidates'); return; }
 
           const fillId = uuid();
-          D().prepare('INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+          D().prepare(`INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
             .run(fillId, tenantId, absId, educatorId, shiftSnap.id, shiftSnap.room_id, shiftSnap.date, shiftSnap.start_time, shiftSnap.end_time, shiftSnap.qualification_required, 'open', 1);
           candidates.forEach(c => D().prepare('INSERT INTO shift_fill_attempts (id,request_id,educator_id,contact_method,status) VALUES(?,?,?,?,?)').run(uuid(), fillId, c.id, 'call', 'queued'));
           const { startShiftFillCalls } = await import('./shift-voice.js');
@@ -757,13 +757,13 @@ webhooks.post('/gather/:callId', async (req, res) => {
       const in14  = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
       const DAYS  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-      const upcomingShifts = D().prepare('
+      const upcomingShifts = D().prepare(`
         SELECT re.*, r.name as room_name
         FROM roster_entries re LEFT JOIN rooms r ON r.id = re.room_id
         WHERE re.educator_id=? AND re.tenant_id=? AND re.date BETWEEN ? AND ?
-        AND re.status NOT IN (\'cancelled\',\'unfilled\')
+        AND re.status NOT IN ('cancelled','unfilled')
         ORDER BY re.date ASC, re.start_time ASC LIMIT 5
-      ').all(ctx.educatorId, call.tenant_id, today, in14).map(s => ({
+      `).all(ctx.educatorId, call.tenant_id, today, in14).map(s => ({
         ...s,
         day_label: s.date === today
           ? 'today'
@@ -779,7 +779,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
         const ask = `I'm sorry to hear that, ${ctx.educatorName || 'there'}. I don't see any upcoming shifts rostered for you in the next two weeks. I'll make a note and let management know you called. Is there anything else I can help with?`;
         saveTurn(callId, 'assistant', ask);
         const absId = uuid();
-        D().prepare('INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)')
+        D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
           .run(absId, call.tenant_id, ctx.educatorId, today, 'sick', 'Called in sick — no shifts found in roster', 0, 'phone');
         D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
           .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
@@ -862,7 +862,7 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
 
     const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(tenantId)?.name || 'the centre';
 
-    D().prepare('INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose,transcript) VALUES (?,?,?,?,?,?,?,?,?)')
+    D().prepare(`INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(callId, tenantId, req.body.CallSid, 'inbound', 'in-progress', callerNumber,
            req.body.To || settings.twilio_phone_number, 'inbound', '[]');
 

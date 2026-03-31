@@ -43,7 +43,7 @@ r.put('/me', (req, res) => {
     allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     if (!Object.keys(updates).length) return res.json({ ok: true });
     const sets = Object.keys(updates).map(k => `${k}=?`).join(',');
-    D().prepare((() => { const _s = 'UPDATE educators SET ' + sets + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?"; return _s; })())
+    D().prepare('UPDATE educators SET ' + sets + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?")
       .run(...Object.values(updates), e.id, req.tenantId);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
@@ -56,10 +56,10 @@ r.get('/my-shifts', (req, res) => {
       ? D().prepare('SELECT * FROM educators WHERE id=? AND tenant_id=?').get(previewId2, req.tenantId)
       : getMyEdu(req.userId, req.tenantId);
     if (!e) return res.json([]);
-    const shifts = D().prepare('SELECT re.*, r.name as room_name, r.age_group FROM roster_entries re
+    const shifts = D().prepare(`SELECT re.*, r.name as room_name, r.age_group FROM roster_entries re
       LEFT JOIN rooms r ON re.room_id=r.id
-      WHERE re.educator_id=? AND re.tenant_id=? AND re.date >= date(\'now\',\'-14 days\')
-      ORDER BY re.date DESC, re.start_time ASC LIMIT 60').all(e.id, req.tenantId);
+      WHERE re.educator_id=? AND re.tenant_id=? AND re.date >= date('now','-14 days')
+      ORDER BY re.date DESC, re.start_time ASC LIMIT 60`).all(e.id, req.tenantId);
     res.json(shifts);
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -91,8 +91,8 @@ r.post('/my-special-availability', (req, res) => {
     const { start_date, end_date, available_days, can_start_early, early_start_time, can_stay_late, late_end_time, notes } = req.body;
     if (!start_date || !end_date) return res.status(400).json({ error: 'Dates required' });
     const id = uuid();
-    D().prepare('INSERT INTO educator_special_availability (id,tenant_id,educator_id,start_date,end_date,available_days,can_start_early,early_start_time,can_stay_late,late_end_time,notes)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(id, req.tenantId, e.id, start_date, end_date,
+    D().prepare(`INSERT INTO educator_special_availability (id,tenant_id,educator_id,start_date,end_date,available_days,can_start_early,early_start_time,can_stay_late,late_end_time,notes)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(id, req.tenantId, e.id, start_date, end_date,
       JSON.stringify(available_days||[]), can_start_early?1:0, early_start_time||null,
       can_stay_late?1:0, late_end_time||null, notes||null);
     res.json({ id });
@@ -124,8 +124,8 @@ r.post('/my-leave', (req, res) => {
     if (!start_date || !end_date) return res.status(400).json({ error: 'Dates required' });
     if (new Date(end_date) < new Date(start_date)) return res.status(400).json({ error: 'End must be after start' });
     const id = uuid();
-    D().prepare('INSERT INTO leave_requests (id,tenant_id,educator_id,leave_type,start_date,end_date,days_requested,reason,status)
-      VALUES(?,?,?,?,?,?,?,?,\'pending\')').run(id, req.tenantId, e.id, leave_type||'annual', start_date, end_date, days_requested||1, reason||null);
+    D().prepare(`INSERT INTO leave_requests (id,tenant_id,educator_id,leave_type,start_date,end_date,days_requested,reason,status)
+      VALUES(?,?,?,?,?,?,?,?,'pending')`).run(id, req.tenantId, e.id, leave_type||'annual', start_date, end_date, days_requested||1, reason||null);
     res.json({ id });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });

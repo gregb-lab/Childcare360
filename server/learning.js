@@ -64,7 +64,7 @@ function hydrateStory(row) {
 function attachPhotos(stories) {
   if (!stories.length) return stories;
   const ids = stories.map(s => s.id);
-  const ph  = D().prepare((() => { const _s = 'SELECT * FROM story_photos WHERE story_id IN (' + ids.map(() => '?').join(',') + ') ORDER BY sort_order'; return _s; })()).all(...ids);
+  const ph  = D().prepare('SELECT * FROM story_photos WHERE story_id IN (' + ids.map(() => '?').join(',') + ') ORDER BY sort_order').all(...ids);
   const map = {};
   ph.forEach(p => {
     if (!map[p.story_id]) map[p.story_id] = [];
@@ -89,19 +89,19 @@ function ensureFamily(db, tenantId, child) {
 }
 
 r.get('/families', (req, res) => {
-  const rows = D().prepare('
+  const rows = D().prepare(`
     SELECT f.*, COUNT(DISTINCT fc.child_id) as child_count,
-           GROUP_CONCAT(c.first_name || \' \' || c.last_name, \', \') as children_names
+           GROUP_CONCAT(c.first_name || ' ' || c.last_name, ', ') as children_names
     FROM families f
     LEFT JOIN family_children fc ON fc.family_id=f.id
     LEFT JOIN children c ON c.id=fc.child_id AND c.active=1
     WHERE f.tenant_id=?
     GROUP BY f.id ORDER BY f.family_name
-  ').all(req.tenantId);
+  `).all(req.tenantId);
   const ids = rows.map(f => f.id);
   let childMap = {};
   if (ids.length) {
-    D().prepare((() => { const _s = 'SELECT fc.family_id, c.id, c.first_name, c.last_name, c.dob, c.room_id, c.photo_url FROM family_children fc JOIN children c ON c.id=fc.child_id WHERE fc.family_id IN (' + ids.map(() => '?').join(',') + ') AND c.active=1'; return _s; })()).all(...ids).forEach(r => {
+    D().prepare('SELECT fc.family_id, c.id, c.first_name, c.last_name, c.dob, c.room_id, c.photo_url FROM family_children fc JOIN children c ON c.id=fc.child_id WHERE fc.family_id IN (' + ids.map(() => '?').join(',') + ') AND c.active=1').all(...ids).forEach(r => {
       if (!childMap[r.family_id]) childMap[r.family_id] = [];
       childMap[r.family_id].push(r);
     });
@@ -119,7 +119,7 @@ r.post('/families/sync', (req, res) => {
 r.get('/families/:id/stories', (req, res) => {
   const children = D().prepare('SELECT child_id FROM family_children WHERE family_id=? AND tenant_id=?').all(req.params.id, req.tenantId).map(r => r.child_id);
   if (!children.length) return res.json([]);
-  const rows = D().prepare('SELECT ls.*, u.name as educator_name_u, e.photo_url as educator_photo_url FROM learning_stories ls LEFT JOIN users u ON u.id=ls.educator_id LEFT JOIN educators e ON e.tenant_id=ls.tenant_id AND (e.email=u.email OR e.id=ls.educator_id) WHERE ls.tenant_id=? AND ls.published=1 ORDER BY ls.date DESC LIMIT 50').all(req.tenantId);
+  const rows = D().prepare(`SELECT ls.*, u.name as educator_name_u, e.photo_url as educator_photo_url FROM learning_stories ls LEFT JOIN users u ON u.id=ls.educator_id LEFT JOIN educators e ON e.tenant_id=ls.tenant_id AND (e.email=u.email OR e.id=ls.educator_id) WHERE ls.tenant_id=? AND ls.published=1 ORDER BY ls.date DESC LIMIT 50`).all(req.tenantId);
   const stories = attachPhotos(rows.map(hydrateStory).filter(s => children.some(cid => s.child_ids.includes(cid))));
   res.json(stories);
 });
@@ -165,8 +165,8 @@ r.post('/stories', (req, res) => {
   const id = uuid();
   const edu = D().prepare('SELECT e.id, e.first_name, e.last_name FROM educators e WHERE e.tenant_id=? AND e.user_id=?').get(req.tenantId, req.userId);
   const eduName = edu ? `${edu.first_name} ${edu.last_name}` : (req.user?.name || 'Educator');
-  D().prepare('INSERT INTO learning_stories (id,tenant_id,title,content,type,event_name,group_name,room_id,date,child_ids,eylf_outcomes,eylf_sub_outcomes,tags,photos,ai_enhanced,ai_explanation,visible_to_parents,album_id,educator_id,educator_name,published,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))')
+  D().prepare(`INSERT INTO learning_stories (id,tenant_id,title,content,type,event_name,group_name,room_id,date,child_ids,eylf_outcomes,eylf_sub_outcomes,tags,photos,ai_enhanced,ai_explanation,visible_to_parents,album_id,educator_id,educator_name,published,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`)
     .run(id, req.tenantId, title, content, type, event_name || null, group_name || null, room_id || null, date,
          S(child_ids), S(eylf_outcomes), SO(eylf_sub_outcomes), S(tags), S(photos),
          ai_enhanced ? 1 : 0, ai_explanation || null, visible_to_parents ? 1 : 0,
@@ -196,7 +196,7 @@ r.post('/stories', (req, res) => {
 
 r.put('/stories/:id', (req, res) => {
   const { title, content, type, event_name, group_name, room_id, date, child_ids, eylf_outcomes, eylf_sub_outcomes, tags, photos, ai_enhanced, ai_explanation, visible_to_parents, published, album_id, ai_progression_suggestions } = req.body;
-  D().prepare('UPDATE learning_stories SET
+  D().prepare(`UPDATE learning_stories SET
     title=COALESCE(?,title), content=COALESCE(?,content), type=COALESCE(?,type),
     event_name=COALESCE(?,event_name), group_name=COALESCE(?,group_name), room_id=COALESCE(?,room_id),
     date=COALESCE(?,date), child_ids=COALESCE(?,child_ids), eylf_outcomes=COALESCE(?,eylf_outcomes),
@@ -204,7 +204,7 @@ r.put('/stories/:id', (req, res) => {
     ai_enhanced=COALESCE(?,ai_enhanced), ai_explanation=COALESCE(?,ai_explanation),
     visible_to_parents=COALESCE(?,visible_to_parents), published=COALESCE(?,published),
     album_id=COALESCE(?,album_id), ai_progression_suggestions=COALESCE(?,ai_progression_suggestions),
-    updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
+    updated_at=datetime('now') WHERE id=? AND tenant_id=?`)
     .run(title, content, type, event_name, group_name, room_id, date,
          child_ids ? S(child_ids) : null,
          eylf_outcomes ? S(eylf_outcomes) : null,
@@ -283,7 +283,7 @@ r.post('/stories/:id/upload', upload.array('photos', 20), (req, res) => {
 // ─── ALBUMS ──────────────────────────────────────────────────────────────────
 
 r.get('/albums', (req, res) => {
-  const albums = D().prepare('
+  const albums = D().prepare(`
     SELECT la.*, COUNT(DISTINCT ls.id) as story_count,
            COUNT(DISTINCT sp.id) as photo_count
     FROM learning_albums la
@@ -291,7 +291,7 @@ r.get('/albums', (req, res) => {
     LEFT JOIN story_photos sp ON sp.story_id=ls.id AND sp.tenant_id=la.tenant_id
     WHERE la.tenant_id=?
     GROUP BY la.id ORDER BY la.updated_at DESC
-  ').all(req.tenantId);
+  `).all(req.tenantId);
   res.json(albums.map(a => ({ ...a, tags: J(a.tags), child_ids: J(a.child_ids) })));
 });
 
@@ -306,7 +306,7 @@ r.post('/albums', (req, res) => {
 
 r.put('/albums/:id', (req, res) => {
   const { name, description, tags, child_ids, event_name } = req.body;
-  D().prepare('UPDATE learning_albums SET name=COALESCE(?,name), description=COALESCE(?,description), tags=COALESCE(?,tags), child_ids=COALESCE(?,child_ids), event_name=COALESCE(?,event_name), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
+  D().prepare(`UPDATE learning_albums SET name=COALESCE(?,name), description=COALESCE(?,description), tags=COALESCE(?,tags), child_ids=COALESCE(?,child_ids), event_name=COALESCE(?,event_name), updated_at=datetime('now') WHERE id=? AND tenant_id=?`)
     .run(name, description, tags ? S(tags) : null, child_ids ? S(child_ids) : null, event_name, req.params.id, req.tenantId);
   res.json({ ok: true });
 });
@@ -375,8 +375,8 @@ r.post('/weekly/:childId/generate', (req, res) => {
     : `${child.first_name} participated in ${stories.length} learning experience${stories.length > 1 ? 's' : ''} this week, engaging with ${Object.keys(outcomeCounts).length} EYLF outcome area${Object.keys(outcomeCounts).length !== 1 ? 's' : ''}. ${progressions.length > 0 ? `${progressions.length} learning progression${progressions.length > 1 ? 's' : ''} were recorded.` : ''} Stories included: ${stories.map(s => s.title).slice(0, 3).join(', ')}${stories.length > 3 ? ` and ${stories.length - 3} more` : ''}.`;
 
   const id = uuid();
-  D().prepare('INSERT OR REPLACE INTO weekly_reports (id,tenant_id,child_id,week_start,week_end,summary,eylf_summary,progressions,regressions,observations_count,ai_generated,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,1,datetime(\'now\'))')
+  D().prepare(`INSERT OR REPLACE INTO weekly_reports (id,tenant_id,child_id,week_start,week_end,summary,eylf_summary,progressions,regressions,observations_count,ai_generated,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,1,datetime('now'))`)
     .run(id, req.tenantId, childId, week_start, week_end, summary, SO(outcomeCounts), S(progressions), S([]), stories.length);
 
   res.json({ id, summary, story_count: stories.length, eylf_summary: outcomeCounts, progressions });

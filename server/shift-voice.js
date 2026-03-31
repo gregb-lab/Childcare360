@@ -148,26 +148,26 @@ function formatShiftForSMS(req) {
 
 export async function startShiftFillCalls(tenantId, fillRequestId) {
   const db = D();
-  const req = db.prepare('
+  const req = db.prepare(`
     SELECT sfr.*, r.name as room_name, e.first_name as orig_fn, e.last_name as orig_ln
     FROM shift_fill_requests sfr
     LEFT JOIN rooms r ON r.id = sfr.room_id
     LEFT JOIN educators e ON e.id = sfr.original_educator_id
     WHERE sfr.id = ? AND sfr.tenant_id = ?
-  ').get(fillRequestId, tenantId);
+  `).get(fillRequestId, tenantId);
 
   if (!req) return console.error(`[ShiftVoice] fill request ${fillRequestId} not found`);
   if (req.status !== 'open') return console.log(`[ShiftVoice] request ${fillRequestId} already ${req.status}`);
 
   // Get next queued attempt
-  const attempt = db.prepare('
+  const attempt = db.prepare(`
     SELECT sfa.*, e.first_name, e.last_name, e.phone, e.qualification
     FROM shift_fill_attempts sfa
     JOIN educators e ON e.id = sfa.educator_id
-    WHERE sfa.request_id = ? AND sfa.status = \'queued\'
+    WHERE sfa.request_id = ? AND sfa.status = 'queued'
     ORDER BY (SELECT reliability_score FROM educators WHERE id = sfa.educator_id) DESC
     LIMIT 1
-  ').get(fillRequestId);
+  `).get(fillRequestId);
 
   if (!attempt) {
     console.log(`[ShiftVoice] No more candidates for request ${fillRequestId}`);
@@ -178,11 +178,11 @@ export async function startShiftFillCalls(tenantId, fillRequestId) {
     const shift = formatShiftForSMS(req);
     if (settings.twilio_phone_number) {
       // Get manager phone
-      const manager = db.prepare('
+      const manager = db.prepare(`
         SELECT u.phone FROM tenant_members tm JOIN users u ON u.id = tm.user_id
-        WHERE tm.tenant_id = ? AND tm.role IN (\'owner\',\'admin\') AND u.phone IS NOT NULL
+        WHERE tm.tenant_id = ? AND tm.role IN ('owner','admin') AND u.phone IS NOT NULL
         LIMIT 1
-      ').get(tenantId);
+      `).get(tenantId);
       if (manager?.phone) {
         await sendSMS(manager.phone,
           `⚠️ ${centreName}: No cover found for shift on ${shift} in ${req.room_name}. Originally: ${req.orig_fn} ${req.orig_ln}. Manual action required.`,
@@ -202,10 +202,10 @@ export async function startShiftFillCalls(tenantId, fillRequestId) {
 
   // Create a voice call record linked to this attempt
   const callId = uuid();
-  db.prepare('
+  db.prepare(`
     INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,context_type,context_id,transcript)
     VALUES (?,?,?,?,?,?,?,?,?,?)
-  ').run(callId, tenantId, 'outbound', 'initiated',
+  `).run(callId, tenantId, 'outbound', 'initiated',
     settings.twilio_phone_number, safeNumber(attempt.phone),
     'shift_fill', 'shift_fill_attempt', attempt.id, '[]');
 
@@ -435,8 +435,8 @@ r.post('/sick-call', requireAuth, requireTenant, async (req, res) => {
 
   // Record the absence
   const absenceId = uuid();
-  db.prepare('INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via)
-    VALUES(?,?,?,?,?,?,?,?)')
+  db.prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via)
+    VALUES(?,?,?,?,?,?,?,?)`)
     .run(absenceId, req.tenantId, educator_id, date, 'sick', reason || 'Sick call', 0, 'phone');
   db.prepare('UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime(\'now\') WHERE id=?')
     .run(educator_id);
@@ -450,14 +450,14 @@ r.post('/sick-call', requireAuth, requireTenant, async (req, res) => {
   const qualOrder = ['ect','diploma','cert3','working_towards'];
   const reqQualIdx = qualOrder.indexOf(entry.qualification_required || 'cert3');
 
-  const candidates = db.prepare('
+  const candidates = db.prepare(`
     SELECT e.* FROM educators e
     JOIN educator_availability ea ON ea.educator_id = e.id
-    WHERE e.tenant_id = ? AND e.status = \'active\' AND e.id != ?
+    WHERE e.tenant_id = ? AND e.status = 'active' AND e.id != ?
     AND ea.day_of_week = ? AND ea.available = 1
     AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date = ? AND tenant_id = ?)
     ORDER BY e.reliability_score DESC, e.distance_km ASC
-  ').all(req.tenantId, educator_id, dayOfWeek, date, req.tenantId)
+  `).all(req.tenantId, educator_id, dayOfWeek, date, req.tenantId)
     .filter(c => qualOrder.indexOf(c.qualification) <= reqQualIdx)
     .slice(0, 10);
 
@@ -465,9 +465,9 @@ r.post('/sick-call', requireAuth, requireTenant, async (req, res) => {
 
   // Create fill request
   const fillId = uuid();
-  db.prepare('INSERT INTO shift_fill_requests
+  db.prepare(`INSERT INTO shift_fill_requests
     (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(fillId, req.tenantId, absenceId, educator_id, entry.id, entry.room_id, date,
          entry.start_time, entry.end_time, entry.qualification_required, 'open', 1);
 
@@ -493,40 +493,40 @@ r.post('/sick-call', requireAuth, requireTenant, async (req, res) => {
 
 // Get status of a fill request
 r.get('/fill-requests/:id', requireAuth, requireTenant, (req, res) => {
-  const fillReq = D().prepare('
+  const fillReq = D().prepare(`
     SELECT sfr.*, r.name as room_name,
-      e.first_name || \' \' || e.last_name as original_educator,
-      f.first_name || \' \' || f.last_name as filled_by_name
+      e.first_name || ' ' || e.last_name as original_educator,
+      f.first_name || ' ' || f.last_name as filled_by_name
     FROM shift_fill_requests sfr
     LEFT JOIN rooms r ON r.id = sfr.room_id
     LEFT JOIN educators e ON e.id = sfr.original_educator_id
     LEFT JOIN educators f ON f.id = sfr.filled_by
     WHERE sfr.id = ? AND sfr.tenant_id = ?
-  ').get(req.params.id, req.tenantId);
+  `).get(req.params.id, req.tenantId);
   if (!fillReq) return res.status(404).json({ error: 'Not found' });
 
-  const attempts = D().prepare('
-    SELECT sfa.*, e.first_name || \' \' || e.last_name as educator_name, e.phone, e.reliability_score
+  const attempts = D().prepare(`
+    SELECT sfa.*, e.first_name || ' ' || e.last_name as educator_name, e.phone, e.reliability_score
     FROM shift_fill_attempts sfa JOIN educators e ON e.id = sfa.educator_id
     WHERE sfa.request_id = ? ORDER BY sfa.contacted_at ASC
-  ').all(req.params.id);
+  `).all(req.params.id);
 
   res.json({ fillRequest: fillReq, attempts });
 });
 
 // List recent fill requests for tenant
 r.get('/fill-requests', requireAuth, requireTenant, (req, res) => {
-  const requests = D().prepare('
+  const requests = D().prepare(`
     SELECT sfr.*, r.name as room_name,
-      e.first_name || \' \' || e.last_name as original_educator,
-      f.first_name || \' \' || f.last_name as filled_by_name,
+      e.first_name || ' ' || e.last_name as original_educator,
+      f.first_name || ' ' || f.last_name as filled_by_name,
       (SELECT COUNT(*) FROM shift_fill_attempts WHERE request_id = sfr.id) as attempts_count
     FROM shift_fill_requests sfr
     LEFT JOIN rooms r ON r.id = sfr.room_id
     LEFT JOIN educators e ON e.id = sfr.original_educator_id
     LEFT JOIN educators f ON f.id = sfr.filled_by
     WHERE sfr.tenant_id = ? ORDER BY sfr.created_at DESC LIMIT 50
-  ').all(req.tenantId);
+  `).all(req.tenantId);
   res.json({ requests });
 });
 

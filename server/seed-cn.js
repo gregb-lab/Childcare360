@@ -6,8 +6,10 @@
 //  ⚠️  Change TENANT below to match your actual tenant ID
 // ═══════════════════════════════════════════════════════════════════════════
 
-import Database from 'better-sqlite3';
-import { randomUUID } from 'crypto';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const Database = require('better-sqlite3');
+const { randomUUID } = require('crypto');
 import path from 'path';
 
 // Match db.js path exactly — use Railway volume mount or local data dir
@@ -252,21 +254,21 @@ for (const k of CHILDREN) {
     k.days.length ? `Attending: ${k.days.join(', ')}` : '',
   ].filter(Boolean).join(' | ');
 
-  db.prepare('
+  db.prepare(`
     INSERT OR IGNORE INTO children
       (id, tenant_id, first_name, last_name, dob, room_id, allergies, notes, enrolled_date, active)
     VALUES (?,?,?,?,?,?,?,?,?,1)
-  ').run(cid, TENANT, cleanFn, cleanLn, dob, k.room, 'None', notes, '2026-01-27');
+  `).run(cid, TENANT, cleanFn, cleanLn, dob, k.room, 'None', notes, '2026-01-27');
 
   kidsAdded++;
 
   // Insert parent contact if we have one
   if (k.parent || k.phone || k.email) {
-    db.prepare('
+    db.prepare(`
       INSERT OR IGNORE INTO parent_contacts
         (id, tenant_id, child_id, name, relationship, email, phone, is_primary, receives_notifications)
       VALUES (?,?,?,?,?,?,?,1,1)
-    ').run(
+    `).run(
       randomUUID(), TENANT, cid,
       k.parent || 'Parent/Guardian',
       'parent',

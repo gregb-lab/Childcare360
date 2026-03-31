@@ -93,19 +93,19 @@ r.get('/availability', (req, res) => {
       const available = Math.max(0, room.capacity - enrolled);
 
       // Project next available date based on children transitioning out
-      const nextTransition = D().prepare('
-        SELECT MIN(date(c.dob, \'+\' || 
+      const nextTransition = D().prepare(`
+        SELECT MIN(date(c.dob, '+' || 
           CASE r.age_group 
-            WHEN \'0-2\' THEN \'2 years\'
-            WHEN \'2-3\' THEN \'3 years\'  
-            WHEN \'3-4\' THEN \'4 years\'
-            WHEN \'4-5\' THEN \'5 years\'
-            ELSE \'5 years\'
+            WHEN '0-2' THEN '2 years'
+            WHEN '2-3' THEN '3 years'  
+            WHEN '3-4' THEN '4 years'
+            WHEN '4-5' THEN '5 years'
+            ELSE '5 years'
           END)) as transition_date
         FROM children c
         JOIN rooms r ON r.id=c.room_id
         WHERE c.tenant_id=? AND c.room_id=? AND c.active=1
-      ').get(req.tenantId, room.id)?.transition_date;
+      `).get(req.tenantId, room.id)?.transition_date;
 
       return {
         id: room.id,
@@ -135,18 +135,18 @@ r.post('/offer/:id', (req, res) => {
 
     const offerExpiry = new Date(Date.now() + 7*86400000).toISOString().split('T')[0];
 
-    D().prepare('
-      UPDATE waitlist SET status=\'offered\', offer_date=date(\'now\'),
-        notes=COALESCE(notes||\' | \',\'\') || \'Place offered \' || date(\'now\') || \'. Expires \' || ?
+    D().prepare(`
+      UPDATE waitlist SET status='offered', offer_date=date('now'),
+        notes=COALESCE(notes||' | ','') || 'Place offered ' || date('now') || '. Expires ' || ?
       WHERE id=?
-    ').run(offerExpiry, req.params.id);
+    `).run(offerExpiry, req.params.id);
 
     // Create a message thread to notify the family
     const threadId = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO message_threads (id,tenant_id,subject,last_message_preview,unread_parent)
       VALUES (?,?,?,?,1)
-    ').run(threadId, req.tenantId,
+    `).run(threadId, req.tenantId,
            `Place Available — ${item.child_name}`,
            `A place is available for ${item.child_name}. Please respond by ${offerExpiry}.`);
 
@@ -172,12 +172,12 @@ r.post('/accept/:id', (req, res) => {
 
     // Create enrolment application from waitlist data
     const enrolId = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO enrolment_applications
         (id, tenant_id, child_name, child_dob, parent_name, parent_email, parent_phone,
          preferred_start_date, preferred_room, preferred_days, status, notes, source)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(enrolId, req.tenantId,
+    `).run(enrolId, req.tenantId,
            item.child_name, item.child_dob,
            item.parent_name, item.parent_email, item.parent_phone,
            start_date || item.preferred_start, room_id || item.preferred_room,
@@ -198,11 +198,11 @@ r.post('/accept/:id', (req, res) => {
 r.post('/decline/:id', (req, res) => {
   try {
     const { reason } = req.body;
-    D().prepare('
-      UPDATE waitlist SET status=\'declined\',
-        notes=COALESCE(notes||\' | \',\'\') || \'Offer declined: \' || COALESCE(?,\'No reason given\')
+    D().prepare(`
+      UPDATE waitlist SET status='declined',
+        notes=COALESCE(notes||' | ','') || 'Offer declined: ' || COALESCE(?,'No reason given')
       WHERE id=? AND tenant_id=?
-    ').run(reason||null, req.params.id, req.tenantId);
+    `).run(reason||null, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -226,10 +226,10 @@ r.post('/bulk-notify', (req, res) => {
     for (const item of waiting) {
       if (!item.parent_email) continue;
       // Log notification
-      D().prepare('
+      D().prepare(`
         INSERT INTO notification_log (id,tenant_id,channel,subject,body,entity_type,entity_id,status)
-        VALUES (?,?,\'email\',?,?,?,?,\'queued\')
-      ').run(uuid(), req.tenantId,
+        VALUES (?,?,'email',?,?,?,?,'queued')
+      `).run(uuid(), req.tenantId,
              `Availability Update${room ? ` — ${room.name}` : ''}`,
              message || `Places may be becoming available. Please contact us to discuss your child's enrolment.`,
              'waitlist', item.id);

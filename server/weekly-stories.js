@@ -56,12 +56,12 @@ function yearBounds(year) {
 }
 
 function gatherChildData(tid, child_id, from, to, maxItems = 30) {
-  const stories = D().prepare('
+  const stories = D().prepare(`
     SELECT ls.title, ls.content, ls.date, ls.eylf_outcomes FROM learning_stories ls
     WHERE ls.tenant_id=? AND ls.date BETWEEN ? AND ?
       AND ls.visible_to_parents=1 AND instr(ls.child_ids, ?) > 0
     ORDER BY ls.date ASC LIMIT ?
-  ').all(tid, from, to, `%${child_id}%`, maxItems);
+  `).all(tid, from, to, `%${child_id}%`, maxItems);
 
   const activities = D().prepare(`
     SELECT notes, update_date FROM daily_updates
@@ -71,23 +71,23 @@ function gatherChildData(tid, child_id, from, to, maxItems = 30) {
     ORDER BY update_date ASC LIMIT ?
   `).all(tid, child_id, from, to, ...EXCLUDE_CATEGORIES, maxItems);
 
-  const observations = D().prepare('
+  const observations = D().prepare(`
     SELECT o.narrative, o.timestamp, u.name as educator_name FROM observations o
     LEFT JOIN users u ON u.id=o.educator_id
     WHERE o.tenant_id=? AND o.child_id=? AND o.timestamp BETWEEN ? AND ?
-      AND o.type NOT IN (\'nappy\',\'toilet\',\'sleep\')
+      AND o.type NOT IN ('nappy','toilet','sleep')
     ORDER BY o.timestamp ASC LIMIT ?
-  ').all(tid, child_id, from, to, maxItems);
+  `).all(tid, child_id, from, to, maxItems);
 
-  const eylf = D().prepare('
+  const eylf = D().prepare(`
     SELECT eylf_outcome, level FROM child_eylf_progress
     WHERE tenant_id=? AND child_id=? AND progressed_at BETWEEN ? AND ?
     ORDER BY level DESC
-  ').all(tid, child_id, from, to);
+  `).all(tid, child_id, from, to);
 
   const photos = [
-    ...D().prepare('SELECT photo_url as url, update_date as date FROM daily_updates WHERE tenant_id=? AND child_id=? AND update_date BETWEEN ? AND ? AND photo_url IS NOT NULL ORDER BY update_date ASC LIMIT 15').all(tid, child_id, from, to),
-    ...(() => { const _cArg = '%' + child_id + '%'; return D().prepare('SELECT sp.url, ls.date FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.date BETWEEN ? AND ? AND instr(ls.child_ids, ?) > 0 LIMIT 15').all(tid, from, to, _cArg); })(),
+    ...D().prepare(`SELECT photo_url as url, update_date as date FROM daily_updates WHERE tenant_id=? AND child_id=? AND update_date BETWEEN ? AND ? AND photo_url IS NOT NULL ORDER BY update_date ASC LIMIT 15`).all(tid, child_id, from, to),
+    ...D().prepare(`SELECT sp.url, ls.date FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.date BETWEEN ? AND ? AND instr(ls.child_ids, ?) > 0 LIMIT 15`).all(tid, from, to, `%${child_id}%`),
   ].filter(p => p.url).slice(0, 16);
 
   return { stories, activities, observations, eylf, photos };
@@ -95,7 +95,7 @@ function gatherChildData(tid, child_id, from, to, maxItems = 30) {
 
 function gatherEducators(tid, child_id, from, to) {
   // Educators who wrote observations or learning stories for this child
-  return D().prepare('
+  return D().prepare(`
     SELECT DISTINCT e.first_name, e.last_name, e.role_title, e.photo_url,
            COUNT(*) as contribution_count
     FROM educators e
@@ -106,7 +106,7 @@ function gatherEducators(tid, child_id, from, to) {
     )
     WHERE e.tenant_id=?
     GROUP BY e.id ORDER BY contribution_count DESC LIMIT 8
-  ').all(child_id, tid, from, to, tid);
+  `).all(child_id, tid, from, to, tid);
 }
 
 // ── GET /api/stories/music ────────────────────────────────────────────────────
@@ -146,27 +146,27 @@ router.get('/period-data', (req, res) => {
       Object.assign(data, child);
       if (period === 'year') {
         // Gather educators who contributed to this child's learning
-        data.educators = D().prepare('
+        data.educators = D().prepare(`
           SELECT DISTINCT e.id, e.first_name, e.last_name, e.role_title, e.photo_url,
             (SELECT COUNT(*) FROM observations o WHERE o.educator_id IN 
               (SELECT user_id FROM educators e2 WHERE e2.id=e.id) 
               AND o.child_id=? AND o.tenant_id=? AND o.timestamp BETWEEN ? AND ?) as obs_count
           FROM educators e
-          WHERE e.tenant_id=? AND e.status=\'active\'
+          WHERE e.tenant_id=? AND e.status='active'
           ORDER BY obs_count DESC LIMIT 8
-        ').all(child_id, tid, from, to, tid);
+        `).all(child_id, tid, from, to, tid);
       }
     } else if (room_id) {
-      data.stories = D().prepare('SELECT ls.title, ls.content, ls.date FROM learning_stories ls WHERE ls.tenant_id=? AND ls.room_id=? AND ls.date BETWEEN ? AND ? AND ls.visible_to_parents=1 ORDER BY ls.date ASC LIMIT 30').all(tid, room_id, from, to);
-      data.activities = D().prepare('SELECT du.notes, du.update_date FROM daily_updates du JOIN children c ON c.id=du.child_id WHERE du.tenant_id=? AND c.room_id=? AND du.update_date BETWEEN ? AND ? AND du.category=\'activity\' AND du.notes IS NOT NULL ORDER BY du.update_date ASC LIMIT 30').all(tid, room_id, from, to);
-      data.photos = D().prepare('SELECT sp.url FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.room_id=? AND ls.date BETWEEN ? AND ? LIMIT 16').all(tid, room_id, from, to).filter(p => p.url);
+      data.stories = D().prepare(`SELECT ls.title, ls.content, ls.date FROM learning_stories ls WHERE ls.tenant_id=? AND ls.room_id=? AND ls.date BETWEEN ? AND ? AND ls.visible_to_parents=1 ORDER BY ls.date ASC LIMIT 30`).all(tid, room_id, from, to);
+      data.activities = D().prepare(`SELECT du.notes, du.update_date FROM daily_updates du JOIN children c ON c.id=du.child_id WHERE du.tenant_id=? AND c.room_id=? AND du.update_date BETWEEN ? AND ? AND du.category='activity' AND du.notes IS NOT NULL ORDER BY du.update_date ASC LIMIT 30`).all(tid, room_id, from, to);
+      data.photos = D().prepare(`SELECT sp.url FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.room_id=? AND ls.date BETWEEN ? AND ? LIMIT 16`).all(tid, room_id, from, to).filter(p => p.url);
     } else {
       // Centre-wide
-      data.stories = D().prepare('SELECT ls.title, ls.content, ls.date, r.name as room_name FROM learning_stories ls LEFT JOIN rooms r ON r.id=ls.room_id WHERE ls.tenant_id=? AND ls.date BETWEEN ? AND ? AND ls.visible_to_parents=1 ORDER BY ls.date ASC LIMIT 40').all(tid, from, to);
-      data.activities = D().prepare('SELECT du.notes, du.update_date FROM daily_updates du WHERE du.tenant_id=? AND du.update_date BETWEEN ? AND ? AND du.category=\'activity\' AND du.notes IS NOT NULL ORDER BY du.update_date ASC LIMIT 30').all(tid, from, to);
-      data.photos = D().prepare('SELECT sp.url FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.date BETWEEN ? AND ? LIMIT 16').all(tid, from, to).filter(p => p.url);
+      data.stories = D().prepare(`SELECT ls.title, ls.content, ls.date, r.name as room_name FROM learning_stories ls LEFT JOIN rooms r ON r.id=ls.room_id WHERE ls.tenant_id=? AND ls.date BETWEEN ? AND ? AND ls.visible_to_parents=1 ORDER BY ls.date ASC LIMIT 40`).all(tid, from, to);
+      data.activities = D().prepare(`SELECT du.notes, du.update_date FROM daily_updates du WHERE du.tenant_id=? AND du.update_date BETWEEN ? AND ? AND du.category='activity' AND du.notes IS NOT NULL ORDER BY du.update_date ASC LIMIT 30`).all(tid, from, to);
+      data.photos = D().prepare(`SELECT sp.url FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.date BETWEEN ? AND ? LIMIT 16`).all(tid, from, to).filter(p => p.url);
       if (period === 'year') {
-        data.educators = D().prepare('SELECT id, first_name, last_name, role_title, photo_url FROM educators WHERE tenant_id=? AND status=\'active\' ORDER BY first_name ASC LIMIT 20').all(tid);
+        data.educators = D().prepare(`SELECT id, first_name, last_name, role_title, photo_url FROM educators WHERE tenant_id=? AND status='active' ORDER BY first_name ASC LIMIT 20`).all(tid);
       }
     }
 
@@ -323,14 +323,14 @@ Return ONLY the narration text. No title. No stage directions.`;
     const storyId = uuid();
     const track = MUSIC_TRACKS.find(t => t.id === music_track_id) || MUSIC_TRACKS[0];
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO weekly_stories
         (id, tenant_id, type, child_id, room_id, period, year, term,
          week_start, week_end, script, music_track_id, music_track_url,
          photo_urls, management_photos, educators_featured,
          centre_message, ai_generated, status, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))
-    ').run(
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+    `).run(
       storyId, req.tenantId, story_type, child_id || null, room_id || null,
       period, year || null, term || null,
       from, to, script, track.id, track.url,
@@ -373,15 +373,15 @@ router.get('/', (req, res) => {
 // ── GET /api/stories/:id ──────────────────────────────────────────────────────
 router.get('/:id', (req, res) => {
   try {
-    const s = D().prepare('
-      SELECT ws.*, c.first_name || \' \' || c.last_name as child_name,
+    const s = D().prepare(`
+      SELECT ws.*, c.first_name || ' ' || c.last_name as child_name,
              r.name as room_name, t.name as centre_name
       FROM weekly_stories ws
       LEFT JOIN children c ON c.id=ws.child_id
       LEFT JOIN rooms r ON r.id=ws.room_id
       LEFT JOIN tenants t ON t.id=ws.tenant_id
       WHERE ws.id=? AND ws.tenant_id=?
-    ').get(req.params.id, req.tenantId);
+    `).get(req.params.id, req.tenantId);
     if (!s) return res.status(404).json({ error: 'Not found' });
     res.json({ story: { ...s, photo_urls: JSON.parse(s.photo_urls || '[]'), management_photos: JSON.parse(s.management_photos || '[]'), educators_featured: JSON.parse(s.educators_featured || '[]') } });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -392,13 +392,13 @@ router.put('/:id', (req, res) => {
   try {
     const { script, music_track_id, centre_message, management_photos, educators_featured } = req.body;
     const track = MUSIC_TRACKS.find(t => t.id === music_track_id);
-    D().prepare('UPDATE weekly_stories SET
+    D().prepare(`UPDATE weekly_stories SET
       script=COALESCE(?,script), music_track_id=COALESCE(?,music_track_id),
       music_track_url=COALESCE(?,music_track_url),
       centre_message=COALESCE(?,centre_message),
       management_photos=COALESCE(?,management_photos),
       educators_featured=COALESCE(?,educators_featured),
-      updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
+      updated_at=datetime('now') WHERE id=? AND tenant_id=?`)
       .run(script||null, music_track_id||null, track?.url||null,
            centre_message||null,
            management_photos ? JSON.stringify(management_photos) : null,
@@ -411,19 +411,19 @@ router.put('/:id', (req, res) => {
 // ── Publish / unpublish / delete ──────────────────────────────────────────────
 router.post('/:id/publish', (req, res) => {
   try {
-    D().prepare('UPDATE weekly_stories SET status=\'published\', published_at=datetime(\'now\'), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
+    D().prepare(`UPDATE weekly_stories SET status='published', published_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?`).run(req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.post('/:id/unpublish', (req, res) => {
   try {
-    D().prepare('UPDATE weekly_stories SET status=\'draft\', published_at=NULL, updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
+    D().prepare(`UPDATE weekly_stories SET status='draft', published_at=NULL, updated_at=datetime('now') WHERE id=? AND tenant_id=?`).run(req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.delete('/:id', (req, res) => {
   try {
-    D().prepare('DELETE FROM weekly_stories WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
+    D().prepare(`DELETE FROM weekly_stories WHERE id=? AND tenant_id=?`).run(req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -431,13 +431,13 @@ router.delete('/:id', (req, res) => {
 // ── GET /api/stories/parent/:childId — published stories for parent portal ────
 router.get('/parent/:childId', (req, res) => {
   try {
-    const stories = D().prepare('
+    const stories = D().prepare(`
       SELECT id, type, period, year, term, week_start, script,
              music_track_url, photo_urls, management_photos, published_at, ai_generated
       FROM weekly_stories
-      WHERE tenant_id=? AND child_id=? AND status=\'published\'
+      WHERE tenant_id=? AND child_id=? AND status='published'
       ORDER BY week_start DESC LIMIT 20
-    ').all(req.tenantId, req.params.childId);
+    `).all(req.tenantId, req.params.childId);
     res.json({ stories: stories.map(s => ({ ...s, photo_urls: JSON.parse(s.photo_urls||'[]'), management_photos: JSON.parse(s.management_photos||'[]') })) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

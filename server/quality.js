@@ -37,18 +37,18 @@ const RATING_ORDER = { working_towards: 0, meeting: 1, exceeding: 2 };
 r.get('/qip', (req, res) => {
   try {
     // Self-assessment ratings per QA
-    const assessments = D().prepare('
+    const assessments = D().prepare(`
       SELECT quality_area, standard, element, current_rating, evidence,
              improvement_notes, target_date, assessed_by, assessed_at
       FROM nqs_self_assessment WHERE tenant_id=?
       ORDER BY quality_area, standard
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     // Goals per QA
-    const goals = D().prepare('
+    const goals = D().prepare(`
       SELECT * FROM qip_goals WHERE tenant_id=?
       ORDER BY quality_area, created_at
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     // Overall rating summary per QA
     const summary = {};
@@ -85,23 +85,23 @@ r.post('/qip/assessment', (req, res) => {
     ).get(req.tenantId, quality_area, standard, element || null);
 
     if (existing) {
-      D().prepare('
+      D().prepare(`
         UPDATE nqs_self_assessment SET
           current_rating=COALESCE(?,current_rating),
           evidence=COALESCE(?,evidence),
           improvement_notes=COALESCE(?,improvement_notes),
           target_date=COALESCE(?,target_date),
           assessed_by=COALESCE(?,assessed_by),
-          assessed_at=datetime(\'now\'), updated_at=datetime(\'now\')
+          assessed_at=datetime('now'), updated_at=datetime('now')
         WHERE id=?
-      ').run(current_rating||null, evidence||null, improvement_notes||null,
+      `).run(current_rating||null, evidence||null, improvement_notes||null,
              target_date||null, assessed_by||null, existing.id);
     } else {
-      D().prepare('
+      D().prepare(`
         INSERT INTO nqs_self_assessment
           (id,tenant_id,quality_area,standard,element,current_rating,evidence,improvement_notes,target_date,assessed_by)
         VALUES (?,?,?,?,?,?,?,?,?,?)
-      ').run(uuid(), req.tenantId, quality_area, standard, element||null,
+      `).run(uuid(), req.tenantId, quality_area, standard, element||null,
              current_rating||'working_towards', evidence||null,
              improvement_notes||null, target_date||null, assessed_by||null);
     }
@@ -115,10 +115,10 @@ r.post('/qip/goals', (req, res) => {
     const { quality_area, goal, actions, responsible, timeline } = req.body;
     if (!quality_area || !goal) return res.status(400).json({ error: 'quality_area and goal required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO qip_goals (id,tenant_id,quality_area,goal,actions,responsible,timeline,status)
-      VALUES (?,?,?,?,?,?,?,\'not_started\')
-    ').run(id, req.tenantId, quality_area, goal, actions||null, responsible||null, timeline||null);
+      VALUES (?,?,?,?,?,?,?,'not_started')
+    `).run(id, req.tenantId, quality_area, goal, actions||null, responsible||null, timeline||null);
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -126,14 +126,14 @@ r.post('/qip/goals', (req, res) => {
 r.put('/qip/goals/:id', (req, res) => {
   try {
     const { goal, actions, responsible, timeline, status, progress } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE qip_goals SET
         goal=COALESCE(?,goal), actions=COALESCE(?,actions),
         responsible=COALESCE(?,responsible), timeline=COALESCE(?,timeline),
         status=COALESCE(?,status), progress=COALESCE(?,progress),
-        updated_at=datetime(\'now\')
+        updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(goal||null, actions||null, responsible||null, timeline||null,
+    `).run(goal||null, actions||null, responsible||null, timeline||null,
            status||null, progress!=null?progress:null,
            req.params.id, req.tenantId);
     res.json({ ok: true });
@@ -175,13 +175,13 @@ r.get('/qip/export', (req, res) => {
 
 r.get('/portfolio/:educatorId', (req, res) => {
   try {
-    const entries = D().prepare('
+    const entries = D().prepare(`
       SELECT ep.*, u.email as reviewer_email
       FROM educator_portfolio_entries ep
       LEFT JOIN users u ON u.id=ep.reviewer_id
       WHERE ep.educator_id=? AND ep.tenant_id=?
       ORDER BY ep.created_at DESC
-    ').all(req.params.educatorId, req.tenantId);
+    `).all(req.params.educatorId, req.tenantId);
 
     const stats = {
       total: entries.length,
@@ -216,11 +216,11 @@ r.post('/portfolio', (req, res) => {
     if (!educator_id || !title) return res.status(400).json({ error: 'educator_id and title required' });
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO educator_portfolio_entries
         (id,tenant_id,educator_id,entry_type,title,body,evidence_urls,nqs_links,eylf_links,tags,visibility)
       VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, educator_id, entry_type||'reflection', title, body||null,
+    `).run(id, req.tenantId, educator_id, entry_type||'reflection', title, body||null,
            JSON.stringify(evidence_urls||[]), JSON.stringify(nqs_links||[]),
            JSON.stringify(eylf_links||[]), JSON.stringify(tags||[]), visibility||'private');
 
@@ -231,16 +231,16 @@ r.post('/portfolio', (req, res) => {
 r.put('/portfolio/:id', (req, res) => {
   try {
     const { title, body, nqs_links, eylf_links, tags, reviewer_feedback, visibility } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE educator_portfolio_entries SET
         title=COALESCE(?,title), body=COALESCE(?,body),
         nqs_links=COALESCE(?,nqs_links), eylf_links=COALESCE(?,eylf_links),
         tags=COALESCE(?,tags), visibility=COALESCE(?,visibility),
         reviewer_feedback=COALESCE(?,reviewer_feedback),
-        reviewed_at=CASE WHEN ? IS NOT NULL THEN datetime(\'now\') ELSE reviewed_at END,
-        updated_at=datetime(\'now\')
+        reviewed_at=CASE WHEN ? IS NOT NULL THEN datetime('now') ELSE reviewed_at END,
+        updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(title||null, body||null,
+    `).run(title||null, body||null,
            nqs_links?JSON.stringify(nqs_links):null,
            eylf_links?JSON.stringify(eylf_links):null,
            tags?JSON.stringify(tags):null,
@@ -277,7 +277,7 @@ const DEFAULT_SATISFACTION_QUESTIONS = [
 
 r.get('/surveys', (req, res) => {
   try {
-    const surveys = D().prepare('
+    const surveys = D().prepare(`
       SELECT s.*,
         COUNT(sr.id) as response_count,
         AVG(sr.nps_score) as avg_nps
@@ -286,7 +286,7 @@ r.get('/surveys', (req, res) => {
       WHERE s.tenant_id=?
       GROUP BY s.id
       ORDER BY s.created_at DESC
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({ surveys: surveys.map(s => ({ ...s, questions: JSON.parse(s.questions||'[]') })) });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -299,10 +299,10 @@ r.post('/surveys', (req, res) => {
 
     const qs = questions?.length ? questions : DEFAULT_SATISFACTION_QUESTIONS;
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO surveys (id,tenant_id,title,description,survey_type,questions,open_date,close_date,status,created_by)
-      VALUES (?,?,?,?,?,?,?,?,\'active\',?)
-    ').run(id, req.tenantId, title, description||null, survey_type||'satisfaction',
+      VALUES (?,?,?,?,?,?,?,?,'active',?)
+    `).run(id, req.tenantId, title, description||null, survey_type||'satisfaction',
            JSON.stringify(qs), open_date||null, close_date||null, created_by||null);
 
     res.json({ id, ok: true });
@@ -377,11 +377,11 @@ r.post('/surveys/:id/respond', (req, res) => {
     const nps = npsAnswer ? parseInt(npsAnswer.answer) : null;
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO survey_responses
         (id,tenant_id,survey_id,respondent_user_id,respondent_child_id,answers,nps_score,completed)
       VALUES (?,?,?,?,?,?,?,1)
-    ').run(id, req.tenantId, req.params.id,
+    `).run(id, req.tenantId, req.params.id,
            respondent_user_id||null, respondent_child_id||null,
            JSON.stringify(answers), nps);
 
@@ -442,10 +442,10 @@ r.post('/prompts', (req, res) => {
     const { title, category, prompt_text, eylf_suggested, age_groups } = req.body;
     if (!title || !prompt_text) return res.status(400).json({ error: 'title and prompt_text required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO story_prompts (id,tenant_id,title,category,prompt_text,eylf_suggested,age_groups,is_system)
       VALUES (?,?,?,?,?,?,?,0)
-    ').run(id, req.tenantId, title, category||'general', prompt_text,
+    `).run(id, req.tenantId, title, category||'general', prompt_text,
            JSON.stringify(eylf_suggested||[]), JSON.stringify(age_groups||['all']));
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -464,13 +464,13 @@ r.post('/alerts/scan', (req, res) => {
     const alerts = [];
 
     // 1. Educator certifications expiring within 30 days
-    const expiringCerts = D().prepare('
+    const expiringCerts = D().prepare(`
       SELECT first_name, last_name, id,
         wwcc_expiry, first_aid_expiry, cpr_expiry, anaphylaxis_expiry
-      FROM educators WHERE tenant_id=? AND status=\'active\'
+      FROM educators WHERE tenant_id=? AND status='active'
         AND (wwcc_expiry BETWEEN ? AND ? OR first_aid_expiry BETWEEN ? AND ?
              OR cpr_expiry BETWEEN ? AND ? OR anaphylaxis_expiry BETWEEN ? AND ?)
-    ').all(req.tenantId, today, in30, today, in30, today, in30, today, in30);
+    `).all(req.tenantId, today, in30, today, in30, today, in30, today, in30);
 
     expiringCerts.forEach(e => {
       const expiring = [];
@@ -487,11 +487,11 @@ r.post('/alerts/scan', (req, res) => {
     });
 
     // 2. Children with no CCS details
-    const noCCS = D().prepare('
+    const noCCS = D().prepare(`
       SELECT COUNT(*) as n FROM children c
       WHERE c.tenant_id=? AND c.active=1
         AND NOT EXISTS (SELECT 1 FROM ccs_family_details cf WHERE cf.child_id=c.id AND cf.tenant_id=c.tenant_id)
-    ').get(req.tenantId)?.n || 0;
+    `).get(req.tenantId)?.n || 0;
     if (noCCS > 0) alerts.push({
       type: 'ccs_missing', priority: 'high',
       title: `${noCCS} children without CCS details`,
@@ -500,11 +500,11 @@ r.post('/alerts/scan', (req, res) => {
     });
 
     // 3. Overdue debt (>30 days)
-    const overdueDebt = D().prepare('
+    const overdueDebt = D().prepare(`
       SELECT COUNT(*) as n, SUM(amount_cents-amount_paid_cents) as total
-      FROM debt_records WHERE tenant_id=? AND status=\'outstanding\'
-        AND julianday(\'now\')-julianday(due_date) > 30
-    ').get(req.tenantId);
+      FROM debt_records WHERE tenant_id=? AND status='outstanding'
+        AND julianday('now')-julianday(due_date) > 30
+    `).get(req.tenantId);
     if (overdueDebt?.n > 0) alerts.push({
       type: 'overdue_debt', priority: 'medium',
       title: `${overdueDebt.n} families with overdue accounts (30+ days)`,
@@ -524,12 +524,12 @@ r.post('/alerts/scan', (req, res) => {
     });
 
     // 5. Children approaching school age without transition report
-    const noTransition = D().prepare('
+    const noTransition = D().prepare(`
       SELECT COUNT(*) as n FROM children c
       WHERE c.tenant_id=? AND c.active=1 AND c.dob IS NOT NULL
-        AND julianday(date(c.dob,\'+5 years\'))-julianday(\'now\') BETWEEN 0 AND 180
+        AND julianday(date(c.dob,'+5 years'))-julianday('now') BETWEEN 0 AND 180
         AND NOT EXISTS (SELECT 1 FROM transition_reports tr WHERE tr.child_id=c.id AND tr.tenant_id=c.tenant_id)
-    ').get(req.tenantId)?.n || 0;
+    `).get(req.tenantId)?.n || 0;
     if (noTransition > 0) alerts.push({
       type: 'transition_missing', priority: 'normal',
       title: `${noTransition} child${noTransition>1?'ren':''} approaching school age without transition report`,
@@ -538,11 +538,11 @@ r.post('/alerts/scan', (req, res) => {
     });
 
     // 6. QIP goals overdue
-    const overdueGoals = D().prepare('
+    const overdueGoals = D().prepare(`
       SELECT COUNT(*) as n FROM qip_goals
-      WHERE tenant_id=? AND status != \'completed\' AND timeline IS NOT NULL
-        AND timeline < date(\'now\')
-    ').get(req.tenantId)?.n || 0;
+      WHERE tenant_id=? AND status != 'completed' AND timeline IS NOT NULL
+        AND timeline < date('now')
+    `).get(req.tenantId)?.n || 0;
     if (overdueGoals > 0) alerts.push({
       type: 'qip_overdue', priority: 'normal',
       title: `${overdueGoals} QIP goal${overdueGoals>1?'s':''} past target date`,
@@ -551,10 +551,10 @@ r.post('/alerts/scan', (req, res) => {
     });
 
     // 7. Staff appraisals overdue
-    const overdueAppraisals = D().prepare('
+    const overdueAppraisals = D().prepare(`
       SELECT COUNT(*) as n FROM appraisals
-      WHERE tenant_id=? AND status!=\'completed\' AND due_date < date(\'now\')
-    ').get(req.tenantId)?.n || 0;
+      WHERE tenant_id=? AND status!='completed' AND due_date < date('now')
+    `).get(req.tenantId)?.n || 0;
     if (overdueAppraisals > 0) alerts.push({
       type: 'appraisal_overdue', priority: 'normal',
       title: `${overdueAppraisals} staff appraisal${overdueAppraisals>1?'s':''} overdue`,
@@ -563,11 +563,11 @@ r.post('/alerts/scan', (req, res) => {
     });
 
     // Insert all new alerts (skip duplicates by type+entity)
-    const insertAlert = D().prepare('
+    const insertAlert = D().prepare(`
       INSERT OR IGNORE INTO smart_alerts
         (id,tenant_id,alert_type,title,message,priority,entity_type,entity_id)
       VALUES (?,?,?,?,?,?,?,?)
-    ');
+    `);
     D().transaction(() => {
       for (const a of alerts) {
         // Dismiss old alerts of same type first
@@ -584,11 +584,11 @@ r.post('/alerts/scan', (req, res) => {
 
 r.get('/alerts', (req, res) => {
   try {
-    const alerts = D().prepare('
+    const alerts = D().prepare(`
       SELECT * FROM smart_alerts
       WHERE tenant_id=? AND dismissed=0
-      ORDER BY CASE priority WHEN \'high\' THEN 1 WHEN \'medium\' THEN 2 ELSE 3 END, created_at DESC
-    ').all(req.tenantId);
+      ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, created_at DESC
+    `).all(req.tenantId);
     res.json({ alerts, count: alerts.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

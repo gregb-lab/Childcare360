@@ -53,15 +53,15 @@ r.post('/threads', (req, res) => {
     if (!subject || !body) return res.status(400).json({ error: 'subject and body required' });
 
     const threadId = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO message_threads (id, tenant_id, child_id, subject, last_message_at, last_message_preview, unread_parent)
-      VALUES (?,?,?,?,datetime(\'now\'),?,1)
-    ').run(threadId, req.tenantId, child_id||null, subject, body.slice(0,100));
+      VALUES (?,?,?,?,datetime('now'),?,1)
+    `).run(threadId, req.tenantId, child_id||null, subject, body.slice(0,100));
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO thread_messages (id, tenant_id, thread_id, sender_type, sender_name, sender_user_id, body)
-      VALUES (?,?,?,\'admin\',?,?,?)
-    ').run(uuid(), req.tenantId, threadId, sender_name||'Centre', req.userId||null, body);
+      VALUES (?,?,?,'admin',?,?,?)
+    `).run(uuid(), req.tenantId, threadId, sender_name||'Centre', req.userId||null, body);
 
     res.json({ id: threadId, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -69,17 +69,17 @@ r.post('/threads', (req, res) => {
 
 r.get('/threads/:id', (req, res) => {
   try {
-    const thread = D().prepare('
+    const thread = D().prepare(`
       SELECT t.*, c.first_name, c.last_name
       FROM message_threads t
       LEFT JOIN children c ON c.id=t.child_id
       WHERE t.id=? AND t.tenant_id=?
-    ').get(req.params.id, req.tenantId);
+    `).get(req.params.id, req.tenantId);
     if (!thread) return res.status(404).json({ error: 'Not found' });
 
-    const messages = D().prepare('
+    const messages = D().prepare(`
       SELECT * FROM thread_messages WHERE thread_id=? ORDER BY created_at ASC
-    ').all(req.params.id);
+    `).all(req.params.id);
 
     // Mark admin-unread as read
     D().prepare('UPDATE message_threads SET unread_admin=0 WHERE id=?').run(req.params.id);
@@ -97,10 +97,10 @@ r.post('/threads/:id/reply', (req, res) => {
       .get(req.params.id, req.tenantId);
     if (!thread) return res.status(404).json({ error: 'Not found' });
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO thread_messages (id, tenant_id, thread_id, sender_type, sender_name, sender_user_id, body)
       VALUES (?,?,?,?,?,?,?)
-    ').run(uuid(), req.tenantId, req.params.id, sender_type,
+    `).run(uuid(), req.tenantId, req.params.id, sender_type,
            sender_name||'Centre', req.userId||null, body);
 
     // Update thread metadata
@@ -162,12 +162,12 @@ r.post('/health', (req, res) => {
     if (!child_id || !event_type) return res.status(400).json({ error: 'child_id and event_type required' });
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO health_events
         (id,tenant_id,child_id,event_type,event_date,description,temperature,
          symptoms,action_taken,parent_notified,follow_up_required,recorded_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, child_id, event_type,
+    `).run(id, req.tenantId, child_id, event_type,
            event_date || new Date().toISOString().split('T')[0],
            description||null, temperature||null,
            JSON.stringify(symptoms||[]), action_taken||null,
@@ -177,16 +177,16 @@ r.post('/health', (req, res) => {
     if (parent_notified) {
       const child = D().prepare('SELECT first_name, last_name FROM children WHERE id=?').get(child_id);
       const threadId = uuid();
-      D().prepare('
+      D().prepare(`
         INSERT INTO message_threads (id,tenant_id,child_id,subject,last_message_preview,unread_parent)
         VALUES (?,?,?,?,?,1)
-      ').run(threadId, req.tenantId, child_id,
+      `).run(threadId, req.tenantId, child_id,
              `Health Update — ${child?.first_name} ${child?.last_name}`,
              (description||'Health event recorded').slice(0,100));
-      D().prepare('
+      D().prepare(`
         INSERT INTO thread_messages (id,tenant_id,thread_id,sender_type,sender_name,body)
-        VALUES (?,?,?,\'admin\',\'Centre\',?)
-      ').run(uuid(), req.tenantId, threadId,
+        VALUES (?,?,?,'admin','Centre',?)
+      `).run(uuid(), req.tenantId, threadId,
              `We wanted to let you know that ${child?.first_name} had a ${event_type} today.\n\n${description||''}\n\n${action_taken?'Action taken: '+action_taken:''}`.trim());
     }
 
@@ -197,14 +197,14 @@ r.post('/health', (req, res) => {
 r.put('/health/:id', (req, res) => {
   try {
     const { follow_up_notes, parent_notified, action_taken } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE health_events SET
         follow_up_notes=COALESCE(?,follow_up_notes),
         parent_notified=COALESCE(?,parent_notified),
-        parent_notified_at=CASE WHEN ? THEN datetime(\'now\') ELSE parent_notified_at END,
+        parent_notified_at=CASE WHEN ? THEN datetime('now') ELSE parent_notified_at END,
         action_taken=COALESCE(?,action_taken)
       WHERE id=? AND tenant_id=?
-    ').run(follow_up_notes||null, parent_notified!=null?parent_notified:null,
+    `).run(follow_up_notes||null, parent_notified!=null?parent_notified:null,
            parent_notified, action_taken||null, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -226,16 +226,16 @@ r.get('/immunisation/:childId', (req, res) => {
       : 0;
 
     // Get AU schedule up to child's age + 3 months ahead
-    const schedule = D().prepare('
+    const schedule = D().prepare(`
       SELECT * FROM immunisation_schedule
-      WHERE country_code=\'AU\' AND age_months <= ?
+      WHERE country_code='AU' AND age_months <= ?
       ORDER BY age_months, vaccine
-    ').all(ageMonths + 3);
+    `).all(ageMonths + 3);
 
     // Get recorded vaccinations
-    const records = D().prepare('
+    const records = D().prepare(`
       SELECT * FROM immunisation_records WHERE child_id=? ORDER BY date_given DESC
-    ').all(req.params.childId);
+    `).all(req.params.childId);
 
     const recordMap = {};
     records.forEach(r => {
@@ -276,11 +276,11 @@ r.post('/immunisation/:childId', (req, res) => {
     const { vaccine_name, dose_number, date_given, batch_number, provider, next_due_date } = req.body;
     if (!vaccine_name) return res.status(400).json({ error: 'vaccine_name required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO immunisation_records
         (id,tenant_id,child_id,vaccine_name,dose_number,date_given,batch_number,provider,next_due_date,status)
-      VALUES (?,?,?,?,?,?,?,?,?,\'current\')
-    ').run(id, req.tenantId, req.params.childId, vaccine_name,
+      VALUES (?,?,?,?,?,?,?,?,?,'current')
+    `).run(id, req.tenantId, req.params.childId, vaccine_name,
            dose_number||1, date_given||null, batch_number||null,
            provider||null, next_due_date||null);
     res.json({ id, ok: true });
@@ -298,23 +298,23 @@ r.delete('/immunisation/record/:id', (req, res) => {
 // Centre-wide immunisation compliance
 r.get('/immunisation-compliance', (req, res) => {
   try {
-    const children = D().prepare('
+    const children = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id, r.name as room_name,
-        CAST((julianday(\'now\')-julianday(c.dob))/30.44 AS INTEGER) as age_months
+        CAST((julianday('now')-julianday(c.dob))/30.44 AS INTEGER) as age_months
       FROM children c
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE c.tenant_id=? AND c.active=1 AND c.dob IS NOT NULL
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     const compliance = children.map(child => {
       const ageMonths = child.age_months || 0;
       const due = D().prepare(
         'SELECT COUNT(*) as n FROM immunisation_schedule WHERE age_months <= ? AND country_code=? AND is_required=1'
       ).get(ageMonths, 'AU')?.n || 0;
-      const done = D().prepare('
+      const done = D().prepare(`
         SELECT COUNT(DISTINCT vaccine_name) as n FROM immunisation_records
-        WHERE child_id=? AND status=\'current\'
-      ').get(child.id)?.n || 0;
+        WHERE child_id=? AND status='current'
+      `).get(child.id)?.n || 0;
       return {
         ...child,
         vaccines_due: due,

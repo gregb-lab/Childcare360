@@ -64,13 +64,13 @@ router.get('/rp-coverage', (req, res) => {
     const opStart = timeToMins(tenant?.operating_hours_start || '06:30');
     const opEnd = timeToMins(tenant?.operating_hours_end || '18:30');
 
-    const rpEntries = D().prepare('
+    const rpEntries = D().prepare(`
       SELECT rc.*, e.first_name, e.last_name, e.qualification,
         e.first_aid, e.first_aid_expiry, e.cpr_expiry, e.anaphylaxis_expiry
       FROM rp_coverage rc JOIN educators e ON e.id = rc.educator_id
       WHERE rc.tenant_id=? AND rc.date=?
       ORDER BY rc.start_time ASC
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
 
     // Detect gaps — sweep operating hours for uncovered minutes
     const gaps = [];
@@ -198,10 +198,10 @@ router.post('/absence', (req, res) => {
 
     for (const date of dates) {
       const absId = uuid();
-      D().prepare('INSERT INTO educator_absences
+      D().prepare(`INSERT INTO educator_absences
         (id,tenant_id,educator_id,date,start_date,end_date,type,reason,
          medical_cert_required,notice_given_mins,notified_via,approved)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(absId, req.tenantId, educator_id, date, start_date, endDate,
           type || 'sick', reason || '', needsCert ? 1 : 0, 0, 'system', 0);
       absenceIds.push(absId);
@@ -217,10 +217,10 @@ router.post('/absence', (req, res) => {
 
         // Auto-create shift_fill_request
         const fillId = uuid();
-        D().prepare('INSERT INTO shift_fill_requests
+        D().prepare(`INSERT INTO shift_fill_requests
           (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,
            date,start_time,end_time,qualification_required,status,ai_initiated)
-          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(fillId, req.tenantId, absId, educator_id, shift.id, shift.room_id,
             date, shift.start_time, shift.end_time, ed.qualification, 'open', 0);
         affectedShifts.push({ date, shift_id: shift.id, fill_request_id: fillId, room_id: shift.room_id });
@@ -358,9 +358,9 @@ router.post('/attendance-forecast/generate', (req, res) => {
         const ratio = ratioMap[room.age_group] || NQF_RATIOS[room.age_group] || 11;
         const educatorsRequired = Math.max(1, Math.ceil(expected / ratio));
 
-        D().prepare('INSERT OR REPLACE INTO daily_attendance_forecast
+        D().prepare(`INSERT OR REPLACE INTO daily_attendance_forecast
           (id,tenant_id,room_id,date,booked_count,expected_count,educators_required,ratio_required)
-          VALUES(COALESCE((SELECT id FROM daily_attendance_forecast WHERE tenant_id=? AND room_id=? AND date=?),?),?,?,?,?,?,?,?)')
+          VALUES(COALESCE((SELECT id FROM daily_attendance_forecast WHERE tenant_id=? AND room_id=? AND date=?),?),?,?,?,?,?,?,?)`)
           .run(req.tenantId, room.id, date, uuid(), req.tenantId, room.id, date, booked, expected, educatorsRequired, `1:${ratio}`);
         generated++;
       }
@@ -428,11 +428,7 @@ router.post('/non-contact', (req, res) => {
         if (educatorsAfter < minRequired) {
           return res.status(400).json({
             error: 'Ratio breach warning',
-            detail: (() => {
-              const _eRow = D().prepare('SELECT first_name FROM educators WHERE id=?').get(educator_id);
-              const _fn = (_eRow && _eRow.first_name) ? _eRow.first_name : 'this educator';
-              return 'Removing ' + _fn + ' from floor would leave ' + educatorsAfter + ' educators for ~' + expectedKids + ' children (need ' + minRequired + ' at 1:' + ratio + ')';
-            })(),
+            detail: `Removing ${D().prepare('SELECT first_name FROM educators WHERE id=?').get(educator_id)?.first_name || 'this educator'} from floor would leave ${educatorsAfter} educators for ~${expectedKids} children (need ${minRequired} at 1:${ratio})`,
             can_override: true,
           });
         }
@@ -469,11 +465,11 @@ router.get('/qualification-check', (req, res) => {
     const approvedPlaces = tenant?.approved_places || 40;
 
     // Get all rostered educators for this date (active shifts)
-    const rostered = D().prepare('
+    const rostered = D().prepare(`
       SELECT DISTINCT re.educator_id, e.qualification
       FROM roster_entries re JOIN educators e ON e.id=re.educator_id
-      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN (\'cancelled\',\'unfilled\')
-    ').all(req.tenantId, date);
+      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN ('cancelled','unfilled')
+    `).all(req.tenantId, date);
 
     const totalEds = rostered.length;
     const ects = rostered.filter(e => e.qualification === 'ect').length;
@@ -594,7 +590,7 @@ router.post('/shift-swaps', (req, res) => {
     // (simplified — full implementation would sum all shifts in the week)
 
     const id = uuid();
-    D().prepare('INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_entry_id,reason,status,compliance_check_passed,compliance_notes) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    D().prepare(`INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_entry_id,reason,status,compliance_check_passed,compliance_notes) VALUES(?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, requester_id, requester_entry_id, target_id, target_entry_id, reason || '', 'pending', compliancePassed ? 1 : 0, complianceNotes.join('; '));
 
     res.json({ ok: true, id, compliance_passed: compliancePassed, compliance_notes: complianceNotes });
@@ -643,7 +639,7 @@ router.get('/movements', (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'date required' });
-    const movements = D().prepare('
+    const movements = D().prepare(`
       SELECT m.*, e.first_name, e.last_name,
         fr.name as from_room_name, tr.name as to_room_name
       FROM educator_room_movements m
@@ -652,7 +648,7 @@ router.get('/movements', (req, res) => {
       JOIN rooms tr ON tr.id=m.to_room_id
       WHERE m.tenant_id=? AND m.date=?
       ORDER BY m.start_time
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
     res.json({ date, movements });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -727,13 +723,13 @@ router.get('/cost-calculate', (req, res) => {
     const holiday = D().prepare('SELECT * FROM public_holidays WHERE (tenant_id=? OR tenant_id IS NULL) AND date=?').get(req.tenantId, date);
     const rules = D().prepare('SELECT * FROM penalty_rate_rules WHERE (tenant_id=? OR tenant_id IS NULL) AND active=1').all(req.tenantId);
 
-    const entries = D().prepare('
+    const entries = D().prepare(`
       SELECT re.*, e.first_name, e.last_name, e.employment_type, e.hourly_rate_cents, e.qualification,
         e.award_classification, e.award_level
       FROM roster_entries re JOIN educators e ON e.id=re.educator_id
-      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN (\'cancelled\')
+      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN ('cancelled')
       ORDER BY re.start_time
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
 
     const costedEntries = entries.map(entry => {
       const startMins = timeToMins(entry.start_time);
@@ -840,8 +836,7 @@ router.put('/educators/:id/classification', (req, res) => {
     }
 
     params.push(req.params.id, req.tenantId);
-    const _reSql = 'UPDATE educators SET ' + updates.join(',') + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?";
-    D().prepare(_reSql).run(...params);
+    D().prepare('UPDATE educators SET ' + updates.join(',') + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(...params);
     res.json({ ok: true, base_hourly_cents: classification?.base_hourly_cents, classification });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -885,10 +880,10 @@ router.post('/agency-booking', (req, res) => {
     const feeCents = Math.round(costCents * (agency.agency_fee_pct / 100));
 
     const id = uuid();
-    D().prepare('INSERT INTO agency_bookings
+    D().prepare(`INSERT INTO agency_bookings
       (id,tenant_id,agency_id,shift_fill_request_id,room_id,date,start_time,end_time,
        qualification_required,status,cost_cents,agency_fee_cents,notes)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, agency_id, shift_fill_request_id || null, room_id || null,
         date, start_time, end_time, qualification_required || 'cert3', 'requested', costCents, feeCents, notes || '');
 
@@ -937,7 +932,7 @@ router.get('/agency-bookings', (req, res) => {
 router.put('/agency-bookings/:id/confirm', (req, res) => {
   try {
     const { agency_educator_name, agency_educator_qualification, agency_educator_wwcc } = req.body;
-    D().prepare('UPDATE agency_bookings SET status=\'confirmed\', agency_educator_name=?, agency_educator_qualification=?, agency_educator_wwcc=?, confirmed_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
+    D().prepare(`UPDATE agency_bookings SET status='confirmed', agency_educator_name=?, agency_educator_qualification=?, agency_educator_wwcc=?, confirmed_at=datetime('now') WHERE id=? AND tenant_id=?`)
       .run(agency_educator_name || '', agency_educator_qualification || 'cert3', agency_educator_wwcc || '', req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -954,13 +949,13 @@ router.get('/role-coverage', (req, res) => {
     if (!date) return res.status(400).json({ error: 'date required' });
 
     const requirements = D().prepare('SELECT * FROM role_coverage_requirements WHERE tenant_id=? AND active=1').all(req.tenantId);
-    const rostered = D().prepare('
+    const rostered = D().prepare(`
       SELECT DISTINCT re.educator_id, e.first_name, e.last_name, e.qualification,
         e.is_responsible_person, e.is_nominated_supervisor, e.is_educational_leader,
         e.first_aid, e.first_aid_expiry, e.cpr_expiry, e.roster_role
       FROM roster_entries re JOIN educators e ON e.id=re.educator_id
-      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN (\'cancelled\',\'unfilled\')
-    ').all(req.tenantId, date);
+      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN ('cancelled','unfilled')
+    `).all(req.tenantId, date);
 
     const today = new Date().toISOString().split('T')[0];
     const results = requirements.map(req_rule => {
@@ -1005,14 +1000,14 @@ router.get('/float-assignments', (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'date required' });
-    const assignments = D().prepare('
+    const assignments = D().prepare(`
       SELECT fa.*, e.first_name, e.last_name, r.name as primary_room_name
       FROM float_assignments fa
       JOIN educators e ON e.id=fa.educator_id
       LEFT JOIN rooms r ON r.id=fa.primary_room_id
       WHERE fa.tenant_id=? AND fa.date=?
       ORDER BY fa.assignment_type, e.first_name
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
     res.json({ date, assignments });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1062,11 +1057,11 @@ router.post('/pay-periods/generate', (req, res) => {
       const dow = dayOfWeek(date);
       const holiday = D().prepare('SELECT * FROM public_holidays WHERE (tenant_id=? OR tenant_id IS NULL) AND date=?').get(req.tenantId, date);
 
-      const entries = D().prepare('
+      const entries = D().prepare(`
         SELECT re.*, e.employment_type, e.hourly_rate_cents, e.super_rate
         FROM roster_entries re JOIN educators e ON e.id=re.educator_id
-        WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN (\'cancelled\')
-      ').all(req.tenantId, date);
+        WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN ('cancelled')
+      `).all(req.tenantId, date);
 
       for (const entry of entries) {
         const workMins = timeToMins(entry.end_time) - timeToMins(entry.start_time) - (entry.break_mins || 30);
@@ -1091,10 +1086,10 @@ router.post('/pay-periods/generate', (req, res) => {
         const superCents = Math.round(grossCents * ((entry.super_rate || 11.5) / 100));
         const penaltyCents = multiplier > 1.0 ? Math.round(workHours * baseRate * (multiplier - 1)) : 0;
 
-        D().prepare('INSERT INTO pay_period_entries
+        D().prepare(`INSERT INTO pay_period_entries
           (id,pay_period_id,educator_id,roster_entry_id,date,ordinary_hours,penalty_hours,
            base_rate_cents,penalty_multiplier,penalty_reason,gross_cents,super_cents)
-          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(uuid(), ppId, entry.educator_id, entry.id, date,
             multiplier <= 1.0 ? workHours : 0, multiplier > 1.0 ? workHours : 0,
             baseRate, multiplier, penaltyReason, grossCents, superCents);
@@ -1107,9 +1102,9 @@ router.post('/pay-periods/generate', (req, res) => {
       }
     }
 
-    D().prepare('INSERT INTO pay_periods
+    D().prepare(`INSERT INTO pay_periods
       (id,tenant_id,period_type,start_date,end_date,pay_date,status,total_hours,total_gross_cents,total_super_cents,total_penalty_cents)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`)
       .run(ppId, req.tenantId, 'fortnightly', start_date, end_date, pay_date || null, 'open',
         Math.round(totalHours * 100) / 100, totalGross, totalSuper, totalPenalty);
 
@@ -1130,12 +1125,12 @@ router.get('/pay-periods/:id/detail', (req, res) => {
     const period = D().prepare('SELECT * FROM pay_periods WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!period) return res.status(404).json({ error: 'Pay period not found' });
 
-    const entries = D().prepare('
+    const entries = D().prepare(`
       SELECT ppe.*, e.first_name, e.last_name, e.employment_type
       FROM pay_period_entries ppe JOIN educators e ON e.id=ppe.educator_id
       WHERE ppe.pay_period_id=?
       ORDER BY e.last_name, ppe.date
-    ').all(req.params.id);
+    `).all(req.params.id);
 
     // Group by educator
     const byEducator = {};
@@ -1182,11 +1177,11 @@ router.get('/fatigue-check', (req, res) => {
     const windowStart = (() => { const d = new Date(checkDate + 'T12:00:00'); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })();
     const windowEnd = (() => { const d = new Date(checkDate + 'T12:00:00'); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })();
 
-    const shifts = D().prepare('
+    const shifts = D().prepare(`
       SELECT date, start_time, end_time, break_mins
-      FROM roster_entries WHERE tenant_id=? AND educator_id=? AND date BETWEEN ? AND ? AND status NOT IN (\'cancelled\',\'unfilled\')
+      FROM roster_entries WHERE tenant_id=? AND educator_id=? AND date BETWEEN ? AND ? AND status NOT IN ('cancelled','unfilled')
       ORDER BY date, start_time
-    ').all(req.tenantId, educator_id, windowStart, windowEnd);
+    `).all(req.tenantId, educator_id, windowStart, windowEnd);
 
     // Consecutive days analysis
     const workedDates = [...new Set(shifts.map(s => s.date))].sort();
@@ -1307,10 +1302,10 @@ router.get('/compliance-check', (req, res) => {
     }
 
     // 3. Qualification mix
-    const rosteredEds = D().prepare('
+    const rosteredEds = D().prepare(`
       SELECT DISTINCT e.qualification FROM roster_entries re JOIN educators e ON e.id=re.educator_id
-      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN (\'cancelled\',\'unfilled\')
-    ').all(req.tenantId, date);
+      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN ('cancelled','unfilled')
+    `).all(req.tenantId, date);
     const totalEds = rosteredEds.length;
     const dipOrAbove = rosteredEds.filter(e => qualScore(e.qualification) >= qualScore('working_towards_diploma')).length;
     if (totalEds > 0 && (dipOrAbove / totalEds) < 0.5) {
@@ -1320,10 +1315,10 @@ router.get('/compliance-check', (req, res) => {
     // 4. Role coverage (NS, EL, First Aider)
     const roleReqs = D().prepare('SELECT * FROM role_coverage_requirements WHERE tenant_id=? AND active=1').all(req.tenantId);
     const today = new Date().toISOString().split('T')[0];
-    const allRostered = D().prepare('
+    const allRostered = D().prepare(`
       SELECT e.* FROM roster_entries re JOIN educators e ON e.id=re.educator_id
-      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN (\'cancelled\',\'unfilled\')
-    ').all(req.tenantId, date);
+      WHERE re.tenant_id=? AND re.date=? AND re.status NOT IN ('cancelled','unfilled')
+    `).all(req.tenantId, date);
 
     for (const rr of roleReqs) {
       let count = 0;
@@ -1343,9 +1338,9 @@ router.get('/compliance-check', (req, res) => {
       const ed = allRostered.find(e => e.id === edId);
       const maxConsec = ed?.max_consecutive_days || fatigueRule?.max_consecutive_days || 5;
       const windowStart = (() => { const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() - maxConsec); return d.toISOString().split('T')[0]; })();
-      const consecutiveShifts = D().prepare('
-        SELECT DISTINCT date FROM roster_entries WHERE tenant_id=? AND educator_id=? AND date BETWEEN ? AND ? AND status NOT IN (\'cancelled\',\'unfilled\') ORDER BY date
-      ').all(req.tenantId, edId, windowStart, date);
+      const consecutiveShifts = D().prepare(`
+        SELECT DISTINCT date FROM roster_entries WHERE tenant_id=? AND educator_id=? AND date BETWEEN ? AND ? AND status NOT IN ('cancelled','unfilled') ORDER BY date
+      `).all(req.tenantId, edId, windowStart, date);
       // Count consecutive ending at 'date'
       let streak = 0;
       const sortedDates = consecutiveShifts.map(s => s.date).reverse();
@@ -1426,12 +1421,12 @@ router.get('/room-groups', (req, res) => {
   try {
     const groups = D().prepare('SELECT * FROM room_groups WHERE tenant_id=? AND active=1 ORDER BY name').all(req.tenantId);
     const result = groups.map(g => {
-      const members = D().prepare('
+      const members = D().prepare(`
         SELECT rgm.id as membership_id, rgm.room_id, r.name as room_name, r.age_group, r.capacity
         FROM room_group_members rgm JOIN rooms r ON r.id=rgm.room_id
         WHERE rgm.room_group_id=?
         ORDER BY r.age_group
-      ').all(g.id);
+      `).all(g.id);
       const schedules = D().prepare('SELECT * FROM room_group_schedules WHERE room_group_id=? AND active=1 ORDER BY day_of_week, start_time').all(g.id);
       const youngestAgeGroup = members.reduce((youngest, m) => {
         const order = { '0-2': 0, '2-3': 1, '3-4': 2, '3-5': 2, '4-5': 3 };
@@ -1526,22 +1521,22 @@ router.get('/room-groups/active', (req, res) => {
     const checkTime = time || '12:00';
     const dow = dayOfWeek(date);
 
-    const activeGroups = D().prepare('
+    const activeGroups = D().prepare(`
       SELECT rg.*, rgs.start_time, rgs.end_time, rgs.min_educators, rgs.reason
       FROM room_group_schedules rgs
       JOIN room_groups rg ON rg.id=rgs.room_group_id
       WHERE rgs.tenant_id=? AND rg.active=1 AND rgs.active=1
-      AND ((rgs.schedule_type=\'recurring\' AND rgs.day_of_week=?)
-        OR (rgs.schedule_type=\'one_off\' AND rgs.specific_date=?))
+      AND ((rgs.schedule_type='recurring' AND rgs.day_of_week=?)
+        OR (rgs.schedule_type='one_off' AND rgs.specific_date=?))
       AND rgs.start_time<=? AND rgs.end_time>=?
-    ').all(req.tenantId, dow, date, checkTime, checkTime);
+    `).all(req.tenantId, dow, date, checkTime, checkTime);
 
     const result = activeGroups.map(g => {
-      const members = D().prepare('
+      const members = D().prepare(`
         SELECT r.id, r.name, r.age_group, r.capacity
         FROM room_group_members rgm JOIN rooms r ON r.id=rgm.room_id
         WHERE rgm.room_group_id=?
-      ').all(g.id);
+      `).all(g.id);
       const youngestAgeGroup = members.reduce((youngest, m) => {
         const order = { '0-2': 0, '2-3': 1, '3-4': 2, '3-5': 2, '4-5': 3 };
         return (order[m.age_group] || 99) < (order[youngest] || 99) ? m.age_group : youngest;
@@ -1582,10 +1577,10 @@ router.get('/room-groups/:id/ratio-calc', (req, res) => {
     const group = D().prepare('SELECT * FROM room_groups WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    const members = D().prepare('
+    const members = D().prepare(`
       SELECT r.*, (SELECT COUNT(*) FROM child_booked_days bd WHERE bd.room_id=r.id AND bd.tenant_id=? AND bd.day_of_week=? AND bd.active=1 AND bd.effective_from<=? AND (bd.effective_to IS NULL OR bd.effective_to>=?)) as booked
       FROM room_group_members rgm JOIN rooms r ON r.id=rgm.room_id WHERE rgm.room_group_id=?
-    ').all(req.tenantId, dow, date, date, req.params.id);
+    `).all(req.tenantId, dow, date, date, req.params.id);
 
     const totalBooked = members.reduce((s, m) => s + (m.booked || 0), 0);
     const expectedChildren = Math.round(totalBooked * 0.92);
@@ -1653,7 +1648,7 @@ router.get('/room-groups/roster', (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'date required' });
-    const entries = D().prepare('
+    const entries = D().prepare(`
       SELECT rgre.*, rg.name as group_name, rg.location,
         e.first_name, e.last_name, e.qualification
       FROM room_group_roster_entries rgre
@@ -1661,7 +1656,7 @@ router.get('/room-groups/roster', (req, res) => {
       JOIN educators e ON e.id=rgre.educator_id
       WHERE rgre.tenant_id=? AND rgre.date=?
       ORDER BY rgre.start_time
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
     res.json({ date, entries });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

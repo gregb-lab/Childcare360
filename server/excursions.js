@@ -39,15 +39,15 @@ router.use(requireAuth, requireTenant);
 // GET all excursions
 router.get('/', (req, res) => {
   try {
-    const excursions = D().prepare('
+    const excursions = D().prepare(`
       SELECT e.*,
         (SELECT COUNT(*) FROM excursion_children ec WHERE ec.excursion_id = e.id) as total_children,
-        (SELECT COUNT(*) FROM excursion_children ec WHERE ec.excursion_id = e.id AND ec.permission_status = \'approved\') as approved_count,
+        (SELECT COUNT(*) FROM excursion_children ec WHERE ec.excursion_id = e.id AND ec.permission_status = 'approved') as approved_count,
         (SELECT COUNT(*) FROM excursion_educators ee WHERE ee.excursion_id = e.id) as educator_count
       FROM excursions e
       WHERE e.tenant_id = ?
       ORDER BY e.excursion_date DESC
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     res.json(excursions);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -59,13 +59,13 @@ router.get('/:id', (req, res) => {
   try {
     const exc = D().prepare('SELECT * FROM excursions WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
     if (!exc) return res.status(404).json({ error: 'Not found' });
-    const children = D().prepare('SELECT ec.*, c.first_name, c.last_name, c.photo_url, r.name as room_name
+    const children = D().prepare(`SELECT ec.*, c.first_name, c.last_name, c.photo_url, r.name as room_name
       FROM excursion_children ec JOIN children c ON ec.child_id = c.id
       LEFT JOIN rooms r ON c.room_id = r.id
-      WHERE ec.excursion_id = ? ORDER BY c.first_name').all(req.params.id);
-    const educators = D().prepare('SELECT ee.*, e.first_name, e.last_name, e.qualification
+      WHERE ec.excursion_id = ? ORDER BY c.first_name`).all(req.params.id);
+    const educators = D().prepare(`SELECT ee.*, e.first_name, e.last_name, e.qualification
       FROM excursion_educators ee JOIN educators e ON ee.educator_id = e.id
-      WHERE ee.excursion_id = ?').all(req.params.id);
+      WHERE ee.excursion_id = ?`).all(req.params.id);
     res.json({ ...exc, children, educators });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -77,8 +77,8 @@ router.post('/', (req, res) => {
   try {
     const { title, description, destination, excursion_date, departure_time, return_time, transport_method, max_children, min_educators, permission_deadline } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO excursions (id,tenant_id,title,description,destination,excursion_date,departure_time,return_time,transport_method,max_children,min_educators,status,permission_deadline,created_by)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,\'planning\',?,?)')
+    D().prepare(`INSERT INTO excursions (id,tenant_id,title,description,destination,excursion_date,departure_time,return_time,transport_method,max_children,min_educators,status,permission_deadline,created_by)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,'planning',?,?)`)
       .run(id, req.tenantId, title, description||null, destination, excursion_date, departure_time||null, return_time||null, transport_method||'walking', max_children||null, min_educators||2, permission_deadline||null, req.userId);
     res.json({ id });
   } catch (err) {
@@ -93,8 +93,7 @@ router.put('/:id', (req, res) => {
     const updates = {};
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     const setClause = fields.filter(f => f in updates).map(f => f + ' = ?').join(', ');
-    const _excSql = 'UPDATE excursions SET ' + setClause + ' WHERE id = ? AND tenant_id = ?';
-    D().prepare(_excSql).run(...fields.filter(f => f in updates).map(f => updates[f]), req.params.id, req.tenantId);
+    D().prepare('UPDATE excursions SET ' + setClause + ' WHERE id = ? AND tenant_id = ?').run(...fields.filter(f => f in updates).map(f => updates[f]), req.params.id, req.tenantId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

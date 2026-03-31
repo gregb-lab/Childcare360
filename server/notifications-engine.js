@@ -20,18 +20,18 @@ r.use(requireAuth, requireTenant);
 function deliver(tenantId, { type, priority = 'normal', subject, body, entity_type, entity_id, recipient_user_id }) {
   try {
     // In-app notification
-    D().prepare('
+    D().prepare(`
       INSERT INTO notifications
         (id, tenant_id, type, priority, subject, body, status, related_compliance_id, created_at)
-      VALUES (?,?,?,?,?,?,\'delivered\',?,datetime(\'now\'))
-    ').run(uuid(), tenantId, type, priority, subject, body, entity_id || null);
+      VALUES (?,?,?,?,?,?,'delivered',?,datetime('now'))
+    `).run(uuid(), tenantId, type, priority, subject, body, entity_id || null);
 
     // Notification log
-    D().prepare('
+    D().prepare(`
       INSERT INTO notification_log
         (id, tenant_id, channel, subject, body, entity_type, entity_id, status, recipient_user_id)
-      VALUES (?,?,?,?,?,?,?,\'sent\',?)
-    ').run(uuid(), tenantId, 'in_app', subject, body, entity_type || null, entity_id || null, recipient_user_id || null);
+      VALUES (?,?,?,?,?,?,?,'sent',?)
+    `).run(uuid(), tenantId, 'in_app', subject, body, entity_type || null, entity_id || null, recipient_user_id || null);
   } catch(e) { /* ignore individual delivery failures */ }
 }
 
@@ -46,13 +46,13 @@ r.post('/run', (req, res) => {
     const generated = [];
 
     // ── 1. BIRTHDAYS TODAY ──────────────────────────────────────────────────
-    const birthdays = D().prepare('
+    const birthdays = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id, r.name as room_name
       FROM children c
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE c.tenant_id=? AND c.active=1
-        AND strftime(\'%m-%d\', c.dob) = strftime(\'%m-%d\', \'now\')
-    ').all(req.tenantId);
+        AND strftime('%m-%d', c.dob) = strftime('%m-%d', 'now')
+    `).all(req.tenantId);
 
     birthdays.forEach(c => {
       const age = new Date().getFullYear() - new Date(c.dob).getFullYear();
@@ -66,19 +66,19 @@ r.post('/run', (req, res) => {
     });
 
     // ── 2. CERT EXPIRIES (7-day warning) ────────────────────────────────────
-    const expiringCerts = D().prepare('
+    const expiringCerts = D().prepare(`
       SELECT id, first_name, last_name,
         first_aid_expiry, cpr_expiry, wwcc_expiry,
         wwcc_number, wwcc_state, anaphylaxis_expiry
       FROM educators
-      WHERE tenant_id=? AND status=\'active\'
+      WHERE tenant_id=? AND status='active'
         AND (
           (first_aid_expiry BETWEEN ? AND ?) OR
           (cpr_expiry BETWEEN ? AND ?) OR
           (wwcc_expiry BETWEEN ? AND ?) OR
           (anaphylaxis_expiry BETWEEN ? AND ?)
         )
-    ').all(req.tenantId, today, in14, today, in14, today, in30, today, in14);
+    `).all(req.tenantId, today, in14, today, in14, today, in30, today, in14);
 
     expiringCerts.forEach(e => {
       const expiring = [];
@@ -99,16 +99,16 @@ r.post('/run', (req, res) => {
     });
 
     // ── 3. OVERDUE DEBT REMINDERS ───────────────────────────────────────────
-    const overdueDebts = D().prepare('
+    const overdueDebts = D().prepare(`
       SELECT d.id, d.amount_cents, d.amount_paid_cents, d.due_date,
              d.reminder_1_sent, d.reminder_2_sent,
              c.first_name, c.last_name
       FROM debt_records d
       JOIN children c ON c.id=d.child_id
-      WHERE d.tenant_id=? AND d.status=\'outstanding\'
-        AND julianday(\'now\') - julianday(d.due_date) > 7
+      WHERE d.tenant_id=? AND d.status='outstanding'
+        AND julianday('now') - julianday(d.due_date) > 7
         AND d.reminder_1_sent IS NULL
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     overdueDebts.forEach(d => {
       const outstanding = ((d.amount_cents - d.amount_paid_cents) / 100).toFixed(2);
@@ -124,13 +124,13 @@ r.post('/run', (req, res) => {
     });
 
     // ── 4. WWCC EXPIRY — 90-day warning ─────────────────────────────────────
-    const wwccExpiring90 = D().prepare('
+    const wwccExpiring90 = D().prepare(`
       SELECT id, first_name, last_name, wwcc_expiry
       FROM educators
-      WHERE tenant_id=? AND status=\'active\'
+      WHERE tenant_id=? AND status='active'
         AND wwcc_expiry BETWEEN ? AND ?
         AND wwcc_expiry NOT BETWEEN ? AND ?
-    ').all(req.tenantId,
+    `).all(req.tenantId,
       new Date(Date.now() + 30*86400000).toISOString().split('T')[0],
       new Date(Date.now() + 90*86400000).toISOString().split('T')[0],
       today, in30
@@ -148,7 +148,7 @@ r.post('/run', (req, res) => {
     });
 
     // ── 5. OCCUPANCY BELOW 70% ──────────────────────────────────────────────
-    const lowOccupancy = D().prepare('
+    const lowOccupancy = D().prepare(`
       SELECT r.name, r.capacity,
         COUNT(CASE WHEN c.active=1 THEN 1 END) as enrolled,
         ROUND(COUNT(CASE WHEN c.active=1 THEN 1 END)*100.0/NULLIF(r.capacity,0),1) as occ_pct
@@ -157,7 +157,7 @@ r.post('/run', (req, res) => {
       WHERE r.tenant_id=?
       GROUP BY r.id
       HAVING occ_pct < 70 AND r.capacity > 0
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     if (lowOccupancy.length > 0) {
       const rooms = lowOccupancy.map(r => `${r.name} (${Math.round(r.occ_pct)}%)`).join(', ');
@@ -171,14 +171,14 @@ r.post('/run', (req, res) => {
     }
 
     // ── 6. CHILDREN MISSING IMMUNISATION RECORDS ────────────────────────────
-    const missingImm = D().prepare('
+    const missingImm = D().prepare(`
       SELECT COUNT(*) as n FROM children c
       WHERE c.tenant_id=? AND c.active=1
         AND NOT EXISTS (
           SELECT 1 FROM immunisation_records ir
-          WHERE ir.child_id=c.id AND ir.status=\'current\'
+          WHERE ir.child_id=c.id AND ir.status='current'
         )
-    ').get(req.tenantId)?.n || 0;
+    `).get(req.tenantId)?.n || 0;
 
     if (missingImm > 0) {
       deliver(req.tenantId, {
@@ -191,13 +191,13 @@ r.post('/run', (req, res) => {
     }
 
     // ── 7. APPRAISALS DUE IN 14 DAYS ───────────────────────────────────────
-    const appraisalsDue = D().prepare('
+    const appraisalsDue = D().prepare(`
       SELECT a.id, e.first_name, e.last_name, a.due_date
       FROM appraisals a
       JOIN educators e ON e.id=a.educator_id
-      WHERE a.tenant_id=? AND a.status!=\'completed\'
+      WHERE a.tenant_id=? AND a.status!='completed'
         AND a.due_date BETWEEN ? AND ?
-    ').all(req.tenantId, today, in14);
+    `).all(req.tenantId, today, in14);
 
     appraisalsDue.forEach(a => {
       deliver(req.tenantId, {

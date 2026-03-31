@@ -3511,10 +3511,10 @@ function seedDemoData(db) {
   });
 
   // ── AI Agent Config ──
-  db.prepare('INSERT INTO ai_agent_config (id,tenant_id,agent_type,enabled,contact_strategy,send_sms_first,sms_wait_mins,call_wait_mins,
+  db.prepare(`INSERT INTO ai_agent_config (id,tenant_id,agent_type,enabled,contact_strategy,send_sms_first,sms_wait_mins,call_wait_mins,
     max_attempts_per_educator,simultaneous_contacts,priority_order,sms_template,call_script_guidance,
     voice_engine,sms_provider,working_hours_start,working_hours_end,auto_approve_fill,notify_manager_on_fill,notify_manager_on_fail,
-    manager_phone,manager_email) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    manager_phone,manager_email) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(randomUUID(), tenantId, 'sick_cover', 1, 'sequential', 1, 10, 15, 2, 1, 'reliability_desc',
       'Hi {name}, a shift has become available at {centre} on {date} from {start} to {end} in the {room} room. Are you available to cover? Reply YES or NO.',
       'Greet the educator by name. Explain a shift needs covering due to a colleague being unwell. Provide the date, time, room, and age group. Ask if they are available. If yes, confirm details and let them know the roster manager will be in touch. If no, thank them warmly. Keep the tone friendly and professional.',

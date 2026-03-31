@@ -52,11 +52,11 @@ r.get('/enquiries', (req, res) => {
     ).get(...vals)?.n || 0;
 
     // Pipeline counts (for kanban header)
-    const pipeline = D().prepare('
+    const pipeline = D().prepare(`
       SELECT status, COUNT(*) as n
       FROM crm_enquiries WHERE tenant_id=?
       GROUP BY status
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({
       enquiries: rows.map(e => ({...e, days_requested: JSON.parse(e.days_requested||'[]')})),
@@ -81,13 +81,13 @@ r.post('/enquiries', (req, res) => {
     const nextFollowUp = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO crm_enquiries
         (id,tenant_id,first_name,last_name,email,phone,child_first_name,child_dob,
          child_age_months,preferred_start_date,preferred_room,days_requested,
          message,source,assigned_to,next_follow_up)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, first_name||null, last_name||null, email||null, phone||null,
+    `).run(id, req.tenantId, first_name||null, last_name||null, email||null, phone||null,
            child_first_name||null, child_dob||null, ageMonths,
            preferred_start_date||null, preferred_room||null,
            JSON.stringify(days_requested||[]), message||null,
@@ -101,17 +101,17 @@ r.post('/enquiries', (req, res) => {
 r.put('/enquiries/:id', (req, res) => {
   try {
     const { status, notes, assigned_to, next_follow_up, lost_reason } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE crm_enquiries SET
         status=COALESCE(?,status),
         notes=COALESCE(?,notes),
         assigned_to=COALESCE(?,assigned_to),
         next_follow_up=COALESCE(?,next_follow_up),
         lost_reason=COALESCE(?,lost_reason),
-        last_contact=CASE WHEN ? IS NOT NULL THEN date(\'now\') ELSE last_contact END,
-        updated_at=datetime(\'now\')
+        last_contact=CASE WHEN ? IS NOT NULL THEN date('now') ELSE last_contact END,
+        updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(status||null, notes||null, assigned_to||null, next_follow_up||null,
+    `).run(status||null, notes||null, assigned_to||null, next_follow_up||null,
            lost_reason||null, status||null, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -129,14 +129,14 @@ r.get('/tours', (req, res) => {
     const from  = req.query.from || today;
     const to    = req.query.to   || new Date(Date.now()+30*86400000).toISOString().split('T')[0];
 
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT t.*, e.first_name as conducted_first, e.last_name as conducted_last
       FROM tour_bookings t
       LEFT JOIN educators e ON e.id=t.conducted_by
       WHERE t.tenant_id=? AND t.booked_date BETWEEN ? AND ?
       ORDER BY t.booked_date, t.booked_time
       LIMIT ? OFFSET ?
-    ').all(req.tenantId, from, to, limit, offset);
+    `).all(req.tenantId, from, to, limit, offset);
 
     const total = D().prepare(
       `SELECT COUNT(*) as n FROM tour_bookings WHERE tenant_id=? AND booked_date BETWEEN ? AND ?`
@@ -167,18 +167,18 @@ r.post('/tours', (req, res) => {
     if (conflict) return res.status(409).json({ error: 'Time slot already booked' });
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO tour_bookings
         (id,tenant_id,enquiry_id,family_name,family_email,family_phone,
          child_name,child_dob,booked_date,booked_time,conducted_by,notes)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, enquiry_id||null, family_name, family_email||null,
+    `).run(id, req.tenantId, enquiry_id||null, family_name, family_email||null,
            family_phone||null, child_name||null, child_dob||null,
            booked_date, booked_time, conducted_by||null, notes||null);
 
     // Update enquiry status
     if (enquiry_id) {
-      D().prepare('UPDATE crm_enquiries SET status=\'tour_booked\', tour_id=? WHERE id=? AND tenant_id=?')
+      D().prepare(`UPDATE crm_enquiries SET status='tour_booked', tour_id=? WHERE id=? AND tenant_id=?`)
         .run(id, enquiry_id, req.tenantId);
     }
 
@@ -190,13 +190,13 @@ r.post('/tours', (req, res) => {
 r.put('/tours/:id', (req, res) => {
   try {
     const { status, notes, outcome, followup_done, conducted_by } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE tour_bookings SET
         status=COALESCE(?,status), notes=COALESCE(?,notes),
         outcome=COALESCE(?,outcome), followup_done=COALESCE(?,followup_done),
         conducted_by=COALESCE(?,conducted_by)
       WHERE id=? AND tenant_id=?
-    ').run(status||null, notes||null, outcome||null,
+    `).run(status||null, notes||null, outcome||null,
            followup_done!=null?followup_done:null, conducted_by||null,
            req.params.id, req.tenantId);
     res.json({ ok: true });
@@ -208,35 +208,35 @@ r.get('/dashboard', (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
 
-    const pipeline = D().prepare('
+    const pipeline = D().prepare(`
       SELECT status, COUNT(*) as n, MIN(created_at) as oldest
       FROM crm_enquiries WHERE tenant_id=?
       GROUP BY status
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
-    const followUps = D().prepare('
+    const followUps = D().prepare(`
       SELECT id, first_name, last_name, child_first_name, email, phone,
              status, next_follow_up, last_contact
       FROM crm_enquiries
-      WHERE tenant_id=? AND next_follow_up <= ? AND status NOT IN (\'enrolled\',\'lost\')
+      WHERE tenant_id=? AND next_follow_up <= ? AND status NOT IN ('enrolled','lost')
       ORDER BY next_follow_up
       LIMIT 20
-    ').all(req.tenantId, today);
+    `).all(req.tenantId, today);
 
-    const upcomingTours = D().prepare('
+    const upcomingTours = D().prepare(`
       SELECT * FROM tour_bookings
-      WHERE tenant_id=? AND booked_date >= ? AND status=\'confirmed\'
+      WHERE tenant_id=? AND booked_date >= ? AND status='confirmed'
       ORDER BY booked_date, booked_time LIMIT 10
-    ').all(req.tenantId, today);
+    `).all(req.tenantId, today);
 
-    const monthlyConversions = D().prepare('
+    const monthlyConversions = D().prepare(`
       SELECT
-        strftime(\'%Y-%m\', created_at) as month,
+        strftime('%Y-%m', created_at) as month,
         COUNT(*) as enquiries,
-        SUM(CASE WHEN status=\'enrolled\' THEN 1 ELSE 0 END) as enrolled
-      FROM crm_enquiries WHERE tenant_id=? AND created_at >= date(\'now\',\'-6 months\')
+        SUM(CASE WHEN status='enrolled' THEN 1 ELSE 0 END) as enrolled
+      FROM crm_enquiries WHERE tenant_id=? AND created_at >= date('now','-6 months')
       GROUP BY month ORDER BY month
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({ pipeline, followUps, upcomingTours, monthlyConversions });
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -219,7 +219,7 @@ r.get('/rates', (req, res) => {
 r.get('/families', (req, res) => {
   try {
     const { limit = 100, offset = 0 } = req.query;
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT cf.*, c.first_name, c.last_name, c.dob, c.room_id, r.name as room_name
       FROM ccs_family_details cf
       JOIN children c ON c.id = cf.child_id
@@ -227,7 +227,7 @@ r.get('/families', (req, res) => {
       WHERE cf.tenant_id = ?
       ORDER BY c.last_name, c.first_name
       LIMIT ? OFFSET ?
-    ').all(req.tenantId, parseInt(limit), parseInt(offset));
+    `).all(req.tenantId, parseInt(limit), parseInt(offset));
 
     // Add live estimates for each
     const enriched = rows.map(row => ({
@@ -250,12 +250,12 @@ r.get('/families', (req, res) => {
 
 r.get('/families/:childId', (req, res) => {
   try {
-    const row = D().prepare('
+    const row = D().prepare(`
       SELECT cf.*, c.first_name, c.last_name, c.dob, c.room_id
       FROM ccs_family_details cf
       JOIN children c ON c.id=cf.child_id
       WHERE cf.child_id=? AND cf.tenant_id=?
-    ').get(req.params.childId, req.tenantId);
+    `).get(req.params.childId, req.tenantId);
 
     if (!row) return res.json({ family: null });
 
@@ -286,7 +286,7 @@ r.post('/families', (req, res) => {
     const subHours = calcSubsidisedHours(actLower, first_nations, accs_eligible);
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO ccs_family_details
         (id,tenant_id,child_id,parent1_name,parent1_crn,parent1_dob,
          parent2_name,parent2_crn,parent2_dob,combined_income,income_year,
@@ -310,8 +310,8 @@ r.post('/families', (req, res) => {
         immunisation_compliant=excluded.immunisation_compliant,
         first_nations=excluded.first_nations, preschool_program=excluded.preschool_program,
         enrolment_id=excluded.enrolment_id, notes=excluded.notes,
-        updated_at=datetime(\'now\')
-    ').run(id, req.tenantId, child_id,
+        updated_at=datetime('now')
+    `).run(id, req.tenantId, child_id,
            parent1_name||null, parent1_crn||null, parent1_dob||null,
            parent2_name||null, parent2_crn||null, parent2_dob||null,
            income, income_year||new Date().getFullYear().toString(),
@@ -372,14 +372,14 @@ r.post('/session-reports/generate', (req, res) => {
     ).get(child_id, req.tenantId);
 
     // Get attendance sessions for the fortnight
-    const sessions = D().prepare('
+    const sessions = D().prepare(`
       SELECT a.*, c.dob
       FROM attendance_sessions a
       JOIN children c ON c.id=a.child_id
       WHERE a.child_id=? AND a.tenant_id=?
         AND a.date BETWEEN ? AND ?
       ORDER BY a.date
-    ').all(child_id, req.tenantId, fortnight_start, fortnightEnd);
+    `).all(child_id, req.tenantId, fortnight_start, fortnightEnd);
 
     // Get child's fee from room settings or enrolment
     const childRoom = D().prepare(
@@ -427,17 +427,17 @@ r.post('/session-reports/generate', (req, res) => {
     ).get(child_id, req.tenantId, fortnight_start);
 
     const reportId = existing?.id || uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO ccs_submission_queue
         (id,tenant_id,child_id,fortnight_start,fortnight_end,sessions,
          total_hours,total_fee_cents,ccs_percentage,ccs_amount_cents,gap_fee_cents,absences,status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,\'pending\')
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pending')
       ON CONFLICT(id) DO UPDATE SET
         sessions=excluded.sessions, total_hours=excluded.total_hours,
         total_fee_cents=excluded.total_fee_cents, ccs_percentage=excluded.ccs_percentage,
         ccs_amount_cents=excluded.ccs_amount_cents, gap_fee_cents=excluded.gap_fee_cents,
-        absences=excluded.absences, status=\'pending\', updated_at=datetime(\'now\')
-    ').run(reportId, req.tenantId, child_id, fortnight_start, fortnightEnd,
+        absences=excluded.absences, status='pending', updated_at=datetime('now')
+    `).run(reportId, req.tenantId, child_id, fortnight_start, fortnightEnd,
            JSON.stringify(sessionObjects), totalHours, totalFeeCents,
            ccsPercent, totalCCSCents, gapFeeCents, absences);
 
@@ -469,11 +469,11 @@ r.post('/session-reports/generate-all', (req, res) => {
     for (const child of children) {
       try {
         // Delegate to generate logic (inline rather than self-calling)
-        const sessions = D().prepare('
+        const sessions = D().prepare(`
           SELECT * FROM attendance_sessions
           WHERE child_id=? AND tenant_id=? AND date >= ?
-            AND date <= date(?, \'+13 days\')
-        ').all(child.id, req.tenantId, fortnight_start, fortnight_start);
+            AND date <= date(?, '+13 days')
+        `).all(child.id, req.tenantId, fortnight_start, fortnight_start);
         if (sessions.length > 0) generated++;
       } catch(e) { errors++; }
     }
@@ -486,20 +486,20 @@ r.post('/session-reports/generate-all', (req, res) => {
 r.put('/session-reports/:id/submit', (req, res) => {
   try {
     const { submission_ref, proda_provider_id, proda_service_id } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE ccs_submission_queue SET
-        status=\'submitted\', submitted_at=datetime(\'now\'),
+        status='submitted', submitted_at=datetime('now'),
         submission_ref=?, proda_provider_id=?, proda_service_id=?,
-        response_status=\'pending_confirmation\', updated_at=datetime(\'now\')
+        response_status='pending_confirmation', updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(submission_ref||null, proda_provider_id||null, proda_service_id||null,
+    `).run(submission_ref||null, proda_provider_id||null, proda_service_id||null,
            req.params.id, req.tenantId);
 
     // Log the integration action
-    D().prepare('
+    D().prepare(`
       INSERT INTO integration_log (id,tenant_id,integration,action,direction,payload_summary,success,created_at)
-      VALUES (?,?,\'ccss\',\'session_report_submitted\',\'outbound\',?,1,datetime(\'now\'))
-    ').run(uuid(), req.tenantId, `Report ${req.params.id} ref: ${submission_ref||'manual'}`);
+      VALUES (?,?,'ccss','session_report_submitted','outbound',?,1,datetime('now'))
+    `).run(uuid(), req.tenantId, `Report ${req.params.id} ref: ${submission_ref||'manual'}`);
 
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -512,30 +512,30 @@ r.get('/dashboard', (req, res) => {
       'SELECT COUNT(*) as n, AVG(ccs_percentage) as avg_pct, SUM(accs_eligible) as accs_count FROM ccs_family_details WHERE tenant_id=?'
     ).get(req.tenantId);
 
-    const queue = D().prepare('
+    const queue = D().prepare(`
       SELECT status, COUNT(*) as n,
              SUM(ccs_amount_cents)/100.0 as total_ccs,
              SUM(gap_fee_cents)/100.0 as total_gap
       FROM ccs_submission_queue WHERE tenant_id=?
       GROUP BY status
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     // Outstanding session reports (last 4 fortnights)
-    const pending = D().prepare('
+    const pending = D().prepare(`
       SELECT q.*, c.first_name, c.last_name
       FROM ccs_submission_queue q
       JOIN children c ON c.id=q.child_id
-      WHERE q.tenant_id=? AND q.status=\'pending\'
+      WHERE q.tenant_id=? AND q.status='pending'
       ORDER BY q.fortnight_start DESC LIMIT 50
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     // Children without CCS details
-    const noCCS = D().prepare('
+    const noCCS = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.room_id
       FROM children c
       WHERE c.tenant_id=? AND c.active=1
         AND NOT EXISTS (SELECT 1 FROM ccs_family_details cf WHERE cf.child_id=c.id AND cf.tenant_id=c.tenant_id)
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({
       families: families,
@@ -556,7 +556,7 @@ r.get('/fortnightly-summary', (req, res) => {
     const fortnightEnd = new Date(new Date(fortnight_start).getTime() + 13*86400000)
       .toISOString().split('T')[0];
 
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT q.*, c.first_name, c.last_name, c.dob,
              cf.parent1_name, cf.parent1_crn, cf.ccs_percentage as family_ccs_pct
       FROM ccs_submission_queue q
@@ -564,7 +564,7 @@ r.get('/fortnightly-summary', (req, res) => {
       LEFT JOIN ccs_family_details cf ON cf.child_id=q.child_id AND cf.tenant_id=q.tenant_id
       WHERE q.tenant_id=? AND q.fortnight_start=?
       ORDER BY c.last_name, c.first_name
-    ').all(req.tenantId, fortnight_start);
+    `).all(req.tenantId, fortnight_start);
 
     const totals = {
       children: rows.length,

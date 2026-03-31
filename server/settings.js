@@ -8,9 +8,9 @@ const r = Router();
 function initSettings() {
   // Add SMTP columns if missing
   ['smtp_host TEXT','smtp_port INTEGER DEFAULT 587','smtp_user TEXT','smtp_password TEXT','smtp_from TEXT','smtp_secure TEXT DEFAULT \'false\''].forEach(col => {
-    try { const _stSql = 'ALTER TABLE tenant_settings ADD COLUMN ' + col; D().prepare(_stSql).run(); } catch(e) {}
+    try { D().prepare(`ALTER TABLE tenant_settings ADD COLUMN ${col}`).run(); } catch(e) {}
   });
-  D().prepare('CREATE TABLE IF NOT EXISTS tenant_settings (
+  D().prepare(`CREATE TABLE IF NOT EXISTS tenant_settings (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL UNIQUE,
     service_name TEXT,
@@ -21,12 +21,12 @@ function initSettings() {
     email TEXT,
     director_name TEXT,
     nominated_supervisor TEXT,
-    service_type TEXT DEFAULT \'long_day_care\',
-    state TEXT DEFAULT \'NSW\',
-    open_time TEXT DEFAULT \'06:30\',
-    close_time TEXT DEFAULT \'18:30\',
+    service_type TEXT DEFAULT 'long_day_care',
+    state TEXT DEFAULT 'NSW',
+    open_time TEXT DEFAULT '06:30',
+    close_time TEXT DEFAULT '18:30',
     nqs_rating TEXT,
-    timezone TEXT DEFAULT \'Australia/Sydney\',
+    timezone TEXT DEFAULT 'Australia/Sydney',
     notify_ratio_breach INTEGER DEFAULT 1,
     notify_wwcc_expiry INTEGER DEFAULT 1,
     notify_shift_reminders INTEGER DEFAULT 0,
@@ -34,9 +34,9 @@ function initSettings() {
     notify_medication_expiry INTEGER DEFAULT 1,
     notify_parent_absence INTEGER DEFAULT 1,
     logo_url TEXT,
-    brand_color TEXT DEFAULT \'#8B6DAF\',
-    updated_at TEXT DEFAULT (datetime(\'now\'))
-  )').run();
+    brand_color TEXT DEFAULT '#8B6DAF',
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`).run();
 }
 
 // GET /api/settings
@@ -56,7 +56,7 @@ r.put('/', requireAuth, requireTenant, requireRole('owner','admin','director'), 
   initSettings();
   const f = req.body;
   const id = uuid();
-  D().prepare('INSERT INTO tenant_settings (
+  D().prepare(`INSERT INTO tenant_settings (
     id, tenant_id, service_name, approval_number, abn, address, phone, email,
     director_name, nominated_supervisor, service_type, state, open_time, close_time,
     nqs_rating, timezone, notify_ratio_breach, notify_wwcc_expiry, notify_shift_reminders,
@@ -86,7 +86,7 @@ r.put('/', requireAuth, requireTenant, requireRole('owner','admin','director'), 
     smtp_password=COALESCE(excluded.smtp_password,smtp_password),
     smtp_from=COALESCE(excluded.smtp_from,smtp_from),
     smtp_secure=COALESCE(excluded.smtp_secure,smtp_secure),
-    updated_at=datetime(\'now\')').run(
+    updated_at=datetime('now')`).run(
       id, req.tenantId, f.service_name, f.approval_number, f.abn, f.address, f.phone, f.email,
       f.director_name, f.nominated_supervisor, f.service_type, f.state, f.open_time, f.close_time,
       f.nqs_rating, f.timezone || 'Australia/Sydney',
@@ -97,14 +97,14 @@ r.put('/', requireAuth, requireTenant, requireRole('owner','admin','director'), 
       f.smtp_from || null, f.smtp_secure || 'false'
     );
   // Also sync back to tenants table
-  D().prepare('UPDATE tenants SET name=COALESCE(?,name), abn=COALESCE(?,abn), address=COALESCE(?,address), phone=COALESCE(?,phone), email=COALESCE(?,email), service_type=COALESCE(?,service_type), updated_at=datetime(\'now\') WHERE id=?')
+  D().prepare(`UPDATE tenants SET name=COALESCE(?,name), abn=COALESCE(?,abn), address=COALESCE(?,address), phone=COALESCE(?,phone), email=COALESCE(?,email), service_type=COALESCE(?,service_type), updated_at=datetime('now') WHERE id=?`)
     .run(f.service_name, f.abn, f.address, f.phone, f.email, f.service_type, req.tenantId);
   res.json({ ok: true });
 });
 
 // GET /api/settings/users — list users in this tenant
 r.get('/users', requireAuth, requireTenant, requireRole('owner','admin','director'), (req, res) => {
-  const members = D().prepare('SELECT tm.*, u.name, u.email, u.phone, u.last_login, u.email_verified, u.locked FROM tenant_members tm JOIN users u ON u.id=tm.user_id WHERE tm.tenant_id=? ORDER BY tm.created_at DESC').all(req.tenantId);
+  const members = D().prepare(`SELECT tm.*, u.name, u.email, u.phone, u.last_login, u.email_verified, u.locked FROM tenant_members tm JOIN users u ON u.id=tm.user_id WHERE tm.tenant_id=? ORDER BY tm.created_at DESC`).all(req.tenantId);
   res.json(members);
 });
 

@@ -136,13 +136,13 @@ router.get('/templates', (req, res) => {
 // GET /api/checklists
 router.get('/', (req, res) => {
   try {
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT c.*, 
-        (SELECT COUNT(*) FROM checklist_completions cc WHERE cc.checklist_id=c.id AND cc.completed_date=date(\'now\')) as completed_today
+        (SELECT COUNT(*) FROM checklist_completions cc WHERE cc.checklist_id=c.id AND cc.completed_date=date('now')) as completed_today
       FROM checklists c
-      WHERE c.tenant_id=? AND c.status=\'active\'
+      WHERE c.tenant_id=? AND c.status='active'
       ORDER BY c.category, c.title
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     const result = rows.map(r => ({ ...r, items: JSON.parse(r.items || '[]') }));
     res.json({ checklists: result });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -154,10 +154,10 @@ router.post('/', (req, res) => {
     const { title, category = 'daily', frequency = 'daily', room_id, items = [], template_id } = req.body;
     if (!title) return res.status(400).json({ error: 'title required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO checklists (id, tenant_id, title, category, frequency, room_id, items)
       VALUES (?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, title, category, frequency, room_id || null, JSON.stringify(items));
+    `).run(id, req.tenantId, title, category, frequency, room_id || null, JSON.stringify(items));
     res.json({ id, ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -166,12 +166,12 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const { title, category, frequency, room_id, items, status } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE checklists SET title=COALESCE(?,title), category=COALESCE(?,category),
         frequency=COALESCE(?,frequency), room_id=COALESCE(?,room_id),
         items=COALESCE(?,items), status=COALESCE(?,status)
       WHERE id=? AND tenant_id=?
-    ').run(title, category, frequency, room_id, items ? JSON.stringify(items) : null,
+    `).run(title, category, frequency, room_id, items ? JSON.stringify(items) : null,
            status, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -192,12 +192,12 @@ router.post('/:id/complete', (req, res) => {
     const { completed_by, notes, items_data } = req.body;
     const id = uuid();
     const today = new Date().toISOString().split('T')[0];
-    D().prepare('
+    D().prepare(`
       INSERT INTO checklist_completions (id, checklist_id, tenant_id, completed_date, completed_by, notes, items_data)
       VALUES (?,?,?,?,?,?,?)
-    ').run(id, req.params.id, req.tenantId, today, completed_by || 'Staff', notes || '',
+    `).run(id, req.params.id, req.tenantId, today, completed_by || 'Staff', notes || '',
            JSON.stringify(items_data || []));
-    D().prepare('UPDATE checklists SET last_completed=?, completed_by=? WHERE id=? AND tenant_id=?')
+    D().prepare(`UPDATE checklists SET last_completed=?, completed_by=? WHERE id=? AND tenant_id=?`)
        .run(today, completed_by || 'Staff', req.params.id, req.tenantId);
     res.json({ ok: true, id });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -206,11 +206,11 @@ router.post('/:id/complete', (req, res) => {
 // GET /api/checklists/:id/history
 router.get('/:id/history', (req, res) => {
   try {
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT * FROM checklist_completions
       WHERE checklist_id=? AND tenant_id=?
       ORDER BY completed_date DESC LIMIT 30
-    ').all(req.params.id, req.tenantId);
+    `).all(req.params.id, req.tenantId);
     const result = rows.map(r => ({ ...r, items_data: JSON.parse(r.items_data || '[]') }));
     res.json({ history: result });
   } catch (e) { res.status(500).json({ error: e.message }); }

@@ -18,17 +18,17 @@ router.get('/debug-count', (req, res) => {
 // GET children (enhanced with compliance counts)
 router.get('/', (req, res) => {
   try {
-    const children = D().prepare('
+    const children = D().prepare(`
       SELECT c.*, r.name as room_name,
-        (SELECT COUNT(*) FROM medical_plans mp WHERE mp.child_id = c.id AND mp.status = \'current\') as active_plans,
-        (SELECT COUNT(*) FROM immunisation_records ir WHERE ir.child_id = c.id AND ir.status = \'current\') as imm_current,
+        (SELECT COUNT(*) FROM medical_plans mp WHERE mp.child_id = c.id AND mp.status = 'current') as active_plans,
+        (SELECT COUNT(*) FROM immunisation_records ir WHERE ir.child_id = c.id AND ir.status = 'current') as imm_current,
         (SELECT COUNT(*) FROM child_permissions cp WHERE cp.child_id = c.id AND cp.granted = 1) as permissions_granted,
-        (SELECT COUNT(*) FROM daily_updates du WHERE du.child_id = c.id AND du.update_date = date(\'now\')) as updates_today
+        (SELECT COUNT(*) FROM daily_updates du WHERE du.child_id = c.id AND du.update_date = date('now')) as updates_today
       FROM children c
       LEFT JOIN rooms r ON c.room_id = r.id
       WHERE c.tenant_id = ? AND (c.active = 1 OR c.active IS NULL)
       ORDER BY c.room_id, c.first_name
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     res.json(children);
   } catch (err) {
     console.error('[Children GET]', err.message, 'tenant:', req.tenantId);
@@ -63,7 +63,7 @@ router.get('/:id', (req, res) => {
 // GET child AI insights (rule-based EYLF mapping)
 router.get('/:id/ai-insights', (req, res) => {
   try {
-    const observations = D().prepare('SELECT * FROM observations WHERE child_id = ? AND timestamp >= datetime(\'now\',\'-30 days\') ORDER BY timestamp DESC').all(req.params.id);
+    const observations = D().prepare(`SELECT * FROM observations WHERE child_id = ? AND timestamp >= datetime('now','-30 days') ORDER BY timestamp DESC`).all(req.params.id);
     if (observations.length === 0) return res.json({ focusAreas: [], observationCount: 0 });
 
     const outcomeKeywords = {
@@ -109,7 +109,7 @@ router.get('/:id/ai-insights', (req, res) => {
 // GET child attendance stats
 router.get('/:id/attendance-stats', (req, res) => {
   try {
-    const sessions = D().prepare('SELECT * FROM attendance_sessions WHERE child_id = ? AND date >= date(\'now\',\'-90 days\') ORDER BY date DESC').all(req.params.id);
+    const sessions = D().prepare(`SELECT * FROM attendance_sessions WHERE child_id = ? AND date >= date('now','-90 days') ORDER BY date DESC`).all(req.params.id);
     const present = sessions.filter(s => !s.absent).length;
     const absent = sessions.filter(s => s.absent).length;
     const lateArrivals = sessions.filter(s => {
@@ -126,7 +126,7 @@ router.get('/:id/attendance-stats', (req, res) => {
 // GET child event log
 router.get('/:id/event-log', (req, res) => {
   try {
-    const events = tryQuery(() => D().prepare('SELECT el.*, u.name as creator_name FROM child_event_log el LEFT JOIN users u ON el.created_by = u.id WHERE el.child_id = ? ORDER BY el.created_at DESC LIMIT 100').all(req.params.id));
+    const events = tryQuery(() => D().prepare(`SELECT el.*, u.name as creator_name FROM child_event_log el LEFT JOIN users u ON el.created_by = u.id WHERE el.child_id = ? ORDER BY el.created_at DESC LIMIT 100`).all(req.params.id));
     res.json(events || []);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -145,7 +145,7 @@ router.post('/:id/permissions', (req, res) => {
       return res.json({ id: existing.id });
     }
     const id = uuid();
-    D().prepare('INSERT INTO child_permissions (id,tenant_id,child_id,permission_type,granted,granted_by,granted_at,notes,expiry_date) VALUES(?,?,?,?,?,?,datetime(\'now\'),?,?)')
+    D().prepare(`INSERT INTO child_permissions (id,tenant_id,child_id,permission_type,granted,granted_by,granted_at,notes,expiry_date) VALUES(?,?,?,?,?,?,datetime('now'),?,?)`)
       .run(id, req.tenantId, req.params.id, permission_type, granted ? 1 : 0, granted_by||null, notes||null, expiry_date||null);
     res.json({ id });
   } catch (err) {
@@ -160,11 +160,11 @@ router.post('/:id/dietary', (req, res) => {
             is_anaphylactic, risk_minimisation_plan_url, risk_minimisation_plan_date,
             medical_communication_plan_url, medical_communication_plan_date, category } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO child_dietary
+    D().prepare(`INSERT INTO child_dietary
       (id,tenant_id,child_id,type,description,severity,action_required,notified_kitchen,
        is_anaphylactic,risk_minimisation_plan_url,risk_minimisation_plan_date,
        medical_communication_plan_url,medical_communication_plan_date)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, req.params.id, category || type || 'allergy',
            name || description, severity || 'moderate', action_required || null,
            notified_kitchen ? 1 : 0, is_anaphylactic ? 1 : 0,
@@ -198,7 +198,7 @@ router.post('/:id/pickup', (req, res) => {
   try {
     const { name, relationship, phone, notes } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO authorised_pickups (id,tenant_id,child_id,name,relationship,phone,notes,active) VALUES(?,?,?,?,?,?,?,1)')
+    D().prepare(`INSERT INTO authorised_pickups (id,tenant_id,child_id,name,relationship,phone,notes,active) VALUES(?,?,?,?,?,?,?,1)`)
       .run(id, req.tenantId, req.params.id, name, relationship||null, phone||null, notes||null);
     res.json({ id });
   } catch (err) {
@@ -234,7 +234,7 @@ router.post('/:id/events', (req, res) => {
   try {
     const { event_type, description, metadata } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO child_event_log (id,tenant_id,child_id,event_type,description,metadata,created_by) VALUES(?,?,?,?,?,?,?)')
+    D().prepare(`INSERT INTO child_event_log (id,tenant_id,child_id,event_type,description,metadata,created_by) VALUES(?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, req.params.id, event_type, description, JSON.stringify(metadata || {}), req.userId);
     res.json({ id });
   } catch (err) {
@@ -267,7 +267,7 @@ router.post('/', (req, res) => {
   try {
     const { first_name, last_name, dob, room_id, allergies, enrolled_date } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO children (id,tenant_id,first_name,last_name,dob,room_id,allergies,enrolled_date,active) VALUES(?,?,?,?,?,?,?,?,1)')
+    D().prepare(`INSERT INTO children (id,tenant_id,first_name,last_name,dob,room_id,allergies,enrolled_date,active) VALUES(?,?,?,?,?,?,?,?,1)`)
       .run(id, req.tenantId, first_name, last_name, dob, room_id||null, allergies||'None', enrolled_date||new Date().toISOString().split('T')[0]);
     res.json({ id });
   } catch (err) {
@@ -349,7 +349,7 @@ router.post('/:id/mark-absent', (req, res) => {
 router.get('/attendance-today', (req, res) => {
   try {
     const today = new Date().toISOString().slice(0,10);
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.room_id, c.photo_url, c.allergies, c.dob,
              r.name as room_name,
              a.sign_in, a.sign_out, a.absent, a.absent_reason, a.hours
@@ -358,7 +358,7 @@ router.get('/attendance-today', (req, res) => {
       LEFT JOIN attendance_sessions a ON a.child_id = c.id AND a.date = ? AND a.tenant_id = ?
       WHERE c.tenant_id = ? 
       ORDER BY r.name, c.first_name
-    ').all(today, req.tenantId, req.tenantId);
+    `).all(today, req.tenantId, req.tenantId);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -372,23 +372,23 @@ router.get('/attendance-report', requireAuth, requireTenant, (req, res) => {
     const db = D();
     
     // Get all active children with room info
-    const children = db.prepare('
+    const children = db.prepare(`
       SELECT c.id, c.first_name, c.last_name, c.dob, r.name as room_name
       FROM children c LEFT JOIN rooms r ON r.id=c.room_id
       WHERE c.tenant_id=? 
       ORDER BY c.first_name
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     // Get attendance records for range
     let records = [];
     try {
-      records = db.prepare('
+      records = db.prepare(`
         SELECT a.child_id, a.date, a.sign_in as sign_in_time, a.sign_out as sign_out_time,
                a.absent, a.absent_reason, a.hours, c.first_name, c.last_name, c.dob
         FROM attendance_sessions a JOIN children c ON c.id=a.child_id
         WHERE a.tenant_id=? AND a.date>=? AND a.date<=?
         ORDER BY a.date, c.first_name
-      ').all(req.tenantId, from, to);
+      `).all(req.tenantId, from, to);
     } catch(e) {
       // attendance_sessions table may not exist yet
       records = [];
@@ -448,7 +448,7 @@ export default router;
 // GET /:id/attendance-summary (alias + enriched version of attendance-stats)
 router.get('/:id/attendance-summary', (req, res) => {
   try {
-    const sessions = D().prepare('SELECT * FROM attendance_sessions WHERE child_id=? AND tenant_id=? ORDER BY date DESC LIMIT 120').all(req.params.id, req.tenantId);
+    const sessions = D().prepare(`SELECT * FROM attendance_sessions WHERE child_id=? AND tenant_id=? ORDER BY date DESC LIMIT 120`).all(req.params.id, req.tenantId);
     const total_days = sessions.filter(s=>!s.absent).length;
     const absences   = sessions.filter(s=>s.absent).length;
     const arrivals   = sessions.map(s=>s.sign_in).filter(Boolean).map(t=>parseInt(t.split(':')[0])*60+parseInt(t.split(':')[1]));
@@ -476,7 +476,7 @@ router.get('/:id/attendance-summary', (req, res) => {
 router.get('/:id/attendance', (req, res) => {
   try {
     const limit = parseInt(req.query.limit)||20;
-    const rows = D().prepare('SELECT * FROM attendance_sessions WHERE child_id=? ORDER BY date DESC LIMIT ?').all(req.params.id, limit);
+    const rows = D().prepare(`SELECT * FROM attendance_sessions WHERE child_id=? ORDER BY date DESC LIMIT ?`).all(req.params.id, limit);
     res.json(rows);
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -497,18 +497,18 @@ router.get('/:id/events', (req, res) => {
 // GET + POST /:id/educator-notes
 router.get('/:id/educator-notes', (req, res) => {
   try {
-    D().prepare('CREATE TABLE IF NOT EXISTS child_educator_notes (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, educator_id TEXT, educator_name TEXT, note TEXT, created_at TEXT DEFAULT (datetime(\'now\')))').run();
-    const rows = D().prepare('SELECT n.*, u.name as educator_name FROM child_educator_notes n LEFT JOIN users u ON u.id=n.educator_id WHERE n.child_id=? ORDER BY n.created_at DESC LIMIT 50').all(req.params.id);
+    D().prepare(`CREATE TABLE IF NOT EXISTS child_educator_notes (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, educator_id TEXT, educator_name TEXT, note TEXT, created_at TEXT DEFAULT (datetime('now')))`).run();
+    const rows = D().prepare(`SELECT n.*, u.name as educator_name FROM child_educator_notes n LEFT JOIN users u ON u.id=n.educator_id WHERE n.child_id=? ORDER BY n.created_at DESC LIMIT 50`).all(req.params.id);
     res.json(rows);
   } catch(err) { res.json([]); }
 });
 router.post('/:id/educator-notes', requireAuth, requireTenant, (req, res) => {
   try {
-    D().prepare('CREATE TABLE IF NOT EXISTS child_educator_notes (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, educator_id TEXT, educator_name TEXT, note TEXT, created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    D().prepare(`CREATE TABLE IF NOT EXISTS child_educator_notes (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, educator_id TEXT, educator_name TEXT, note TEXT, created_at TEXT DEFAULT (datetime('now')))`).run();
     const { note } = req.body;
     const educator = D().prepare('SELECT name FROM users WHERE id=?').get(req.userId);
     const id = uuid();
-    D().prepare('INSERT INTO child_educator_notes (id,child_id,tenant_id,educator_id,educator_name,note) VALUES(?,?,?,?,?,?)').run(id, req.params.id, req.tenantId, req.userId, educator?.name||'Educator', note);
+    D().prepare(`INSERT INTO child_educator_notes (id,child_id,tenant_id,educator_id,educator_name,note) VALUES(?,?,?,?,?,?)`).run(id, req.params.id, req.tenantId, req.userId, educator?.name||'Educator', note);
     res.json({ id, note, educator_name: educator?.name||'Educator', created_at: new Date().toISOString() });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -516,23 +516,23 @@ router.post('/:id/educator-notes', requireAuth, requireTenant, (req, res) => {
 // GET + POST + DELETE /:childId/collection-persons
 router.get('/:id/collection-persons', (req, res) => {
   try {
-    D().prepare('CREATE TABLE IF NOT EXISTS authorised_pickups (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, name TEXT, relationship TEXT, phone TEXT, photo_id_type TEXT, active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime(\'now\')))').run();
-    const rows = D().prepare('SELECT * FROM authorised_pickups WHERE child_id=? AND active=1 ORDER BY name').all(req.params.id);
+    D().prepare(`CREATE TABLE IF NOT EXISTS authorised_pickups (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, name TEXT, relationship TEXT, phone TEXT, photo_id_type TEXT, active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')))`).run();
+    const rows = D().prepare(`SELECT * FROM authorised_pickups WHERE child_id=? AND active=1 ORDER BY name`).all(req.params.id);
     res.json(rows);
   } catch(err) { res.json([]); }
 });
 router.post('/:id/collection-persons', requireAuth, requireTenant, (req, res) => {
   try {
-    D().prepare('CREATE TABLE IF NOT EXISTS authorised_pickups (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, name TEXT, relationship TEXT, phone TEXT, photo_id_type TEXT, active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    D().prepare(`CREATE TABLE IF NOT EXISTS authorised_pickups (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, name TEXT, relationship TEXT, phone TEXT, photo_id_type TEXT, active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')))`).run();
     const { name, relationship, phone, photo_id_type } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO authorised_pickups (id,child_id,tenant_id,name,relationship,phone,photo_id_type,active) VALUES(?,?,?,?,?,?,?,1)').run(id, req.params.id, req.tenantId, name, relationship||'', phone||'', photo_id_type||'');
+    D().prepare(`INSERT INTO authorised_pickups (id,child_id,tenant_id,name,relationship,phone,photo_id_type,active) VALUES(?,?,?,?,?,?,?,1)`).run(id, req.params.id, req.tenantId, name, relationship||'', phone||'', photo_id_type||'');
     res.json({ id, name, relationship, phone, photo_id_type });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 router.delete('/:id/collection-persons/:pid', requireAuth, requireTenant, (req, res) => {
   try {
-    D().prepare('UPDATE authorised_pickups SET active=0 WHERE id=? AND child_id=?').run(req.params.pid, req.params.id);
+    D().prepare(`UPDATE authorised_pickups SET active=0 WHERE id=? AND child_id=?`).run(req.params.pid, req.params.id);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -540,8 +540,8 @@ router.delete('/:id/collection-persons/:pid', requireAuth, requireTenant, (req, 
 // GET /:id/focus (AI-generated focus profile - cached)
 router.get('/:id/focus', (req, res) => {
   try {
-    D().prepare('CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)').run();
-    const row = D().prepare('SELECT * FROM child_focus_profiles WHERE child_id=?').get(req.params.id);
+    D().prepare(`CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)`).run();
+    const row = D().prepare(`SELECT * FROM child_focus_profiles WHERE child_id=?`).get(req.params.id);
     if (!row) return res.json(null);
     res.json({ focus: JSON.parse(row.focus_data||'{}'), generated_at: row.generated_at });
   } catch(err) { res.json(null); }
@@ -549,12 +549,11 @@ router.get('/:id/focus', (req, res) => {
 // POST /:id/ai-focus (generate + cache)
 router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
   try {
-    D().prepare('CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)').run();
+    D().prepare(`CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)`).run();
     const child = D().prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Not found' });
-    const _childLike = '%' + req.params.id + '%';
-    const stories = D().prepare('SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10').all(req.tenantId, _childLike);
-    const updates = D().prepare('SELECT category, notes, summary FROM daily_updates WHERE child_id=? ORDER BY created_at DESC LIMIT 30').all(req.params.id);
+    const stories = D().prepare(`SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10`).all(req.tenantId, `%${req.params.id}%`);
+    const updates = D().prepare(`SELECT category, notes, summary FROM daily_updates WHERE child_id=? ORDER BY created_at DESC LIMIT 30`).all(req.params.id);
     const contextText = [
       `Child: ${child.first_name} ${child.last_name}, DOB: ${child.dob}`,
       stories.length ? `Recent stories: ${stories.slice(0,3).map(s=>s.content?.slice(0,80)).join('; ')}` : '',
@@ -582,7 +581,7 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
       } catch{}
     }
     const id = uuid();
-    D().prepare('INSERT OR REPLACE INTO child_focus_profiles (id,child_id,tenant_id,focus_data,generated_at) VALUES(?,?,?,?,datetime(\'now\'))').run(id, req.params.id, req.tenantId, JSON.stringify(focusData));
+    D().prepare(`INSERT OR REPLACE INTO child_focus_profiles (id,child_id,tenant_id,focus_data,generated_at) VALUES(?,?,?,?,datetime('now'))`).run(id, req.params.id, req.tenantId, JSON.stringify(focusData));
     res.json({ focus: focusData, generated_at: new Date().toISOString() });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -598,7 +597,7 @@ router.get('/:id/ccs', (req, res) => {
 // GET /:id/equipment
 router.get('/:id/equipment', (req, res) => {
   try {
-    const rows = D().prepare('SELECT * FROM equipment_register WHERE tenant_id=? AND (child_id=? OR child_id IS NULL) ORDER BY expiry_date').all(req.tenantId, req.params.id);
+    const rows = D().prepare(`SELECT * FROM equipment_register WHERE tenant_id=? AND (child_id=? OR child_id IS NULL) ORDER BY expiry_date`).all(req.tenantId, req.params.id);
     res.json(rows);
   } catch { res.json([]); }
 });
@@ -721,7 +720,7 @@ router.delete('/delete-demo', requireAuth, (req, res) => {
     const cnRoomIds = ['cn-sprouts-1','cn-sprouts-2','cn-buds-1','cn-buds-2','cn-blossoms-1','cn-blossoms-2','cn-oaks-1'];
     const placeholders = cnRoomIds.map(() => '?').join(',');
     const before = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
-    D().prepare((() => { const _s = 'UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)'; return _s; })())
+    D().prepare('UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)')
       .run(tenantId, ...cnRoomIds);
     const after = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
     res.json({ ok: true, removed: before - after, remaining: after });
@@ -738,11 +737,11 @@ router.delete('/:id', requireAuth, requireTenant, (req, res) => {
 
 // GET /api/rooms/:id/educators — educators assigned to a room
 router.get('/room-educators/:roomId', requireAuth, requireTenant, (req, res) => {
-  const educators = tryQuery(() => D().prepare('
+  const educators = tryQuery(() => D().prepare(`
     SELECT u.id, u.name, u.email, u.role, u.qualifications, u.wwcc_number
     FROM users u
     JOIN educator_room_assignments era ON era.educator_id = u.id
     WHERE era.room_id = ? AND era.tenant_id = ? AND u.active = 1
-  ').all(req.params.roomId, req.tenantId));
+  `).all(req.params.roomId, req.tenantId));
   res.json(educators);
 });

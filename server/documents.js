@@ -316,47 +316,47 @@ router.get('/', (req, res) => {
     let docs = [];
     if (status === 'pending_review') {
       // child docs pending review
-      const childDocs = D().prepare('
-        SELECT cd.*, c.first_name||\' \'||c.last_name as child_name, \'child\' as doc_scope
+      const childDocs = D().prepare(`
+        SELECT cd.*, c.first_name||' '||c.last_name as child_name, 'child' as doc_scope
         FROM child_documents cd
         LEFT JOIN children c ON cd.child_id = c.id
-        WHERE cd.tenant_id = ? AND cd.ai_status = \'review_needed\'
+        WHERE cd.tenant_id = ? AND cd.ai_status = 'review_needed'
         ORDER BY cd.uploaded_at DESC
-      ').all(req.tenantId);
+      `).all(req.tenantId);
       // educator docs pending
-      const edDocs = D().prepare('
-        SELECT ed.*, e.first_name||\' \'||e.last_name as educator_name, \'educator\' as doc_scope
+      const edDocs = D().prepare(`
+        SELECT ed.*, e.first_name||' '||e.last_name as educator_name, 'educator' as doc_scope
         FROM educator_documents ed
         LEFT JOIN educators e ON ed.educator_id = e.id
-        WHERE ed.tenant_id = ? AND ed.created_at >= date(\'now\',\'-7 days\')
+        WHERE ed.tenant_id = ? AND ed.created_at >= date('now','-7 days')
         ORDER BY ed.created_at DESC
         LIMIT 0
-      ').all(req.tenantId);
+      `).all(req.tenantId);
       docs = [...childDocs, ...edDocs];
     } else if (scope === 'children') {
-      docs = D().prepare('
-        SELECT cd.*, c.first_name||\' \'||c.last_name as child_name, \'child\' as doc_scope
+      docs = D().prepare(`
+        SELECT cd.*, c.first_name||' '||c.last_name as child_name, 'child' as doc_scope
         FROM child_documents cd
         LEFT JOIN children c ON cd.child_id = c.id
         WHERE cd.tenant_id = ?
         ORDER BY cd.uploaded_at DESC
-      ').all(req.tenantId);
+      `).all(req.tenantId);
     } else if (scope === 'educators') {
-      docs = D().prepare('
-        SELECT ed.*, e.first_name||\' \'||e.last_name as educator_name, \'educator\' as doc_scope
+      docs = D().prepare(`
+        SELECT ed.*, e.first_name||' '||e.last_name as educator_name, 'educator' as doc_scope
         FROM educator_documents ed
         LEFT JOIN educators e ON ed.educator_id = e.id
         WHERE ed.tenant_id = ?
         ORDER BY ed.created_at DESC
-      ').all(req.tenantId);
+      `).all(req.tenantId);
     } else {
-      docs = D().prepare('
-        SELECT cd.*, c.first_name||\' \'||c.last_name as child_name, \'child\' as doc_scope
+      docs = D().prepare(`
+        SELECT cd.*, c.first_name||' '||c.last_name as child_name, 'child' as doc_scope
         FROM child_documents cd
         LEFT JOIN children c ON cd.child_id = c.id
         WHERE cd.tenant_id = ?
         ORDER BY cd.uploaded_at DESC LIMIT 100
-      ').all(req.tenantId);
+      `).all(req.tenantId);
     }
     res.json(docs);
   } catch (err) {

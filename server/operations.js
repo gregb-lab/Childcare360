@@ -72,12 +72,12 @@ r.post('/visitors', (req, res) => {
     const date = now.toISOString().split('T')[0];
     const time = now.toTimeString().slice(0,8);
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO visitor_logs
         (id,tenant_id,visitor_name,visitor_type,company,purpose,host_educator_id,
          wwcc_number,vaccination_status,sign_in,date,notes)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, visitor_name, visitor_type||'visitor', company||null,
+    `).run(id, req.tenantId, visitor_name, visitor_type||'visitor', company||null,
            purpose||null, host_educator_id||null, wwcc_number||null,
            vaccination_status||'not_checked', time, date, notes||null);
 
@@ -89,7 +89,7 @@ r.post('/visitors', (req, res) => {
 r.put('/visitors/:id/sign-out', (req, res) => {
   try {
     const time = new Date().toTimeString().slice(0,8);
-    D().prepare('UPDATE visitor_logs SET sign_out=? WHERE id=? AND tenant_id=?')
+    D().prepare(`UPDATE visitor_logs SET sign_out=? WHERE id=? AND tenant_id=?`)
       .run(time, req.params.id, req.tenantId);
     res.json({ ok: true, sign_out: time });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -103,10 +103,10 @@ r.put('/visitors/:id/sign-out', (req, res) => {
 r.get('/evacuation', (req, res) => {
   try {
     const { limit, offset, page } = paginate(req);
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT * FROM evacuation_drills WHERE tenant_id=?
       ORDER BY started_at DESC LIMIT ? OFFSET ?
-    ').all(req.tenantId, limit, offset);
+    `).all(req.tenantId, limit, offset);
     const total = D().prepare(
       'SELECT COUNT(*) as n FROM evacuation_drills WHERE tenant_id=?'
     ).get(req.tenantId)?.n || 0;
@@ -123,32 +123,32 @@ r.post('/evacuation', (req, res) => {
 
     // Count today's present children and clocked-in educators for auto-populate
     const today = now.split(' ')[0];
-    const childCount = D().prepare('
+    const childCount = D().prepare(`
       SELECT COUNT(*) as n FROM attendance_sessions
       WHERE tenant_id=? AND date=? AND sign_in IS NOT NULL AND sign_out IS NULL AND absent=0
-    ').get(req.tenantId, today)?.n || 0;
-    const eduCount = D().prepare('
+    `).get(req.tenantId, today)?.n || 0;
+    const eduCount = D().prepare(`
       SELECT COUNT(*) as n FROM clock_records
       WHERE tenant_id=? AND date=? AND clock_in IS NOT NULL AND clock_out IS NULL
-    ').get(req.tenantId, today)?.n || 0;
+    `).get(req.tenantId, today)?.n || 0;
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO evacuation_drills
         (id,tenant_id,drill_type,started_at,total_children,total_educators,conducted_by,notes)
       VALUES (?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, drill_type||'fire', now, childCount, eduCount,
+    `).run(id, req.tenantId, drill_type||'fire', now, childCount, eduCount,
            conducted_by||null, notes||null);
 
     // Auto-create headcount rows for all present children
-    const presentChildren = D().prepare('
+    const presentChildren = D().prepare(`
       SELECT child_id FROM attendance_sessions
       WHERE tenant_id=? AND date=? AND sign_in IS NOT NULL AND sign_out IS NULL AND absent=0
-    ').all(req.tenantId, today);
+    `).all(req.tenantId, today);
 
-    const insertHC = D().prepare('
+    const insertHC = D().prepare(`
       INSERT INTO evacuation_headcounts (id,drill_id,child_id,person_type,accounted)
       VALUES (?,?,?,?,0)
-    ');
+    `);
     const insertMany = D().transaction((children) => {
       for (const c of children) insertHC.run(uuid(), id, c.child_id, 'child');
     });
@@ -166,14 +166,14 @@ r.get('/evacuation/:id', (req, res) => {
     ).get(req.params.id, req.tenantId);
     if (!drill) return res.status(404).json({ error: 'Not found' });
 
-    const counts = D().prepare('
+    const counts = D().prepare(`
       SELECT eh.*, c.first_name, c.last_name, c.room_id, r.name as room_name
       FROM evacuation_headcounts eh
       LEFT JOIN children c ON c.id=eh.child_id
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE eh.drill_id=?
       ORDER BY r.name, c.first_name
-    ').all(req.params.id);
+    `).all(req.params.id);
 
     res.json({ drill, headcounts: counts });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -184,13 +184,13 @@ r.put('/evacuation/:id', (req, res) => {
   try {
     const { completed_at, duration_seconds, all_accounted, missing_count,
             notes, reviewed_by } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE evacuation_drills SET
         completed_at=COALESCE(?,completed_at), duration_seconds=COALESCE(?,duration_seconds),
         all_accounted=COALESCE(?,all_accounted), missing_count=COALESCE(?,missing_count),
         notes=COALESCE(?,notes), reviewed_by=COALESCE(?,reviewed_by)
       WHERE id=? AND tenant_id=?
-    ').run(completed_at||null, duration_seconds||null, all_accounted!=null?all_accounted:null,
+    `).run(completed_at||null, duration_seconds||null, all_accounted!=null?all_accounted:null,
            missing_count||null, notes||null, reviewed_by||null,
            req.params.id, req.tenantId);
     res.json({ ok: true });
@@ -209,11 +209,11 @@ r.put('/evacuation/:id/headcount/:hcId', (req, res) => {
       .get(req.params.id, req.tenantId);
     if (!drill) return res.status(404).json({ error: 'Drill not found' });
 
-    const stats = D().prepare('
+    const stats = D().prepare(`
       SELECT COUNT(*) as total,
              SUM(CASE WHEN accounted=1 THEN 1 ELSE 0 END) as acc
       FROM evacuation_headcounts WHERE drill_id=?
-    ').get(req.params.id);
+    `).get(req.params.id);
 
     D().prepare('UPDATE evacuation_drills SET all_accounted=?, missing_count=? WHERE id=?')
       .run(stats.acc >= stats.total ? 1 : 0, stats.total - stats.acc, req.params.id);
@@ -282,12 +282,12 @@ r.post('/sleep', (req, res) => {
       : null;
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO sleep_records
         (id,tenant_id,child_id,date,sleep_start,sleep_position,room_id,
          checks,next_check_due,notes,recorded_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, child_id, date, time,
+    `).run(id, req.tenantId, child_id, date, time,
            sleep_position||'back', room_id||null,
            JSON.stringify([]), nextCheck, notes||null, recorded_by||null);
 
@@ -310,11 +310,11 @@ r.put('/sleep/:id/check', (req, res) => {
     // Next check in 2 hours
     const next = new Date(now.getTime() + 2*60*60*1000).toTimeString().slice(0,5);
 
-    D().prepare('
+    D().prepare(`
       UPDATE sleep_records SET
         checks=?, last_check=?, next_check_due=?, alert_sent=0
       WHERE id=? AND tenant_id=?
-    ').run(JSON.stringify(checks), timeStr, next, req.params.id, req.tenantId);
+    `).run(JSON.stringify(checks), timeStr, next, req.params.id, req.tenantId);
 
     res.json({ ok: true, check_time: timeStr, next_check_due: next, total_checks: checks.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -332,10 +332,10 @@ r.put('/sleep/:id/wake', (req, res) => {
     const [wh,wm] = wakeTime.split(':').map(Number);
     const durMins = (wh*60+wm) - (sh*60+sm);
 
-    D().prepare('
+    D().prepare(`
       UPDATE sleep_records SET sleep_end=?, duration_mins=?, next_check_due=NULL
       WHERE id=? AND tenant_id=?
-    ').run(wakeTime, durMins > 0 ? durMins : null, req.params.id, req.tenantId);
+    `).run(wakeTime, durMins > 0 ? durMins : null, req.params.id, req.tenantId);
 
     res.json({ ok: true, sleep_end: wakeTime, duration_mins: durMins });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -376,12 +376,12 @@ r.post('/hazards', (req, res) => {
             photo_urls, reported_by, assigned_to, due_date } = req.body;
     if (!title) return res.status(400).json({ error: 'title required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO hazard_reports
         (id,tenant_id,report_type,title,description,location,risk_level,
          photo_urls,reported_by,assigned_to,due_date)
       VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, report_type||'hazard', title, description||null,
+    `).run(id, req.tenantId, report_type||'hazard', title, description||null,
            location||null, risk_level||'medium',
            JSON.stringify(photo_urls||[]), reported_by||null, assigned_to||null, due_date||null);
     res.json({ id, ok: true });
@@ -393,14 +393,14 @@ r.put('/hazards/:id', (req, res) => {
     const { status, resolution_notes, assigned_to, risk_level, due_date } = req.body;
     const resolved = status === 'resolved' || status === 'closed'
       ? new Date().toISOString() : null;
-    D().prepare('
+    D().prepare(`
       UPDATE hazard_reports SET
         status=COALESCE(?,status), resolution_notes=COALESCE(?,resolution_notes),
         assigned_to=COALESCE(?,assigned_to), risk_level=COALESCE(?,risk_level),
         due_date=COALESCE(?,due_date),
-        resolved_at=COALESCE(?,resolved_at), updated_at=datetime(\'now\')
+        resolved_at=COALESCE(?,resolved_at), updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(status||null, resolution_notes||null, assigned_to||null,
+    `).run(status||null, resolution_notes||null, assigned_to||null,
            risk_level||null, due_date||null, resolved,
            req.params.id, req.tenantId);
     res.json({ ok: true });
@@ -414,14 +414,14 @@ r.put('/hazards/:id', (req, res) => {
 r.get('/rp-log', (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().split('T')[0];
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT rl.*, e.first_name, e.last_name, e.qualification,
              e.first_aid, e.cpr_expiry, e.anaphylaxis_expiry, e.first_aid_expiry
       FROM rp_daily_log rl
       JOIN educators e ON e.id=rl.educator_id
       WHERE rl.tenant_id=? AND rl.date=?
       ORDER BY rl.start_time
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
     res.json({ log: rows, date });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -432,10 +432,10 @@ r.post('/rp-log', (req, res) => {
     if (!educator_id || !start_time) return res.status(400).json({ error: 'educator_id and start_time required' });
     const date = req.query.date || new Date().toISOString().split('T')[0];
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT OR IGNORE INTO rp_daily_log (id,tenant_id,date,educator_id,start_time,end_time,notes)
       VALUES (?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, date, educator_id, start_time, end_time||null, notes||null);
+    `).run(id, req.tenantId, date, educator_id, start_time, end_time||null, notes||null);
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -443,14 +443,14 @@ r.post('/rp-log', (req, res) => {
 r.put('/rp-log/:id', (req, res) => {
   try {
     const { end_time, signed_by_educator, signed_by_director, notes } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE rp_daily_log SET
         end_time=COALESCE(?,end_time),
         signed_by_educator=COALESCE(?,signed_by_educator),
         signed_by_director=COALESCE(?,signed_by_director),
         notes=COALESCE(?,notes)
       WHERE id=? AND tenant_id=?
-    ').run(end_time||null, signed_by_educator!=null?signed_by_educator:null,
+    `).run(end_time||null, signed_by_educator!=null?signed_by_educator:null,
            signed_by_director!=null?signed_by_director:null, notes||null,
            req.params.id, req.tenantId);
     res.json({ ok: true });
@@ -464,13 +464,13 @@ r.put('/rp-log/:id', (req, res) => {
 r.get('/handover', (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().split('T')[0];
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT hf.*, r.name as room_name
       FROM handover_forms hf
       LEFT JOIN rooms r ON r.id=hf.room_id
       WHERE hf.tenant_id=? AND hf.date=?
       ORDER BY hf.created_at DESC
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
     res.json({ forms: rows, date });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -483,13 +483,13 @@ r.post('/handover', (req, res) => {
 
     const id = uuid();
     const date = new Date().toISOString().split('T')[0];
-    D().prepare('
+    D().prepare(`
       INSERT INTO handover_forms
         (id,tenant_id,date,shift_type,room_id,submitted_by,children_present,
          incidents_summary,medications_given,sleep_notes,meals_notes,behaviour_notes,
          outstanding_tasks,messages_for_families,general_notes)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, date, shift_type||'end_of_day', room_id||null,
+    `).run(id, req.tenantId, date, shift_type||'end_of_day', room_id||null,
            submitted_by||null, children_present||0,
            incidents_summary||null, medications_given||null, sleep_notes||null,
            meals_notes||null, behaviour_notes||null, outstanding_tasks||null,
@@ -501,10 +501,10 @@ r.post('/handover', (req, res) => {
 r.put('/handover/:id/acknowledge', (req, res) => {
   try {
     const { acknowledged_by } = req.body;
-    D().prepare('
-      UPDATE handover_forms SET acknowledged_by=?, acknowledged_at=datetime(\'now\')
+    D().prepare(`
+      UPDATE handover_forms SET acknowledged_by=?, acknowledged_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(acknowledged_by||req.userId, req.params.id, req.tenantId);
+    `).run(acknowledged_by||req.userId, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -516,14 +516,14 @@ r.put('/handover/:id/acknowledge', (req, res) => {
 r.get('/room-checkins', (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().split('T')[0];
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT rc.*, e.first_name, e.last_name, e.qualification, r.name as room_name, r.age_group
       FROM room_checkins rc
       JOIN educators e ON e.id=rc.educator_id
       JOIN rooms r ON r.id=rc.room_id
       WHERE rc.tenant_id=? AND rc.date=?
       ORDER BY rc.checked_in_at DESC
-    ').all(req.tenantId, date);
+    `).all(req.tenantId, date);
     res.json({ checkins: rows, date });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -538,15 +538,15 @@ r.post('/room-checkins', (req, res) => {
     const id = uuid();
 
     // Auto-close any open check-in for this educator today
-    D().prepare('
-      UPDATE room_checkins SET checked_out_at=datetime(\'now\',\'localtime\')
+    D().prepare(`
+      UPDATE room_checkins SET checked_out_at=datetime('now','localtime')
       WHERE tenant_id=? AND educator_id=? AND date=? AND checked_out_at IS NULL
-    ').run(req.tenantId, educator_id, date);
+    `).run(req.tenantId, educator_id, date);
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO room_checkins (id,tenant_id,educator_id,room_id,clock_record_id,checked_in_at,date)
-      VALUES (?,?,?,?,?,datetime(\'now\',\'localtime\'),?)
-    ').run(id, req.tenantId, educator_id, room_id, clock_record_id||null, date);
+      VALUES (?,?,?,?,?,datetime('now','localtime'),?)
+    `).run(id, req.tenantId, educator_id, room_id, clock_record_id||null, date);
 
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -554,10 +554,10 @@ r.post('/room-checkins', (req, res) => {
 
 r.put('/room-checkins/:id/checkout', (req, res) => {
   try {
-    D().prepare('
-      UPDATE room_checkins SET checked_out_at=datetime(\'now\',\'localtime\')
+    D().prepare(`
+      UPDATE room_checkins SET checked_out_at=datetime('now','localtime')
       WHERE id=? AND tenant_id=?
-    ').run(req.params.id, req.tenantId);
+    `).run(req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -572,14 +572,14 @@ r.get('/shift-bids', (req, res) => {
     const { entry_id } = req.query;
     if (!entry_id) return res.status(400).json({ error: 'entry_id required' });
 
-    const bids = D().prepare('
+    const bids = D().prepare(`
       SELECT sb.*, e.first_name, e.last_name, e.qualification, e.reliability_score,
              e.distance_km
       FROM shift_bids sb
       JOIN educators e ON e.id=sb.educator_id
       WHERE sb.roster_entry_id=? AND e.tenant_id=?
       ORDER BY sb.ai_score DESC, sb.submitted_at ASC
-    ').all(entry_id, req.tenantId);
+    `).all(entry_id, req.tenantId);
 
     res.json({ bids });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -591,17 +591,17 @@ r.get('/open-shifts', (req, res) => {
     const { limit, offset, page } = paginate(req);
     const today = new Date().toISOString().split('T')[0];
 
-    const shifts = D().prepare('
+    const shifts = D().prepare(`
       SELECT re.*, r.name as room_name, r.age_group,
              COUNT(sb.id) as bid_count
       FROM roster_entries re
       LEFT JOIN rooms r ON r.id=re.room_id
-      LEFT JOIN shift_bids sb ON sb.roster_entry_id=re.id AND sb.status=\'pending\'
-      WHERE re.tenant_id=? AND re.status=\'unfilled\' AND re.date >= ?
+      LEFT JOIN shift_bids sb ON sb.roster_entry_id=re.id AND sb.status='pending'
+      WHERE re.tenant_id=? AND re.status='unfilled' AND re.date >= ?
       GROUP BY re.id
       ORDER BY re.date, re.start_time
       LIMIT ? OFFSET ?
-    ').all(req.tenantId, today, limit, offset);
+    `).all(req.tenantId, today, limit, offset);
 
     res.json({ shifts, page });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -634,10 +634,10 @@ r.post('/shift-bids', (req, res) => {
     const aiScore = (reliabilityScore * 0.6 + qScore * 0.4) - distPenalty;
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO shift_bids (id,tenant_id,roster_entry_id,educator_id,note,ai_score)
       VALUES (?,?,?,?,?,?)
-    ').run(id, req.tenantId, roster_entry_id, educator_id, note||null, aiScore);
+    `).run(id, req.tenantId, roster_entry_id, educator_id, note||null, aiScore);
 
     res.json({ id, ok: true, ai_score: Math.round(aiScore) });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -649,28 +649,28 @@ r.put('/shift-bids/:id/decide', (req, res) => {
     const { status } = req.body; // accepted | declined
     if (!['accepted','declined'].includes(status)) return res.status(400).json({ error: 'status must be accepted or declined' });
 
-    const bid = D().prepare('
+    const bid = D().prepare(`
       SELECT sb.*, re.tenant_id FROM shift_bids sb
       JOIN roster_entries re ON re.id=sb.roster_entry_id
       WHERE sb.id=? AND re.tenant_id=?
-    ').get(req.params.id, req.tenantId);
+    `).get(req.params.id, req.tenantId);
     if (!bid) return res.status(404).json({ error: 'Bid not found' });
 
-    D().prepare('
-      UPDATE shift_bids SET status=?, decided_at=datetime(\'now\'), decided_by=?
+    D().prepare(`
+      UPDATE shift_bids SET status=?, decided_at=datetime('now'), decided_by=?
       WHERE id=?
-    ').run(status, req.userId, req.params.id);
+    `).run(status, req.userId, req.params.id);
 
     if (status === 'accepted') {
       // Fill the shift
-      D().prepare('
-        UPDATE roster_entries SET status=\'filled\', educator_id=? WHERE id=?
-      ').run(bid.educator_id, bid.roster_entry_id);
+      D().prepare(`
+        UPDATE roster_entries SET status='filled', educator_id=? WHERE id=?
+      `).run(bid.educator_id, bid.roster_entry_id);
       // Decline all other bids for this shift
-      D().prepare('
-        UPDATE shift_bids SET status=\'declined\', decided_at=datetime(\'now\')
-        WHERE roster_entry_id=? AND id!=? AND status=\'pending\'
-      ').run(bid.roster_entry_id, req.params.id);
+      D().prepare(`
+        UPDATE shift_bids SET status='declined', decided_at=datetime('now')
+        WHERE roster_entry_id=? AND id!=? AND status='pending'
+      `).run(bid.roster_entry_id, req.params.id);
     }
 
     res.json({ ok: true });
@@ -688,16 +688,16 @@ r.get('/attendance-patterns', (req, res) => {
     since.setDate(since.getDate() - (weeks * 7));
     const sinceStr = since.toISOString().split('T')[0];
 
-    const byDay = D().prepare('
+    const byDay = D().prepare(`
       SELECT
-        strftime(\'%w\', date) as day_of_week,
-        CASE strftime(\'%w\', date)
-          WHEN \'0\' THEN \'Sun\' WHEN \'1\' THEN \'Mon\' WHEN \'2\' THEN \'Tue\'
-          WHEN \'3\' THEN \'Wed\' WHEN \'4\' THEN \'Thu\' WHEN \'5\' THEN \'Fri\' WHEN \'6\' THEN \'Sat\'
+        strftime('%w', date) as day_of_week,
+        CASE strftime('%w', date)
+          WHEN '0' THEN 'Sun' WHEN '1' THEN 'Mon' WHEN '2' THEN 'Tue'
+          WHEN '3' THEN 'Wed' WHEN '4' THEN 'Thu' WHEN '5' THEN 'Fri' WHEN '6' THEN 'Sat'
         END as day_name,
-        AVG(CAST(strftime(\'%H\', sign_in)*60 + strftime(\'%M\', sign_in) AS REAL)) as avg_arrival_mins,
+        AVG(CAST(strftime('%H', sign_in)*60 + strftime('%M', sign_in) AS REAL)) as avg_arrival_mins,
         AVG(CASE WHEN sign_out IS NOT NULL
-          THEN CAST(strftime(\'%H\', sign_out)*60 + strftime(\'%M\', sign_out) AS REAL)
+          THEN CAST(strftime('%H', sign_out)*60 + strftime('%M', sign_out) AS REAL)
           ELSE NULL END) as avg_departure_mins,
         AVG(hours) as avg_duration_hrs,
         COUNT(*) as sessions
@@ -705,14 +705,14 @@ r.get('/attendance-patterns', (req, res) => {
       WHERE tenant_id=? AND date >= ? AND absent=0 AND sign_in IS NOT NULL
       GROUP BY day_of_week
       ORDER BY day_of_week
-    ').all(req.tenantId, sinceStr);
+    `).all(req.tenantId, sinceStr);
 
-    const byRoom = D().prepare('
+    const byRoom = D().prepare(`
       SELECT
         c.room_id, r.name as room_name, r.age_group,
-        AVG(CAST(strftime(\'%H\', a.sign_in)*60 + strftime(\'%M\', a.sign_in) AS REAL)) as avg_arrival_mins,
+        AVG(CAST(strftime('%H', a.sign_in)*60 + strftime('%M', a.sign_in) AS REAL)) as avg_arrival_mins,
         AVG(CASE WHEN a.sign_out IS NOT NULL
-          THEN CAST(strftime(\'%H\', a.sign_out)*60 + strftime(\'%M\', a.sign_out) AS REAL)
+          THEN CAST(strftime('%H', a.sign_out)*60 + strftime('%M', a.sign_out) AS REAL)
           ELSE NULL END) as avg_departure_mins,
         AVG(a.hours) as avg_duration_hrs,
         COUNT(*) as sessions
@@ -721,7 +721,7 @@ r.get('/attendance-patterns', (req, res) => {
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE a.tenant_id=? AND a.date >= ? AND a.absent=0 AND a.sign_in IS NOT NULL
       GROUP BY c.room_id
-    ').all(req.tenantId, sinceStr);
+    `).all(req.tenantId, sinceStr);
 
     // Format times
     const fmt = m => m ? `${String(Math.floor(m/60)).padStart(2,'0')}:${String(Math.round(m%60)).padStart(2,'0')}` : null;

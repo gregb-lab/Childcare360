@@ -33,17 +33,17 @@ r.get('/events', (req, res) => {
     const toDate   = to   || new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
     const { limit, offset, page } = pg(req);
 
-    const events = D().prepare('
+    const events = D().prepare(`
       SELECT e.*,
         COUNT(DISTINCT r.id) as rsvp_count,
-        SUM(CASE WHEN r.status=\'attending\' THEN r.guest_count ELSE 0 END) as attending_count
+        SUM(CASE WHEN r.status='attending' THEN r.guest_count ELSE 0 END) as attending_count
       FROM centre_events e
       LEFT JOIN event_rsvps r ON r.event_id = e.id
       WHERE e.tenant_id=? AND e.event_date BETWEEN ? AND ?
       GROUP BY e.id
       ORDER BY e.event_date, e.start_time
       LIMIT ? OFFSET ?
-    ').all(req.tenantId, fromDate, toDate, limit, offset);
+    `).all(req.tenantId, fromDate, toDate, limit, offset);
 
     const total = D().prepare(
       `SELECT COUNT(*) as n FROM centre_events WHERE tenant_id=? AND event_date BETWEEN ? AND ?`
@@ -62,12 +62,12 @@ r.get('/events/:id', (req, res) => {
       .get(req.params.id, req.tenantId);
     if (!event) return res.status(404).json({ error: 'Not found' });
 
-    const rsvps = D().prepare('
+    const rsvps = D().prepare(`
       SELECT er.*, c.first_name as child_first, c.last_name as child_last
       FROM event_rsvps er
       LEFT JOIN children c ON c.id = er.child_id
       WHERE er.event_id=? ORDER BY er.created_at
-    ').all(req.params.id);
+    `).all(req.params.id);
 
     res.json({ event: { ...event, room_ids: JSON.parse(event.room_ids || '[]') }, rsvps });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -81,12 +81,12 @@ r.post('/events', (req, res) => {
     if (!title || !event_date) return res.status(400).json({ error: 'title and event_date required' });
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO centre_events
         (id,tenant_id,title,description,event_type,event_date,start_time,end_time,
          location,all_rooms,room_ids,rsvp_required,rsvp_deadline,max_attendees,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, title, description||null, event_type||'general',
+    `).run(id, req.tenantId, title, description||null, event_type||'general',
            event_date, start_time||null, end_time||null, location||null,
            all_rooms!==false?1:0, JSON.stringify(room_ids||[]),
            rsvp_required?1:0, rsvp_deadline||null, max_attendees||null, created_by||null);
@@ -99,7 +99,7 @@ r.put('/events/:id', (req, res) => {
   try {
     const { title, description, event_type, event_date, start_time, end_time,
             location, rsvp_required, rsvp_deadline, max_attendees } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE centre_events SET
         title=COALESCE(?,title), description=COALESCE(?,description),
         event_type=COALESCE(?,event_type), event_date=COALESCE(?,event_date),
@@ -107,7 +107,7 @@ r.put('/events/:id', (req, res) => {
         location=COALESCE(?,location), rsvp_required=COALESCE(?,rsvp_required),
         rsvp_deadline=COALESCE(?,rsvp_deadline), max_attendees=COALESCE(?,max_attendees)
       WHERE id=? AND tenant_id=?
-    ').run(title||null, description||null, event_type||null, event_date||null,
+    `).run(title||null, description||null, event_type||null, event_date||null,
            start_time||null, end_time||null, location||null,
            rsvp_required!=null?rsvp_required:null, rsvp_deadline||null,
            max_attendees||null, req.params.id, req.tenantId);
@@ -141,12 +141,12 @@ r.post('/events/:id/rsvp', (req, res) => {
     }
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO event_rsvps (id,event_id,tenant_id,child_id,parent_user_id,status,guest_count,notes)
       VALUES (?,?,?,?,?,?,?,?)
       ON CONFLICT(event_id,child_id) DO UPDATE SET
         status=excluded.status, guest_count=excluded.guest_count, notes=excluded.notes
-    ').run(id, req.params.id, req.tenantId, child_id||null, parent_user_id||null,
+    `).run(id, req.params.id, req.tenantId, child_id||null, parent_user_id||null,
            status||'attending', guest_count||1, notes||null);
 
     const count = D().prepare(
@@ -197,11 +197,11 @@ r.post('/posts', (req, res) => {
     const { author_user_id, author_name, author_type, child_id, title, body, photo_urls, visibility } = req.body;
     if (!body) return res.status(400).json({ error: 'body required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO community_posts
         (id,tenant_id,author_user_id,author_name,author_type,child_id,title,body,photo_urls,visibility)
       VALUES (?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, author_user_id||req.userId, author_name||null,
+    `).run(id, req.tenantId, author_user_id||req.userId, author_name||null,
            author_type||'parent', child_id||null, title||null, body,
            JSON.stringify(photo_urls||[]), visibility||'centre');
     res.json({ id, ok: true });
@@ -242,15 +242,15 @@ r.post('/reactions', (req, res) => {
     if (existing) {
       D().prepare('DELETE FROM story_reactions WHERE id=?').run(existing.id);
     } else {
-      D().prepare('
+      D().prepare(`
         INSERT OR IGNORE INTO story_reactions (id,tenant_id,story_id,story_type,user_id,reaction)
         VALUES (?,?,?,?,?,?)
-      ').run(uuid(), req.tenantId, story_id, story_type||'observation', user_id, reaction||'heart');
+      `).run(uuid(), req.tenantId, story_id, story_type||'observation', user_id, reaction||'heart');
     }
 
-    const counts = D().prepare('
+    const counts = D().prepare(`
       SELECT reaction, COUNT(*) as n FROM story_reactions WHERE story_id=? GROUP BY reaction
-    ').all(story_id);
+    `).all(story_id);
 
     res.json({ ok: true, removed: !!existing, counts });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -258,10 +258,10 @@ r.post('/reactions', (req, res) => {
 
 r.get('/reactions/:storyId', (req, res) => {
   try {
-    const counts = D().prepare('
+    const counts = D().prepare(`
       SELECT reaction, COUNT(*) as n, GROUP_CONCAT(user_id) as users
       FROM story_reactions WHERE story_id=? GROUP BY reaction
-    ').all(req.params.storyId);
+    `).all(req.params.storyId);
     res.json({ counts });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -272,10 +272,10 @@ r.get('/reactions/:storyId', (req, res) => {
 
 r.get('/comments/:storyId', (req, res) => {
   try {
-    const comments = D().prepare('
+    const comments = D().prepare(`
       SELECT * FROM story_comments WHERE story_id=?
       ORDER BY created_at ASC
-    ').all(req.params.storyId);
+    `).all(req.params.storyId);
     res.json({ comments });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -285,11 +285,11 @@ r.post('/comments', (req, res) => {
     const { story_id, story_type, author_user_id, author_name, author_type, body, reply_to_id } = req.body;
     if (!story_id || !body) return res.status(400).json({ error: 'story_id and body required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO story_comments
         (id,tenant_id,story_id,story_type,author_user_id,author_name,author_type,body,reply_to_id)
       VALUES (?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, story_id, story_type||'observation',
+    `).run(id, req.tenantId, story_id, story_type||'observation',
            author_user_id||req.userId, author_name||null, author_type||'educator',
            body, reply_to_id||null);
     res.json({ id, ok: true });
@@ -337,12 +337,12 @@ r.post('/policies', (req, res) => {
             version, requires_acknowledgement, visible_to_parents, created_by } = req.body;
     if (!title) return res.status(400).json({ error: 'title required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO policy_documents
         (id,tenant_id,title,category,description,file_url,file_name,file_size,
          version,requires_acknowledgement,visible_to_parents,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, title, category||'policy', description||null,
+    `).run(id, req.tenantId, title, category||'policy', description||null,
            file_url||null, file_name||null, file_size||null,
            version||'1.0', requires_acknowledgement?1:0,
            visible_to_parents?1:0, created_by||null);
@@ -353,15 +353,15 @@ r.post('/policies', (req, res) => {
 r.put('/policies/:id', (req, res) => {
   try {
     const { title, description, status, version, requires_acknowledgement, visible_to_parents } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE policy_documents SET
         title=COALESCE(?,title), description=COALESCE(?,description),
         status=COALESCE(?,status), version=COALESCE(?,version),
         requires_acknowledgement=COALESCE(?,requires_acknowledgement),
         visible_to_parents=COALESCE(?,visible_to_parents),
-        updated_at=datetime(\'now\')
+        updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(title||null, description||null, status||null, version||null,
+    `).run(title||null, description||null, status||null, version||null,
            requires_acknowledgement!=null?requires_acknowledgement:null,
            visible_to_parents!=null?visible_to_parents:null,
            req.params.id, req.tenantId);
@@ -372,13 +372,13 @@ r.put('/policies/:id', (req, res) => {
 // Get acknowledgement status for a document
 r.get('/policies/:id/acknowledgements', (req, res) => {
   try {
-    const acks = D().prepare('
+    const acks = D().prepare(`
       SELECT pa.*, e.first_name, e.last_name, e.qualification
       FROM policy_acknowledgements pa
       LEFT JOIN educators e ON e.id=pa.educator_id
       WHERE pa.document_id=? AND pa.tenant_id=?
       ORDER BY pa.acknowledged_at DESC
-    ').all(req.params.id, req.tenantId);
+    `).all(req.params.id, req.tenantId);
 
     // Who hasn't acknowledged yet
     const allEducators = D().prepare(
@@ -399,11 +399,11 @@ r.post('/policies/:id/acknowledge', (req, res) => {
       .get(req.params.id, req.tenantId);
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-    D().prepare('
+    D().prepare(`
       INSERT OR REPLACE INTO policy_acknowledgements
         (id,tenant_id,document_id,user_id,educator_id,version)
       VALUES (?,?,?,?,?,?)
-    ').run(uuid(), req.tenantId, req.params.id,
+    `).run(uuid(), req.tenantId, req.params.id,
            user_id||req.userId, educator_id||null, version||doc.version);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -445,11 +445,11 @@ r.post('/checklists', (req, res) => {
             assign_to_role, items, created_by } = req.body;
     if (!title || !items?.length) return res.status(400).json({ error: 'title and items required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO checklist_templates
         (id,tenant_id,title,description,category,frequency,room_ids,assign_to_role,items,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, title, description||null, category||'daily',
+    `).run(id, req.tenantId, title, description||null, category||'daily',
            frequency||'daily', JSON.stringify(room_ids||[]),
            assign_to_role||'educator', JSON.stringify(items), created_by||null);
     res.json({ id, ok: true });
@@ -459,13 +459,13 @@ r.post('/checklists', (req, res) => {
 r.put('/checklists/:id', (req, res) => {
   try {
     const { title, description, items, active, frequency } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE checklist_templates SET
         title=COALESCE(?,title), description=COALESCE(?,description),
         items=COALESCE(?,items), active=COALESCE(?,active),
         frequency=COALESCE(?,frequency)
       WHERE id=? AND tenant_id=?
-    ').run(title||null, description||null,
+    `).run(title||null, description||null,
            items ? JSON.stringify(items) : null,
            active!=null?active:null, frequency||null,
            req.params.id, req.tenantId);
@@ -489,11 +489,11 @@ r.post('/checklists/:id/complete', (req, res) => {
 
     const id = uuid();
     const d  = date || new Date().toISOString().split('T')[0];
-    D().prepare('
+    D().prepare(`
       INSERT INTO checklist_completions
         (id,tenant_id,template_id,completed_by,educator_id,date,responses,notes)
       VALUES (?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, req.params.id, completed_by||null, educator_id||null,
+    `).run(id, req.tenantId, req.params.id, completed_by||null, educator_id||null,
            d, JSON.stringify(responses), notes||null);
 
     res.json({ id, ok: true });
@@ -505,14 +505,14 @@ r.get('/checklists/:id/completions', (req, res) => {
   try {
     const { from, to } = req.query;
     const today = new Date().toISOString().split('T')[0];
-    const completions = D().prepare('
+    const completions = D().prepare(`
       SELECT cc.*, e.first_name, e.last_name
       FROM checklist_completions cc
       LEFT JOIN educators e ON e.id=cc.educator_id
       WHERE cc.template_id=? AND cc.tenant_id=?
         AND cc.date BETWEEN ? AND ?
       ORDER BY cc.date DESC, cc.completed_at DESC
-    ').all(req.params.id, req.tenantId,
+    `).all(req.params.id, req.tenantId,
            from || new Date(Date.now()-7*86400000).toISOString().split('T')[0],
            to || today);
 
@@ -533,7 +533,7 @@ r.get('/checklists/status/today', (req, res) => {
     ).all(req.tenantId);
 
     const done = new Set(
-      D().prepare('SELECT template_id FROM checklist_completions WHERE tenant_id=? AND date=?')
+      D().prepare(`SELECT template_id FROM checklist_completions WHERE tenant_id=? AND date=?`)
         .all(req.tenantId, today).map(c => c.template_id)
     );
 

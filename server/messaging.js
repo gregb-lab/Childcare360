@@ -22,10 +22,10 @@ r.post('/templates', (req, res) => {
   try {
     const { trigger_type, channel, subject, body_html, days_before, active } = req.body;
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO notification_templates (id,tenant_id,trigger_type,channel,subject,body_html,days_before,active)
       VALUES(?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, trigger_type, channel || 'email', subject || null, body_html || '', days_before ?? 0, active !== false ? 1 : 0);
+    `).run(id, req.tenantId, trigger_type, channel || 'email', subject || null, body_html || '', days_before ?? 0, active !== false ? 1 : 0);
     res.json({ id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -35,10 +35,10 @@ r.post('/templates', (req, res) => {
 r.put('/templates/:id', (req, res) => {
   try {
     const { trigger_type, channel, subject, body_html, days_before, active } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE notification_templates SET trigger_type=?,channel=?,subject=?,body_html=?,days_before=?,active=?
       WHERE id=? AND tenant_id=?
-    ').run(trigger_type, channel || 'email', subject || null, body_html || '', days_before ?? 0, active !== false ? 1 : 0, req.params.id, req.tenantId);
+    `).run(trigger_type, channel || 'email', subject || null, body_html || '', days_before ?? 0, active !== false ? 1 : 0, req.params.id, req.tenantId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -96,8 +96,8 @@ r.post('/send-test', (req, res) => {
       .replace(/{{invoice_number}}/g, 'INV-2026-0042');
 
     const notifId = uuid();
-    D().prepare('INSERT INTO notifications (id,tenant_id,type,title,message,channel,trigger_type,sent_at)
-      VALUES(?,?,?,?,?,?,?,datetime(\'now\'))')
+    D().prepare(`INSERT INTO notifications (id,tenant_id,type,title,message,channel,trigger_type,sent_at)
+      VALUES(?,?,?,?,?,?,?,datetime('now'))`)
       .run(notifId, req.tenantId, 'test', 'Test: ' + (tmpl.subject || tmpl.trigger_type), rendered, tmpl.channel, tmpl.trigger_type);
 
     res.json({ success: true, notif_id: notifId, rendered_body: rendered });
@@ -128,8 +128,8 @@ r.post('/broadcast', async (req, res) => {
 
     // Log the broadcast as a notification
     const broadcastId = uuid();
-    db.prepare('INSERT INTO notifications (id,tenant_id,type,title,message,channel,trigger_type,sent_at)
-      VALUES(?,?,?,?,?,?,?,datetime(\'now\'))').run(broadcastId, req.tenantId, 'broadcast', subject || 'Broadcast Message', body, channel, `broadcast:${audience}`);
+    db.prepare(`INSERT INTO notifications (id,tenant_id,type,title,message,channel,trigger_type,sent_at)
+      VALUES(?,?,?,?,?,?,?,datetime('now'))`).run(broadcastId, req.tenantId, 'broadcast', subject || 'Broadcast Message', body, channel, `broadcast:${audience}`);
 
     // Attempt real email send if channel is email and SMTP configured
     let sent = 0, failed = 0;
@@ -148,15 +148,15 @@ r.post('/broadcast', async (req, res) => {
           // Collect recipient emails
           const emails = new Set();
           if (audience === 'all_parents' || audience === 'everyone') {
-            db.prepare('SELECT DISTINCT parent1_email FROM children WHERE tenant_id=? AND active=1 AND parent1_email IS NOT NULL AND parent1_email != \'\'').all(req.tenantId).forEach(r => emails.add(r.parent1_email));
-            db.prepare('SELECT DISTINCT parent2_email FROM children WHERE tenant_id=? AND active=1 AND parent2_email IS NOT NULL AND parent2_email != \'\'').all(req.tenantId).forEach(r => r.parent2_email && emails.add(r.parent2_email));
+            db.prepare(`SELECT DISTINCT parent1_email FROM children WHERE tenant_id=? AND active=1 AND parent1_email IS NOT NULL AND parent1_email != ''`).all(req.tenantId).forEach(r => emails.add(r.parent1_email));
+            db.prepare(`SELECT DISTINCT parent2_email FROM children WHERE tenant_id=? AND active=1 AND parent2_email IS NOT NULL AND parent2_email != ''`).all(req.tenantId).forEach(r => r.parent2_email && emails.add(r.parent2_email));
           }
           if (audience === 'all_staff' || audience === 'everyone') {
-            db.prepare('SELECT DISTINCT email FROM educators WHERE tenant_id=? AND status=\'active\' AND email IS NOT NULL AND email != \'\'').all(req.tenantId).forEach(r => emails.add(r.email));
+            db.prepare(`SELECT DISTINCT email FROM educators WHERE tenant_id=? AND status='active' AND email IS NOT NULL AND email != ''`).all(req.tenantId).forEach(r => emails.add(r.email));
           }
           if (audience?.startsWith('room_')) {
             const roomId = audience.replace('room_','');
-            db.prepare('SELECT DISTINCT parent1_email FROM children WHERE tenant_id=? AND room_id=? AND active=1 AND parent1_email IS NOT NULL').all(req.tenantId, roomId).forEach(r => emails.add(r.parent1_email));
+            db.prepare(`SELECT DISTINCT parent1_email FROM children WHERE tenant_id=? AND room_id=? AND active=1 AND parent1_email IS NOT NULL`).all(req.tenantId, roomId).forEach(r => emails.add(r.parent1_email));
           }
 
           const centre = settings.service_name || 'Childcare Centre';

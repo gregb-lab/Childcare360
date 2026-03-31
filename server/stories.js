@@ -237,25 +237,25 @@ async function generateStoryForChild(tenantId, childId, weekStart) {
   if (!child) throw new Error('Child not found');
 
   // 1. Gather observations (exclude nothing — educators already filtered)
-  const observations = db.prepare('
+  const observations = db.prepare(`
     SELECT id, narrative, eylf_outcomes, media, timestamp
     FROM observations
     WHERE tenant_id=? AND child_id=? AND date(timestamp) BETWEEN ? AND ?
     ORDER BY timestamp DESC
-  ').all(tenantId, childId, start, end);
+  `).all(tenantId, childId, start, end);
 
   // 2. Gather activity daily_updates (exclude sleep/food/nappy)
-  const activities = db.prepare('
+  const activities = db.prepare(`
     SELECT id, category, notes, photo_url, update_date
     FROM daily_updates
     WHERE tenant_id=? AND child_id=? AND update_date BETWEEN ? AND ?
-    AND category NOT IN (\'sleep\',\'food\',\'nappy\',\'diaper\')
+    AND category NOT IN ('sleep','food','nappy','diaper')
     AND (notes IS NOT NULL OR photo_url IS NOT NULL)
     ORDER BY update_date DESC
-  ').all(tenantId, childId, start, end);
+  `).all(tenantId, childId, start, end);
 
   // 3. Gather photos from learning_stories that include this child
-  const learningPhotos = db.prepare('
+  const learningPhotos = db.prepare(`
     SELECT sp.url, sp.caption, ls.date
     FROM story_photos sp
     JOIN learning_stories ls ON ls.id = sp.story_id
@@ -264,7 +264,7 @@ async function generateStoryForChild(tenantId, childId, weekStart) {
     AND ls.published=1
     ORDER BY ls.date DESC
     LIMIT 10
-  ').all(tenantId, tenantId, start, end, `%${childId}%`);
+  `).all(tenantId, tenantId, start, end, `%${childId}%`);
 
   // 4. Build ranked photo list
   const photos = [];
@@ -329,7 +329,7 @@ async function generateStoryForChild(tenantId, childId, weekStart) {
   const storyId = existingStory?.id || uuid();
 
   if (existingStory) {
-    db.prepare('UPDATE parent_stories SET title=?,slides=?,music_track=?,duration_secs=?,narration=?,eylf_outcomes=?,observation_count=?,photo_count=?,status=\'draft\',published=0,ai_used=?,updated_at=datetime(\'now\') WHERE id=?')
+    db.prepare(`UPDATE parent_stories SET title=?,slides=?,music_track=?,duration_secs=?,narration=?,eylf_outcomes=?,observation_count=?,photo_count=?,status='draft',published=0,ai_used=?,updated_at=datetime('now') WHERE id=?`)
       .run(title, JSON.stringify(slides), music.id, totalDuration, JSON.stringify(narration), JSON.stringify(eylfKeys), observations.length, dedupedPhotos.length, aiUsed, storyId);
   } else {
     db.prepare('INSERT INTO parent_stories (id,tenant_id,child_id,week_starting,title,slides,music_track,duration_secs,narration,eylf_outcomes,observation_count,photo_count,status,ai_used) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,\'draft\',?)')
@@ -428,8 +428,7 @@ router.put('/:id', (req, res) => {
     if (status !== undefined) { updates.push('status=?'); params.push(status); }
     updates.push("updated_at=datetime('now')");
     params.push(req.params.id, req.tenantId);
-    const _stSql = 'UPDATE parent_stories SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?';
-    D().prepare(_stSql).run(...params);
+    D().prepare('UPDATE parent_stories SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?').run(...params);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -467,12 +466,12 @@ router.get('/meta/music-tracks', (req, res) => res.json({ tracks: MUSIC_TRACKS }
 router.get('/parent/:childId', (req, res) => {
   try {
     ensureTable();
-    const stories = D().prepare('
+    const stories = D().prepare(`
       SELECT id, title, week_starting, duration_secs, music_track, slides, photo_count,
              eylf_outcomes, published_at, viewed_at, view_count
       FROM parent_stories WHERE tenant_id=? AND child_id=? AND published=1
       ORDER BY week_starting DESC LIMIT 20
-    ').all(req.tenantId, req.params.childId).map(s => ({
+    `).all(req.tenantId, req.params.childId).map(s => ({
       ...s,
       slides: JSON.parse(s.slides || '[]'),
       eylf_outcomes: JSON.parse(s.eylf_outcomes || '[]'),

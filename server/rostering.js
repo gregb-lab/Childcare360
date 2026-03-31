@@ -8,10 +8,10 @@ r.use(requireTenant);
 // ═══ EDUCATOR CRUD ══════════════════════════════════════════════════════════
 
 r.get('/educators', (req, res) => {
-  const eds = D().prepare('SELECT e.*, 
-    (SELECT COUNT(*) FROM roster_entries re WHERE re.educator_id = e.id AND re.date >= date(\'now\',\'-30 days\')) as recent_shifts,
-    (SELECT COUNT(*) FROM educator_absences ea WHERE ea.educator_id = e.id AND ea.date >= date(\'now\',\'-90 days\')) as recent_absences
-    FROM educators e WHERE e.tenant_id = ? ORDER BY e.last_name').all(req.tenantId);
+  const eds = D().prepare(`SELECT e.*, 
+    (SELECT COUNT(*) FROM roster_entries re WHERE re.educator_id = e.id AND re.date >= date('now','-30 days')) as recent_shifts,
+    (SELECT COUNT(*) FROM educator_absences ea WHERE ea.educator_id = e.id AND ea.date >= date('now','-90 days')) as recent_absences
+    FROM educators e WHERE e.tenant_id = ? ORDER BY e.last_name`).all(req.tenantId);
   res.json({ educators: eds });
 });
 
@@ -53,7 +53,7 @@ r.post('/educators', (req, res) => {
 r.put('/educators/:id', (req, res) => {
   try {
   const b = req.body;
-  D().prepare('UPDATE educators SET first_name=COALESCE(?,first_name),last_name=COALESCE(?,last_name),
+  D().prepare(`UPDATE educators SET first_name=COALESCE(?,first_name),last_name=COALESCE(?,last_name),
     email=COALESCE(?,email),phone=COALESCE(?,phone),address=COALESCE(?,address),suburb=COALESCE(?,suburb),
     postcode=COALESCE(?,postcode),qualification=COALESCE(?,qualification),employment_type=COALESCE(?,employment_type),
     hourly_rate_cents=COALESCE(?,hourly_rate_cents),annual_salary_cents=COALESCE(?,annual_salary_cents),
@@ -64,7 +64,7 @@ r.put('/educators/:id', (req, res) => {
     cpr_expiry=COALESCE(?,cpr_expiry),anaphylaxis_expiry=COALESCE(?,anaphylaxis_expiry),asthma_expiry=COALESCE(?,asthma_expiry),
     wwcc_number=COALESCE(?,wwcc_number),wwcc_expiry=COALESCE(?,wwcc_expiry),
     preferred_rooms=COALESCE(?,preferred_rooms),is_under_18=COALESCE(?,is_under_18),
-    notes=COALESCE(?,notes),status=COALESCE(?,status),start_date=COALESCE(?,start_date),updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
+    notes=COALESCE(?,notes),status=COALESCE(?,status),start_date=COALESCE(?,start_date),updated_at=datetime('now') WHERE id=? AND tenant_id=?`)
     .run(b.first_name,b.last_name,b.email,b.phone,b.address,b.suburb,b.postcode,b.qualification,b.employment_type,
       b.hourly_rate_cents,b.annual_salary_cents,b.super_rate,b.max_hours_per_week,b.min_hours_per_week,b.contracted_hours,b.distance_km,
       b.first_aid!=null?b.first_aid?1:0:null,b.first_aid_expiry,b.cpr_expiry,b.anaphylaxis_expiry,b.asthma_expiry,b.wwcc_number,b.wwcc_expiry,
@@ -90,18 +90,18 @@ r.get('/educators/:id/availability', (req, res) => {
 // ═══ ABSENCE MANAGEMENT ════════════════════════════════════════════════════
 
 r.get('/absences', (req, res) => {
-  const absences = D().prepare('SELECT ea.*, e.first_name || \' \' || e.last_name as educator_name,
-    ce.first_name || \' \' || ce.last_name as cover_name
+  const absences = D().prepare(`SELECT ea.*, e.first_name || ' ' || e.last_name as educator_name,
+    ce.first_name || ' ' || ce.last_name as cover_name
     FROM educator_absences ea JOIN educators e ON e.id = ea.educator_id
     LEFT JOIN educators ce ON ce.id = ea.cover_educator_id
-    WHERE ea.tenant_id = ? ORDER BY ea.date DESC LIMIT 50').all(req.tenantId);
+    WHERE ea.tenant_id = ? ORDER BY ea.date DESC LIMIT 50`).all(req.tenantId);
   res.json({ absences });
 });
 
 r.post('/absences', (req, res) => {
   const b = req.body;
   const id = uuid();
-  D().prepare('INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)')
+  D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
     .run(id, req.tenantId, b.educator_id, b.date, b.type||'sick', b.reason, b.notice_given_mins||0, b.notified_via||'phone');
   // Update educator stats
   D().prepare('UPDATE educators SET total_sick_days = total_sick_days + 1, sick_leave_balance_hours = MAX(0, sick_leave_balance_hours - 7.6), reliability_score = MAX(0, reliability_score - 2), updated_at = datetime(\'now\') WHERE id = ?').run(b.educator_id);
@@ -113,13 +113,13 @@ r.post('/absences', (req, res) => {
 r.get('/periods', (req, res) => {
   const db = D();
   // Auto-archive published periods whose end_date has passed
-  db.prepare('UPDATE roster_periods SET status=\'archived\', updated_at=datetime(\'now\')
-    WHERE tenant_id=? AND status=\'published\' AND end_date < date(\'now\')').run(req.tenantId);
+  db.prepare(`UPDATE roster_periods SET status='archived', updated_at=datetime('now')
+    WHERE tenant_id=? AND status='published' AND end_date < date('now')`).run(req.tenantId);
 
-  const all = db.prepare('SELECT rp.*,
+  const all = db.prepare(`SELECT rp.*,
     (SELECT COUNT(*) FROM roster_entries re WHERE re.period_id = rp.id) as entry_count,
     (SELECT COUNT(DISTINCT re.educator_id) FROM roster_entries re WHERE re.period_id = rp.id) as educator_count
-    FROM roster_periods rp WHERE rp.tenant_id = ? ORDER BY rp.start_date DESC').all(req.tenantId);
+    FROM roster_periods rp WHERE rp.tenant_id = ? ORDER BY rp.start_date DESC`).all(req.tenantId);
 
   const active = all.filter(p => p.status !== 'archived');
   const archived = all.filter(p => p.status === 'archived').slice(0, 4); // last 4 only
@@ -129,11 +129,11 @@ r.get('/periods', (req, res) => {
 r.get('/periods/:id', (req, res) => {
   const period = D().prepare('SELECT * FROM roster_periods WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
   if (!period) return res.status(404).json({ error: 'Period not found' });
-  const entries = D().prepare('SELECT re.*, e.first_name || \' \' || e.last_name as educator_name,
+  const entries = D().prepare(`SELECT re.*, e.first_name || ' ' || e.last_name as educator_name,
     e.email as educator_email, e.qualification, e.hourly_rate_cents, e.reliability_score, e.employment_type,
     r.name as room_name, r.age_group
     FROM roster_entries re JOIN educators e ON e.id = re.educator_id
-    LEFT JOIN rooms r ON r.id = re.room_id WHERE re.period_id = ? ORDER BY re.date, re.start_time').all(req.params.id);
+    LEFT JOIN rooms r ON r.id = re.room_id WHERE re.period_id = ? ORDER BY re.date, re.start_time`).all(req.params.id);
   res.json({ period, entries });
 });
 
@@ -196,7 +196,7 @@ r.post('/generate', (req, res) => {
 
   const db = D();
   const rooms = db.prepare('SELECT r.*, (SELECT COUNT(*) FROM children c WHERE c.room_id = r.id) as child_count FROM rooms r WHERE r.tenant_id = ? ORDER BY r.name').all(req.tenantId);
-  const educators = db.prepare('SELECT * FROM educators WHERE tenant_id = ? AND status = \'active\' AND (termination_date IS NULL OR termination_date > date(\'now\')) ORDER BY reliability_score DESC').all(req.tenantId);
+  const educators = db.prepare(`SELECT * FROM educators WHERE tenant_id = ? AND status = 'active' AND (termination_date IS NULL OR termination_date > date('now')) ORDER BY reliability_score DESC`).all(req.tenantId);
   const availability = {};
   educators.forEach(e => {
     availability[e.id] = db.prepare('SELECT * FROM educator_availability WHERE educator_id = ?').all(e.id);
@@ -387,15 +387,15 @@ r.delete('/entries/:id', (req, res) => {
 // ═══ SICK COVER / SHIFT FILL ═══════════════════════════════════════════════
 
 r.get('/fill-requests', (req, res) => {
-  const requests = D().prepare('SELECT sfr.*, 
-    oe.first_name || \' \' || oe.last_name as original_educator_name,
-    fe.first_name || \' \' || fe.last_name as filled_by_name,
+  const requests = D().prepare(`SELECT sfr.*, 
+    oe.first_name || ' ' || oe.last_name as original_educator_name,
+    fe.first_name || ' ' || fe.last_name as filled_by_name,
     r.name as room_name
     FROM shift_fill_requests sfr 
     JOIN educators oe ON oe.id = sfr.original_educator_id
     LEFT JOIN educators fe ON fe.id = sfr.filled_by
     LEFT JOIN rooms r ON r.id = sfr.room_id
-    WHERE sfr.tenant_id = ? ORDER BY sfr.created_at DESC LIMIT 30').all(req.tenantId);
+    WHERE sfr.tenant_id = ? ORDER BY sfr.created_at DESC LIMIT 30`).all(req.tenantId);
   res.json({ requests });
 });
 
@@ -405,8 +405,8 @@ r.post('/fill-requests', (req, res) => {
   const db = D();
 
   // Create fill request
-  db.prepare('INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,
-    date,start_time,end_time,qualification_required,strategy,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+  db.prepare(`INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,
+    date,start_time,end_time,qualification_required,strategy,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, req.tenantId, b.absence_id, b.original_educator_id, b.roster_entry_id, b.room_id,
       b.date, b.start_time, b.end_time, b.qualification_required, b.strategy||'sequential', b.ai_initiated?1:0);
 
@@ -414,12 +414,12 @@ r.post('/fill-requests', (req, res) => {
   const config = db.prepare('SELECT * FROM ai_agent_config WHERE tenant_id = ? AND agent_type = ?').get(req.tenantId, 'sick_cover');
 
   // Find candidates based on priority
-  const candidates = db.prepare('SELECT e.*, ea.start_time as avail_start, ea.end_time as avail_end
+  const candidates = db.prepare(`SELECT e.*, ea.start_time as avail_start, ea.end_time as avail_end
     FROM educators e JOIN educator_availability ea ON ea.educator_id = e.id
-    WHERE e.tenant_id = ? AND e.status = \'active\' AND (e.termination_date IS NULL OR e.termination_date > date(\'now\')) AND e.id != ?
+    WHERE e.tenant_id = ? AND e.status = 'active' AND (e.termination_date IS NULL OR e.termination_date > date('now')) AND e.id != ?
     AND ea.day_of_week = ? AND ea.available = 1
     AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date = ? AND tenant_id = ?)
-    ORDER BY e.reliability_score DESC, e.distance_km ASC')
+    ORDER BY e.reliability_score DESC, e.distance_km ASC`)
     .all(req.tenantId, b.original_educator_id, new Date(b.date).getDay(), b.date, req.tenantId);
 
   // Check qualification match
@@ -444,10 +444,10 @@ r.post('/fill-requests', (req, res) => {
 });
 
 r.get('/fill-requests/:id/attempts', (req, res) => {
-  const attempts = D().prepare('SELECT sfa.*, e.first_name || \' \' || e.last_name as educator_name,
+  const attempts = D().prepare(`SELECT sfa.*, e.first_name || ' ' || e.last_name as educator_name,
     e.phone, e.reliability_score, e.distance_km
     FROM shift_fill_attempts sfa JOIN educators e ON e.id = sfa.educator_id
-    WHERE sfa.request_id = ? ORDER BY e.reliability_score DESC').all(req.params.id);
+    WHERE sfa.request_id = ? ORDER BY e.reliability_score DESC`).all(req.params.id);
   res.json({ attempts });
 });
 
@@ -484,7 +484,7 @@ r.put('/ai-config', (req, res) => {
   const b = req.body;
   const existing = D().prepare('SELECT id FROM ai_agent_config WHERE tenant_id = ? AND agent_type = ?').get(req.tenantId, b.agent_type || 'sick_cover');
   if (existing) {
-    D().prepare('UPDATE ai_agent_config SET enabled=COALESCE(?,enabled),contact_strategy=COALESCE(?,contact_strategy),
+    D().prepare(`UPDATE ai_agent_config SET enabled=COALESCE(?,enabled),contact_strategy=COALESCE(?,contact_strategy),
       send_sms_first=COALESCE(?,send_sms_first),sms_wait_mins=COALESCE(?,sms_wait_mins),call_wait_mins=COALESCE(?,call_wait_mins),
       max_attempts_per_educator=COALESCE(?,max_attempts_per_educator),simultaneous_contacts=COALESCE(?,simultaneous_contacts),
       priority_order=COALESCE(?,priority_order),sms_template=COALESCE(?,sms_template),call_script_guidance=COALESCE(?,call_script_guidance),
@@ -494,7 +494,7 @@ r.put('/ai-config', (req, res) => {
       working_hours_start=COALESCE(?,working_hours_start),working_hours_end=COALESCE(?,working_hours_end),
       auto_approve_fill=COALESCE(?,auto_approve_fill),notify_manager_on_fill=COALESCE(?,notify_manager_on_fill),
       notify_manager_on_fail=COALESCE(?,notify_manager_on_fail),manager_phone=COALESCE(?,manager_phone),
-      manager_email=COALESCE(?,manager_email),manager_user_id=COALESCE(?,manager_user_id),updated_at=datetime(\'now\') WHERE id=?')
+      manager_email=COALESCE(?,manager_email),manager_user_id=COALESCE(?,manager_user_id),updated_at=datetime('now') WHERE id=?`)
       .run(b.enabled!=null?b.enabled?1:0:null, b.contact_strategy, b.send_sms_first!=null?b.send_sms_first?1:0:null,
         b.sms_wait_mins, b.call_wait_mins, b.max_attempts_per_educator, b.simultaneous_contacts,
         b.priority_order, b.sms_template, b.call_script_guidance,
@@ -506,7 +506,7 @@ r.put('/ai-config', (req, res) => {
         b.notify_manager_on_fail!=null?b.notify_manager_on_fail?1:0:null,
         b.manager_phone, b.manager_email, b.manager_user_id || null, existing.id);
   } else {
-    D().prepare('INSERT INTO ai_agent_config (id,tenant_id,agent_type,enabled) VALUES(?,?,?,1)').run(uuid(), req.tenantId, b.agent_type || 'sick_cover');
+    D().prepare(`INSERT INTO ai_agent_config (id,tenant_id,agent_type,enabled) VALUES(?,?,?,1)`).run(uuid(), req.tenantId, b.agent_type || 'sick_cover');
   }
   res.json({ ok: true });
 });
@@ -539,11 +539,11 @@ r.get('/stats', (req, res) => {
   // Weekly cost summary for the active period
   let weeklyCost = { total_cents: 0, budget_cents: 0, days: [] };
   if (activePeriod) {
-    const costRows = db.prepare('
+    const costRows = db.prepare(`
       SELECT date, SUM(cost_cents) as day_cost, COUNT(*) as shifts
       FROM roster_entries WHERE period_id=? AND tenant_id=?
       GROUP BY date ORDER BY date
-    ').all(activePeriod.id, req.tenantId);
+    `).all(activePeriod.id, req.tenantId);
     weeklyCost = {
       total_cents: costRows.reduce((s,r) => s+(r.day_cost||0), 0),
       budget_cents: activePeriod.weekly_budget_cents || 0,
@@ -581,13 +581,13 @@ r.post('/availability-optimise', (req, res) => {
     `).all(...[targetDate, req.tenantId, ...(period_id ? [period_id] : [])]);
 
     // Get child attendance patterns for this day of week
-    const patterns = db.prepare('
-      SELECT AVG(CAST(strftime(\'%H\',sign_in) AS INTEGER)*60 + CAST(strftime(\'%M\',sign_in) AS INTEGER)) as avg_arrival,
-             AVG(CAST(strftime(\'%H\',sign_out) AS INTEGER)*60 + CAST(strftime(\'%M\',sign_out) AS INTEGER)) as avg_departure,
+    const patterns = db.prepare(`
+      SELECT AVG(CAST(strftime('%H',sign_in) AS INTEGER)*60 + CAST(strftime('%M',sign_in) AS INTEGER)) as avg_arrival,
+             AVG(CAST(strftime('%H',sign_out) AS INTEGER)*60 + CAST(strftime('%M',sign_out) AS INTEGER)) as avg_departure,
              COUNT(*) as sessions
       FROM attendance_sessions
-      WHERE tenant_id = ? AND strftime(\'%w\', sign_in) = ? AND sign_in IS NOT NULL
-    ').get(req.tenantId, String(dow));
+      WHERE tenant_id = ? AND strftime('%w', sign_in) = ? AND sign_in IS NOT NULL
+    `).get(req.tenantId, String(dow));
 
     const avgArrival   = Math.round(patterns?.avg_arrival || 420);   // default 7:00
     const avgDeparture = Math.round(patterns?.avg_departure || 960);  // default 16:00
@@ -675,7 +675,7 @@ function db_module_put_entry(db, id, tenantId, fields) {
   if (fields.lunch_start!== undefined) { sets.push('lunch_start=?');vals.push(fields.lunch_start); }
   if (fields.is_lunch_cover!==undefined){sets.push('is_lunch_cover=?');vals.push(fields.is_lunch_cover?1:0);}
   if (fields.room_id    !== undefined) { sets.push('room_id=?');    vals.push(fields.room_id); }
-  if (sets.length) { const _rsSql = 'UPDATE roster_entries SET ' + sets.join(',') + ' WHERE id=? AND tenant_id=?'; db.prepare(_rsSql).run(...vals, id, tenantId); }
+  if (sets.length) db.prepare('UPDATE roster_entries SET ' + sets.join(',') + ' WHERE id=? AND tenant_id=?').run(...vals, id, tenantId);
 }
 
 // ─── SICK COVER OPTIMISATION ENGINE ──────────────────────────────────────────
@@ -693,14 +693,14 @@ r.post('/sick-cover-optimise', (req, res) => {
     const shiftEnd   = absentEntry ? timeToMins(absentEntry.end_time)   : 900; // 15:00
 
     // Get all educators rostered on that day
-    const rostered = db.prepare('
+    const rostered = db.prepare(`
       SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents,
         e.can_start_earlier_mins, e.can_finish_later_mins, e.reliability_score
       FROM roster_entries re
       JOIN educators e ON re.educator_id = e.id
       WHERE re.date=? AND re.tenant_id=? AND re.educator_id != ?
       ORDER BY re.start_time
-    ').all(targetDate, req.tenantId, absent_educator_id || '');
+    `).all(targetDate, req.tenantId, absent_educator_id || '');
 
     const options = [];
 
@@ -745,13 +745,13 @@ r.post('/sick-cover-optimise', (req, res) => {
     }
 
     // Option C: Call in a casual from off-roster
-    const casuals = db.prepare('
+    const casuals = db.prepare(`
       SELECT e.* FROM educators e
-      WHERE e.tenant_id=? AND e.employment_type=\'casual\' AND e.status=\'active\' AND (e.termination_date IS NULL OR e.termination_date > date(\'now\'))
+      WHERE e.tenant_id=? AND e.employment_type='casual' AND e.status='active' AND (e.termination_date IS NULL OR e.termination_date > date('now'))
         AND e.id != ?
         AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date=? AND tenant_id=?)
       ORDER BY e.reliability_score DESC LIMIT 3
-    ').all(req.tenantId, absent_educator_id || '', targetDate, req.tenantId);
+    `).all(req.tenantId, absent_educator_id || '', targetDate, req.tenantId);
 
     casuals.forEach(c => {
       const hours = (shiftEnd - shiftStart) / 60;
@@ -790,12 +790,12 @@ r.get('/attendance-patterns', (req, res) => {
     const db = D();
 
     // Get attendance sessions for the period
-    const sessions = db.prepare('
+    const sessions = db.prepare(`
       SELECT a.*, c.room_id FROM attendance_sessions a
       LEFT JOIN children c ON a.child_id = c.id
       WHERE a.tenant_id=? AND a.sign_in >= ?
       ORDER BY a.sign_in
-    ').all(req.tenantId, sinceDate.toISOString());
+    `).all(req.tenantId, sinceDate.toISOString());
 
     const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const byDay = {};
@@ -971,13 +971,13 @@ r.get('/timesheet', (req, res) => {
     const db = D();
     let entries;
     if (period_id) {
-      entries = db.prepare('SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents, e.employment_type, e.contracted_hours
+      entries = db.prepare(`SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents, e.employment_type, e.contracted_hours
         FROM roster_entries re JOIN educators e ON e.id = re.educator_id
-        WHERE re.period_id = ? AND re.tenant_id = ? ORDER BY e.last_name, re.date').all(period_id, req.tenantId);
+        WHERE re.period_id = ? AND re.tenant_id = ? ORDER BY e.last_name, re.date`).all(period_id, req.tenantId);
     } else if (start_date && end_date) {
-      entries = db.prepare('SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents, e.employment_type, e.contracted_hours
+      entries = db.prepare(`SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents, e.employment_type, e.contracted_hours
         FROM roster_entries re JOIN educators e ON e.id = re.educator_id
-        WHERE re.date >= ? AND re.date <= ? AND re.tenant_id = ? ORDER BY e.last_name, re.date').all(start_date, end_date, req.tenantId);
+        WHERE re.date >= ? AND re.date <= ? AND re.tenant_id = ? ORDER BY e.last_name, re.date`).all(start_date, end_date, req.tenantId);
     } else {
       return res.status(400).json({ error: 'period_id or start_date+end_date required' });
     }
@@ -1036,12 +1036,12 @@ r.get('/room-compliance/:periodId/:date', (req, res) => {
   try {
     const { periodId, date } = req.params;
     const db = D();
-    const entries = db.prepare('
+    const entries = db.prepare(`
       SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents
       FROM roster_entries re JOIN educators e ON e.id=re.educator_id
       WHERE re.period_id=? AND re.date=? AND re.tenant_id=?
-    ').all(periodId, date, req.tenantId);
-    const rooms = db.prepare('SELECT r.*, (SELECT COUNT(*) FROM children c WHERE c.room_id=r.id) as child_count FROM rooms r WHERE r.tenant_id=? ORDER BY r.name').all(req.tenantId);
+    `).all(periodId, date, req.tenantId);
+    const rooms = db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM children c WHERE c.room_id=r.id) as child_count FROM rooms r WHERE r.tenant_id=? ORDER BY r.name`).all(req.tenantId);
     const AGE_MAP = {'babies':'babies','0-2':'babies','toddlers':'toddlers','2-3':'toddlers','preschool':'preschool','3-4':'preschool','3-5':'preschool','4-5':'preschool','oshc':'oshc','school_age':'oshc'};
     const NQF = {babies:{ratio:4,ect_required:true},toddlers:{ratio:5,ect_required:false},preschool:{ratio:11,ect_required:true},oshc:{ratio:15,ect_required:false}};
     const compliance = rooms.map(room => {
@@ -1065,7 +1065,7 @@ r.get('/periods/:id/roster-data', (req, res) => {
     const period = D().prepare('SELECT * FROM roster_periods WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!period) return res.status(404).json({ error: 'Period not found' });
 
-    const entries = D().prepare('
+    const entries = D().prepare(`
       SELECT re.*, e.first_name, e.last_name, e.qualification, e.email, e.phone,
              e.hourly_rate_cents, r.name as room_name, r.age_group
       FROM roster_entries re
@@ -1073,7 +1073,7 @@ r.get('/periods/:id/roster-data', (req, res) => {
       LEFT JOIN rooms r ON r.id=re.room_id
       WHERE re.period_id=? AND re.tenant_id=?
       ORDER BY re.date, re.start_time, e.first_name
-    ').all(req.params.id, req.tenantId);
+    `).all(req.params.id, req.tenantId);
 
     // Group by educator
     const byEducator = {};
@@ -1120,19 +1120,19 @@ r.post('/periods/:id/email-roster', async (req, res) => {
     let eduQuery = include_all
       ? D().prepare('SELECT DISTINCT e.id, e.first_name, e.last_name, e.email FROM educators e JOIN roster_entries re ON re.educator_id=e.id WHERE re.period_id=? AND re.tenant_id=? AND e.email IS NOT NULL AND e.email != ""')
           .all(req.params.id, req.tenantId)
-      : D().prepare((() => { const _s = 'SELECT id, first_name, last_name, email FROM educators WHERE id IN (' + educator_ids.map(()=>'?').join(',') + ') AND tenant_id=? AND email IS NOT NULL'; return _s; })())
+      : D().prepare('SELECT id, first_name, last_name, email FROM educators WHERE id IN (' + educator_ids.map(()=>'?').join(',') + ') AND tenant_id=? AND email IS NOT NULL')
           .all(...educator_ids, req.tenantId);
 
     let sent = 0, skipped = 0;
     for (const edu of eduQuery) {
       if (!edu.email) { skipped++; continue; }
       // Get this educator's shifts
-      const shifts = D().prepare('
+      const shifts = D().prepare(`
         SELECT re.date, re.start_time, re.end_time, re.break_mins, r.name as room_name
         FROM roster_entries re LEFT JOIN rooms r ON r.id=re.room_id
         WHERE re.period_id=? AND re.educator_id=? AND re.tenant_id=?
         ORDER BY re.date, re.start_time
-      ').all(req.params.id, edu.id, req.tenantId);
+      `).all(req.params.id, edu.id, req.tenantId);
 
       const shiftsText = shifts.map(s =>
         `  ${new Date(s.date+'T12:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}: ${s.start_time}–${s.end_time} (${s.room_name||'Unassigned'})`

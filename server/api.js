@@ -19,11 +19,11 @@ router.use(requireTenant);
 // ─── TENANT INFO ────────────────────────────────────────────────────────────────
 router.get('/tenant', (req, res) => {
   const tenant = D().prepare('SELECT * FROM tenants WHERE id = ?').get(req.tenantId);
-  const members = D().prepare('
+  const members = D().prepare(`
     SELECT tm.id, tm.role, tm.qualification, tm.first_aid, tm.wwcc, tm.wwcc_expiry,
            tm.is_under_18, tm.active, tm.joined_at, u.id as user_id, u.email, u.name, u.avatar_url
     FROM tenant_members tm JOIN users u ON u.id = tm.user_id WHERE tm.tenant_id = ? ORDER BY u.name
-  ').all(req.tenantId);
+  `).all(req.tenantId);
   res.json({ tenant, members });
 });
 
@@ -70,10 +70,10 @@ router.get('/rooms/debug', requireAuth, requireTenant, (req, res) => {
 
 router.get('/rooms', requireAuth, requireTenant, (req, res) => {
   try {
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT r.*, (SELECT COUNT(*) FROM children c WHERE c.room_id = r.id ) as child_count
       FROM rooms r WHERE r.tenant_id = ? ORDER BY r.name
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     console.log(`[GET /rooms] tenant=${req.tenantId} role=${req.tenantRole} found=${rows.length} rooms`);
     res.json(rows.map(r => ({ ...r, current_children: r.child_count || r.current_children || 0 })));
   } catch(e) {
@@ -303,12 +303,12 @@ router.get('/me', (req, res) => {
 router.get('/attendance-peak', (req, res) => {
   try {
     // Get sign_in/sign_out from attendance_sessions for last 30 days
-    const sessions = D().prepare('
+    const sessions = D().prepare(`
       SELECT sign_in, sign_out, date FROM attendance_sessions
-      WHERE tenant_id=? AND date >= date(\'now\',\'-30 days\',\'localtime\')
+      WHERE tenant_id=? AND date >= date('now','-30 days','localtime')
       AND sign_in IS NOT NULL AND absent=0
       ORDER BY date
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     // Build hourly buckets 6am-7pm
     const buckets = {};
@@ -363,7 +363,7 @@ router.get('/dashboard/today', async (req, res) => {
     const tid = req.tenantId;
 
     // Children attendance today
-    const attendance = db.prepare('
+    const attendance = db.prepare(`
       SELECT c.id, c.first_name, c.last_name, c.room_id, c.dob,
              a.sign_in_time, a.sign_out_time, a.absent, a.absent_reason
       FROM children c
@@ -373,10 +373,10 @@ router.get('/dashboard/today', async (req, res) => {
       ) a ON a.child_id=c.id
       WHERE c.tenant_id=? 
       ORDER BY c.first_name
-    ').all(today, tid, tid);
+    `).all(today, tid, tid);
 
     // Upcoming birthdays (next 14 days)
-    const allChildren = db.prepare('SELECT id,first_name,last_name,dob FROM children WHERE tenant_id=? ').all(tid);
+    const allChildren = db.prepare(`SELECT id,first_name,last_name,dob FROM children WHERE tenant_id=? `).all(tid);
     const todayD = new Date(); todayD.setHours(0,0,0,0);
     const birthdays = allChildren.filter(c => {
       if (!c.dob) return false;
@@ -393,45 +393,45 @@ router.get('/dashboard/today', async (req, res) => {
     }).sort((a,b) => a.days_until - b.days_until);
 
     // Pending enrolment applications
-    const pendingEnrolments = db.prepare('SELECT COUNT(*) as c FROM enrolment_applications WHERE tenant_id=? AND status IN (\'submitted\',\'reviewing\')').get(tid)?.c || 0;
+    const pendingEnrolments = db.prepare(`SELECT COUNT(*) as c FROM enrolment_applications WHERE tenant_id=? AND status IN ('submitted','reviewing')`).get(tid)?.c || 0;
 
     // Expiring certs (next 30 days)
-    const expiring = db.prepare('
+    const expiring = db.prepare(`
       SELECT first_name, last_name, 
-        CASE WHEN first_aid_expiry <= date(\'now\',\'+30 days\') AND first_aid_expiry > date(\'now\') THEN \'First Aid\' 
-             WHEN cpr_expiry <= date(\'now\',\'+30 days\') AND cpr_expiry > date(\'now\') THEN \'CPR\'
-             WHEN wwcc_expiry <= date(\'now\',\'+30 days\') AND wwcc_expiry > date(\'now\') THEN \'WWCC\'
+        CASE WHEN first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now') THEN 'First Aid' 
+             WHEN cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now') THEN 'CPR'
+             WHEN wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now') THEN 'WWCC'
         END as cert_type,
-        CASE WHEN first_aid_expiry <= date(\'now\',\'+30 days\') AND first_aid_expiry > date(\'now\') THEN first_aid_expiry
-             WHEN cpr_expiry <= date(\'now\',\'+30 days\') AND cpr_expiry > date(\'now\') THEN cpr_expiry
-             WHEN wwcc_expiry <= date(\'now\',\'+30 days\') AND wwcc_expiry > date(\'now\') THEN wwcc_expiry
+        CASE WHEN first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now') THEN first_aid_expiry
+             WHEN cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now') THEN cpr_expiry
+             WHEN wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now') THEN wwcc_expiry
         END as expires_on
-      FROM educators WHERE tenant_id=? AND status=\'active\'
+      FROM educators WHERE tenant_id=? AND status='active'
         AND (
-          (first_aid_expiry <= date(\'now\',\'+30 days\') AND first_aid_expiry > date(\'now\')) OR
-          (cpr_expiry <= date(\'now\',\'+30 days\') AND cpr_expiry > date(\'now\')) OR
-          (wwcc_expiry <= date(\'now\',\'+30 days\') AND wwcc_expiry > date(\'now\'))
+          (first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now')) OR
+          (cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now')) OR
+          (wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now'))
         )
       ORDER BY expires_on LIMIT 5
-    ').all(tid);
+    `).all(tid);
 
     // Overdue invoices
     let overdueInvoices = 0;
-    try { overdueInvoices = db.prepare('SELECT COUNT(*) as c FROM invoices WHERE tenant_id=? AND status=\'overdue\'').get(tid)?.c || 0; } catch(e) {}
+    try { overdueInvoices = db.prepare(`SELECT COUNT(*) as c FROM invoices WHERE tenant_id=? AND status='overdue'`).get(tid)?.c || 0; } catch(e) {}
 
     // Pending leave requests
     let pendingLeave = 0;
-    try { pendingLeave = db.prepare('SELECT COUNT(*) as c FROM leave_requests WHERE tenant_id=? AND status=\'pending\'').get(tid)?.c || 0; } catch(e) {}
+    try { pendingLeave = db.prepare(`SELECT COUNT(*) as c FROM leave_requests WHERE tenant_id=? AND status='pending'`).get(tid)?.c || 0; } catch(e) {}
 
     // Today's roster summary
-    const rosterToday = db.prepare('
+    const rosterToday = db.prepare(`
       SELECT COUNT(*) as total_shifts,
-             SUM(CASE WHEN re.status=\'confirmed\' THEN 1 ELSE 0 END) as confirmed,
-             SUM(CASE WHEN re.status=\'unfilled\' THEN 1 ELSE 0 END) as unfilled
+             SUM(CASE WHEN re.status='confirmed' THEN 1 ELSE 0 END) as confirmed,
+             SUM(CASE WHEN re.status='unfilled' THEN 1 ELSE 0 END) as unfilled
       FROM roster_entries re
       JOIN roster_periods rp ON rp.id=re.period_id
-      WHERE re.date=? AND re.tenant_id=? AND rp.status=\'published\'
-    ').get(today, tid) || { total_shifts:0, confirmed:0, unfilled:0 };
+      WHERE re.date=? AND re.tenant_id=? AND rp.status='published'
+    `).get(today, tid) || { total_shifts:0, confirmed:0, unfilled:0 };
 
     const present = attendance.filter(a => a.sign_in_time && !a.sign_out_time).length;
     const absent = attendance.filter(a => a.absent).length;
@@ -441,16 +441,16 @@ router.get('/dashboard/today', async (req, res) => {
     // Today's educators on roster
     let todayEducators = [];
     try {
-      todayEducators = db.prepare('
+      todayEducators = db.prepare(`
         SELECT e.first_name, e.last_name, e.qualification,
                re.start_time, re.end_time, r.name as room_name
         FROM roster_entries re
         JOIN educators e ON e.id=re.educator_id
         LEFT JOIN rooms r ON r.id=re.room_id
         JOIN roster_periods rp ON rp.id=re.period_id
-        WHERE re.date=? AND re.tenant_id=? AND rp.status=\'published\'
+        WHERE re.date=? AND re.tenant_id=? AND rp.status='published'
         ORDER BY re.start_time
-      ').all(today, tid);
+      `).all(today, tid);
     } catch(e) {}
 
     res.json({
@@ -472,12 +472,12 @@ export default router;
 // ─── ROOM EDUCATOR ASSIGNMENTS v1.9.5 ─────────────────────────────────────────
 router.get('/rooms/:id/educators', requireAuth, requireTenant, (req, res) => {
   try {
-    const educators = D().prepare('
+    const educators = D().prepare(`
       SELECT u.id, u.name, u.email, u.role, u.qualifications, u.wwcc_number, u.photo_url
       FROM users u
       JOIN educator_room_assignments era ON era.educator_id = u.id
       WHERE era.room_id = ? AND era.tenant_id = ? AND u.active = 1
-    ').all(req.params.id, req.tenantId);
+    `).all(req.params.id, req.tenantId);
     res.json(educators);
   } catch(err) { res.json([]); }
 });

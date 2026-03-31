@@ -36,27 +36,27 @@ r.get('/recipients', (req, res) => {
         ORDER BY r.name, c.last_name
       `).all(req.tenantId, ...rooms);
     } else if (target_audience === 'educators') {
-      query = D().prepare('
+      query = D().prepare(`
         SELECT e.id as educator_id, e.first_name, e.last_name,
                u.email, u.name as display_name
         FROM educators e
         LEFT JOIN users u ON u.id=e.user_id
-        WHERE e.tenant_id=? AND e.status=\'active\' AND u.email IS NOT NULL
-      ').all(req.tenantId);
+        WHERE e.tenant_id=? AND e.status='active' AND u.email IS NOT NULL
+      `).all(req.tenantId);
     } else {
       // All families
-      query = D().prepare('
+      query = D().prepare(`
         SELECT c.id as child_id, c.first_name, c.last_name, c.room_id,
                r.name as room_name,
                tm.user_id, u.email, u.name as parent_name
         FROM children c
         JOIN rooms r ON r.id=c.room_id
-        LEFT JOIN tenant_members tm ON tm.tenant_id=c.tenant_id AND tm.role=\'parent\'
+        LEFT JOIN tenant_members tm ON tm.tenant_id=c.tenant_id AND tm.role='parent'
         LEFT JOIN users u ON u.id=tm.user_id
         WHERE c.tenant_id=? AND c.active=1
         GROUP BY c.id
         ORDER BY r.name, c.last_name
-      ').all(req.tenantId);
+      `).all(req.tenantId);
     }
 
     res.json({ recipients: query, count: query.length });
@@ -90,12 +90,12 @@ r.post('/send', (req, res) => {
     }
 
     const msgId = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO bulk_messages
         (id, tenant_id, message_type, subject, body, channels, target_audience,
          target_room_ids, recipient_count, status, sent_at, created_by)
-      VALUES (?,?,?,?,?,?,?,?,?,\'sent\',datetime(\'now\'),?)
-    ').run(msgId, req.tenantId, message_type,
+      VALUES (?,?,?,?,?,?,?,?,?,'sent',datetime('now'),?)
+    `).run(msgId, req.tenantId, message_type,
            subject || 'Message from Centre',
            body,
            JSON.stringify(channels),
@@ -105,23 +105,23 @@ r.post('/send', (req, res) => {
            created_by || null);
 
     // Create in-app threads for each child's family
-    const insertRcpt = D().prepare('
+    const insertRcpt = D().prepare(`
       INSERT INTO bulk_message_recipients
         (id, tenant_id, message_id, child_id, status, sent_at)
-      VALUES (?,?,?,?,\'sent\',datetime(\'now\'))
-    ');
+      VALUES (?,?,?,?,'sent',datetime('now'))
+    `);
 
-    const insertThread = D().prepare('
+    const insertThread = D().prepare(`
       INSERT INTO message_threads
         (id, tenant_id, child_id, subject, last_message_preview, unread_parent, status)
-      VALUES (?,?,?,?,?,1,\'open\')
-    ');
+      VALUES (?,?,?,?,?,1,'open')
+    `);
 
-    const insertMsg = D().prepare('
+    const insertMsg = D().prepare(`
       INSERT INTO thread_messages
         (id, tenant_id, thread_id, sender_type, sender_name, body)
-      VALUES (?,?,?,\'admin\',\'Centre\',?)
-    ');
+      VALUES (?,?,?,'admin','Centre',?)
+    `);
 
     D().transaction(() => {
       for (const child of children) {
@@ -153,7 +153,7 @@ r.post('/send', (req, res) => {
 // ── Message history ───────────────────────────────────────────────────────────
 r.get('/history', (req, res) => {
   try {
-    const msgs = D().prepare('
+    const msgs = D().prepare(`
       SELECT m.*, 
         (SELECT GROUP_CONCAT(DISTINCT ro.name)
          FROM json_each(m.target_room_ids) AS jr
@@ -163,7 +163,7 @@ r.get('/history', (req, res) => {
       WHERE m.tenant_id=?
       ORDER BY m.created_at DESC
       LIMIT 50
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({
       messages: msgs.map(m => ({
@@ -178,11 +178,11 @@ r.get('/history', (req, res) => {
 // ── Child timeline ────────────────────────────────────────────────────────────
 r.get('/timeline/:childId', (req, res) => {
   try {
-    const child = D().prepare('
+    const child = D().prepare(`
       SELECT c.*, r.name as room_name
       FROM children c LEFT JOIN rooms r ON r.id=c.room_id
       WHERE c.id=? AND c.tenant_id=?
-    ').get(req.params.childId, req.tenantId);
+    `).get(req.params.childId, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Child not found' });
 
     const events = [];
@@ -193,10 +193,10 @@ r.get('/timeline/:childId', (req, res) => {
     }
 
     // Observations
-    const observations = D().prepare('
+    const observations = D().prepare(`
       SELECT id, created_at, notes, category, eylf_links, educator_id
       FROM observations WHERE child_id=? ORDER BY created_at DESC LIMIT 50
-    ').all(req.params.childId);
+    `).all(req.params.childId);
     observations.forEach(o => {
       events.push({
         date: o.created_at?.split('T')[0],
@@ -212,10 +212,10 @@ r.get('/timeline/:childId', (req, res) => {
 
     // Learning stories
     try {
-      const stories = D().prepare('
+      const stories = D().prepare(`
         SELECT id, created_at, title, story_type FROM learning_stories
         WHERE child_id=? ORDER BY created_at DESC LIMIT 30
-      ').all(req.params.childId);
+      `).all(req.params.childId);
       stories.forEach(s => {
         events.push({ date: s.created_at?.split('T')[0], datetime: s.created_at, type: 'story', icon: '✨', title: s.title || 'Learning Story', detail: s.story_type, color: '#7C3AED', id: s.id });
       });
@@ -223,10 +223,10 @@ r.get('/timeline/:childId', (req, res) => {
 
     // Health events
     try {
-      const health = D().prepare('
+      const health = D().prepare(`
         SELECT id, event_date, event_type, description, temperature
         FROM health_events WHERE child_id=? AND tenant_id=? ORDER BY event_date DESC LIMIT 20
-      ').all(req.params.childId, req.tenantId);
+      `).all(req.params.childId, req.tenantId);
       health.forEach(h => {
         events.push({ date: h.event_date, type: 'health', icon: h.event_type === 'injury' ? '🩹' : '🤒', title: `Health event — ${h.event_type}`, detail: h.description?.slice(0,100), color: '#D97706', id: h.id });
       });
@@ -234,10 +234,10 @@ r.get('/timeline/:childId', (req, res) => {
 
     // Incidents
     try {
-      const incidents = D().prepare('
+      const incidents = D().prepare(`
         SELECT id, created_at, title, severity FROM incidents
         WHERE child_id=? AND tenant_id=? ORDER BY created_at DESC LIMIT 20
-      ').all(req.params.childId, req.tenantId);
+      `).all(req.params.childId, req.tenantId);
       incidents.forEach(i => {
         events.push({ date: i.created_at?.split('T')[0], datetime: i.created_at, type: 'incident', icon: '⚠️', title: i.title || 'Incident report', detail: `Severity: ${i.severity}`, color: '#DC2626', id: i.id });
       });
@@ -245,10 +245,10 @@ r.get('/timeline/:childId', (req, res) => {
 
     // Milestones achieved
     try {
-      const milestones = D().prepare('
+      const milestones = D().prepare(`
         SELECT milestone_key, milestone_label, domain, achieved_date
         FROM milestone_records WHERE child_id=? AND achieved=1 ORDER BY achieved_date DESC LIMIT 30
-      ').all(req.params.childId);
+      `).all(req.params.childId);
       milestones.forEach(m => {
         if (m.achieved_date) {
           events.push({ date: m.achieved_date, type: 'milestone', icon: '🌱', title: `Milestone: ${m.milestone_label}`, detail: m.domain, color: '#16A34A' });
@@ -258,10 +258,10 @@ r.get('/timeline/:childId', (req, res) => {
 
     // Immunisations
     try {
-      const imm = D().prepare('
+      const imm = D().prepare(`
         SELECT vaccine_name, date_given FROM immunisation_records
         WHERE child_id=? AND date_given IS NOT NULL ORDER BY date_given DESC LIMIT 20
-      ').all(req.params.childId);
+      `).all(req.params.childId);
       imm.forEach(i => {
         events.push({ date: i.date_given, type: 'immunisation', icon: '💉', title: `Vaccine: ${i.vaccine_name}`, detail: 'Immunisation recorded', color: '#0E7490' });
       });
@@ -269,11 +269,11 @@ r.get('/timeline/:childId', (req, res) => {
 
     // Excursions attended
     try {
-      const excursions = D().prepare('
+      const excursions = D().prepare(`
         SELECT e.title, e.excursion_date FROM excursions e
         JOIN excursion_children ec ON ec.excursion_id=e.id
         WHERE ec.child_id=? AND e.tenant_id=? ORDER BY e.excursion_date DESC LIMIT 20
-      ').all(req.params.childId, req.tenantId);
+      `).all(req.params.childId, req.tenantId);
       excursions.forEach(ex => {
         events.push({ date: ex.excursion_date, type: 'excursion', icon: '🚌', title: `Excursion: ${ex.title}`, detail: 'Participated in excursion', color: '#9333EA' });
       });
@@ -281,11 +281,11 @@ r.get('/timeline/:childId', (req, res) => {
 
     // Room changes
     try {
-      const roomChanges = D().prepare('
+      const roomChanges = D().prepare(`
         SELECT al.performed_at, al.detail FROM activity_log al
-        WHERE al.entity_type=\'child\' AND al.entity_id=? AND al.action=\'room_change\'
+        WHERE al.entity_type='child' AND al.entity_id=? AND al.action='room_change'
         ORDER BY al.performed_at DESC LIMIT 10
-      ').all(req.params.childId);
+      `).all(req.params.childId);
       roomChanges.forEach(rc => {
         events.push({ date: rc.performed_at?.split('T')[0], datetime: rc.performed_at, type: 'room_change', icon: '🏠', title: 'Room Change', detail: rc.detail, color: '#6B7280' });
       });
@@ -333,13 +333,13 @@ r.get('/activity', (req, res) => {
     `).all(...vals, parseInt(limit));
 
     // Summary by entity type
-    const summary = D().prepare('
+    const summary = D().prepare(`
       SELECT entity_type, COUNT(*) as count
       FROM activity_log
       WHERE tenant_id=? AND performed_at >= ?
       GROUP BY entity_type
       ORDER BY count DESC
-    ').all(req.tenantId, since);
+    `).all(req.tenantId, since);
 
     res.json({ logs, summary });
   } catch(e) { res.status(500).json({ error: e.message }); }

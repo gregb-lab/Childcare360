@@ -48,24 +48,24 @@ r.get('/summary', (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const monthStart = today.slice(0,7) + '-01';
 
-    const summary = D().prepare('
+    const summary = D().prepare(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status=\'draft\' THEN 1 ELSE 0 END) as drafts,
-        SUM(CASE WHEN status=\'issued\' THEN 1 ELSE 0 END) as issued,
-        SUM(CASE WHEN status=\'overdue\' THEN 1 ELSE 0 END) as overdue,
-        SUM(CASE WHEN status=\'paid\' THEN 1 ELSE 0 END) as paid_count,
-        SUM(CASE WHEN status IN (\'issued\',\'overdue\') THEN amount_due*100 ELSE 0 END) as outstanding_cents,
-        SUM(CASE WHEN status=\'paid\' AND paid_at >= ? THEN amount_paid*100 ELSE 0 END) as collected_this_month_cents,
-        SUM(CASE WHEN status=\'overdue\' THEN amount_due*100 ELSE 0 END) as overdue_cents
+        SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END) as drafts,
+        SUM(CASE WHEN status='issued' THEN 1 ELSE 0 END) as issued,
+        SUM(CASE WHEN status='overdue' THEN 1 ELSE 0 END) as overdue,
+        SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) as paid_count,
+        SUM(CASE WHEN status IN ('issued','overdue') THEN amount_due*100 ELSE 0 END) as outstanding_cents,
+        SUM(CASE WHEN status='paid' AND paid_at >= ? THEN amount_paid*100 ELSE 0 END) as collected_this_month_cents,
+        SUM(CASE WHEN status='overdue' THEN amount_due*100 ELSE 0 END) as overdue_cents
       FROM invoices WHERE tenant_id=?
-    ').get(monthStart, req.tenantId);
+    `).get(monthStart, req.tenantId);
 
     // Auto-update overdue status
-    D().prepare('
-      UPDATE invoices SET status=\'overdue\'
-      WHERE tenant_id=? AND status=\'issued\' AND due_date < date(\'now\')
-    ').run(req.tenantId);
+    D().prepare(`
+      UPDATE invoices SET status='overdue'
+      WHERE tenant_id=? AND status='issued' AND due_date < date('now')
+    `).run(req.tenantId);
 
     const pendingPlans = D().prepare(
       "SELECT COUNT(*) as n FROM payment_plans WHERE tenant_id=? AND status='active'"
@@ -125,7 +125,7 @@ r.get('/invoices', (req, res) => {
 // ── Invoice detail ────────────────────────────────────────────────────────────
 r.get('/invoices/:id', (req, res) => {
   try {
-    const invoice = D().prepare('
+    const invoice = D().prepare(`
       SELECT i.*, c.first_name, c.last_name, c.dob, c.crn_number,
              r.name as room_name, r.age_group,
              cd.ccs_percentage, cd.ccs_hours_fortnight
@@ -134,7 +134,7 @@ r.get('/invoices/:id', (req, res) => {
       LEFT JOIN rooms r ON r.id=c.room_id
       LEFT JOIN ccs_details cd ON cd.child_id=c.id AND cd.tenant_id=i.tenant_id
       WHERE i.id=? AND i.tenant_id=?
-    ').get(req.params.id, req.tenantId);
+    `).get(req.params.id, req.tenantId);
 
     if (!invoice) return res.status(404).json({ error: 'Not found' });
 
@@ -205,23 +205,23 @@ r.post('/invoices', (req, res) => {
     const invoiceNumber = nextInvoiceNumber(req.tenantId);
     const dueDate = due_date || new Date(Date.now() + 14*86400000).toISOString().split('T')[0];
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO invoices
         (id,tenant_id,child_id,invoice_number,period_start,period_end,
          total_fee,ccs_amount,gap_fee,amount_due,due_date,status,notes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,\'draft\',?)
-    ').run(id, req.tenantId, child_id, invoiceNumber,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,'draft',?)
+    `).run(id, req.tenantId, child_id, invoiceNumber,
            period_start || new Date().toISOString().split('T')[0],
            period_end   || new Date().toISOString().split('T')[0],
            grossCents/100, ccsCents/100, gapCents/100, gapCents/100,
            dueDate, notes || null);
 
     // Insert line items
-    const insertItem = D().prepare('
+    const insertItem = D().prepare(`
       INSERT INTO invoice_line_items
         (id,tenant_id,invoice_id,description,quantity,unit_price_cents,total_cents,item_type,date,sort_order)
       VALUES (?,?,?,?,?,?,?,?,?,?)
-    ');
+    `);
     D().transaction(() => {
       line_items.forEach((item, i) => {
         const unitCents = d2c(item.unit_price);
@@ -248,17 +248,17 @@ r.put('/invoices/:id', (req, res) => {
     if (status)                 { updates.push('status=?'); vals.push(status); }
 
     if (updates.length > 1) {
-      D().prepare((() => { const _s = 'UPDATE invoices SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?'; return _s; })())
+      D().prepare('UPDATE invoices SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
         .run(...vals, req.params.id, req.tenantId);
     }
 
     if (line_items) {
       D().prepare('DELETE FROM invoice_line_items WHERE invoice_id=?').run(req.params.id);
-      const insertItem = D().prepare('
+      const insertItem = D().prepare(`
         INSERT INTO invoice_line_items
           (id,tenant_id,invoice_id,description,quantity,unit_price_cents,total_cents,item_type,date,sort_order)
         VALUES (?,?,?,?,?,?,?,?,?,?)
-      ');
+      `);
 
       let gross = 0;
       D().transaction(() => {
@@ -284,10 +284,10 @@ r.put('/invoices/:id', (req, res) => {
 // ── Issue invoice ─────────────────────────────────────────────────────────────
 r.post('/invoices/:id/issue', (req, res) => {
   try {
-    D().prepare('
-      UPDATE invoices SET status=\'issued\', issued_at=datetime(\'now\')
-      WHERE id=? AND tenant_id=? AND status=\'draft\'
-    ').run(req.params.id, req.tenantId);
+    D().prepare(`
+      UPDATE invoices SET status='issued', issued_at=datetime('now')
+      WHERE id=? AND tenant_id=? AND status='draft'
+    `).run(req.params.id, req.tenantId);
 
     const inv = D().prepare(
       'SELECT i.*, c.first_name, c.last_name FROM invoices i JOIN children c ON c.id=i.child_id WHERE i.id=?'
@@ -295,11 +295,11 @@ r.post('/invoices/:id/issue', (req, res) => {
 
     // Create payment request
     if (inv) {
-      D().prepare('
+      D().prepare(`
         INSERT OR IGNORE INTO payment_requests
           (id,tenant_id,child_id,invoice_id,amount_cents,description,status)
-        VALUES (?,?,?,?,?,\'Gap fee — \' || ?,  \'pending\')
-      ').run(uuid(), req.tenantId, inv.child_id, inv.id,
+        VALUES (?,?,?,?,?,'Gap fee — ' || ?,  'pending')
+      `).run(uuid(), req.tenantId, inv.child_id, inv.id,
              Math.round(inv.gap_fee * 100), inv.invoice_number);
     }
 
@@ -321,19 +321,19 @@ r.post('/invoices/:id/pay', (req, res) => {
     const newPaid = (inv.amount_paid || 0) + amountNum;
     const fullyPaid = newPaid >= (inv.amount_due || 0) - 0.01;
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO payments (id,tenant_id,invoice_id,child_id,amount,method,reference,payment_date)
       VALUES (?,?,?,?,?,?,?,?)
-    ').run(uuid(), req.tenantId, req.params.id, inv.child_id,
+    `).run(uuid(), req.tenantId, req.params.id, inv.child_id,
            amountNum, method, reference || null,
            payment_date || new Date().toISOString().split('T')[0]);
 
-    D().prepare('
+    D().prepare(`
       UPDATE invoices SET amount_paid=?,
-        status=CASE WHEN ? THEN \'paid\' ELSE status END,
-        paid_at=CASE WHEN ? THEN datetime(\'now\') ELSE paid_at END
+        status=CASE WHEN ? THEN 'paid' ELSE status END,
+        paid_at=CASE WHEN ? THEN datetime('now') ELSE paid_at END
       WHERE id=?
-    ').run(newPaid, fullyPaid ? 1 : 0, fullyPaid ? 1 : 0, req.params.id);
+    `).run(newPaid, fullyPaid ? 1 : 0, fullyPaid ? 1 : 0, req.params.id);
 
     // Mark payment request as paid
     D().prepare("UPDATE payment_requests SET status='paid', paid_at=datetime('now'), payment_method=? WHERE invoice_id=?")
@@ -376,11 +376,11 @@ r.post('/bulk-generate', (req, res) => {
         if (existing) { skipped++; continue; }
 
         // Get attendance sessions for the period
-        const sessions = D().prepare('
+        const sessions = D().prepare(`
           SELECT date, sign_in, sign_out, hours FROM attendance_sessions
           WHERE tenant_id=? AND child_id=? AND date BETWEEN ? AND ? AND absent=0
           ORDER BY date
-        ').all(req.tenantId, child.id, period_start, period_end);
+        `).all(req.tenantId, child.id, period_start, period_end);
 
         if (sessions.length === 0 && !req.body.include_absent) { skipped++; continue; }
 
@@ -407,22 +407,22 @@ r.post('/bulk-generate', (req, res) => {
         const invoiceNumber = nextInvoiceNumber(req.tenantId);
         const dueDate = new Date(new Date(period_end+'T12:00').getTime() + 14*86400000).toISOString().split('T')[0];
 
-        D().prepare('
+        D().prepare(`
           INSERT INTO invoices
             (id,tenant_id,child_id,invoice_number,period_start,period_end,
              sessions,total_fee,ccs_amount,gap_fee,amount_due,due_date,status)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,\'draft\')
-        ').run(invoiceId, req.tenantId, child.id, invoiceNumber,
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'draft')
+        `).run(invoiceId, req.tenantId, child.id, invoiceNumber,
                period_start, period_end, JSON.stringify(sessions),
                grossCents/100, ccsCents/100, gapCents/100, gapCents/100, dueDate);
 
         // Line items
         sessions.forEach((s, i) => {
-          D().prepare('
+          D().prepare(`
             INSERT INTO invoice_line_items
               (id,tenant_id,invoice_id,description,quantity,unit_price_cents,total_cents,item_type,date,sort_order)
             VALUES (?,?,?,?,1,?,?,?,?,?)
-          ').run(uuid(), req.tenantId, invoiceId,
+          `).run(uuid(), req.tenantId, invoiceId,
                  `Childcare — ${new Date(s.date+'T12:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}`,
                  Math.round(dailyFee * 100), Math.round(dailyFee * 100), 'fee', s.date, i);
         });
@@ -443,15 +443,15 @@ r.get('/statements/:childId', (req, res) => {
     ).get(req.params.childId, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Child not found' });
 
-    const invoices = D().prepare('
+    const invoices = D().prepare(`
       SELECT * FROM invoices WHERE tenant_id=? AND child_id=? ORDER BY period_start DESC
-    ').all(req.tenantId, req.params.childId);
+    `).all(req.tenantId, req.params.childId);
 
-    const payments = D().prepare('
+    const payments = D().prepare(`
       SELECT p.*, i.invoice_number FROM payments p
       LEFT JOIN invoices i ON i.id=p.invoice_id
       WHERE p.tenant_id=? AND p.child_id=? ORDER BY p.payment_date DESC
-    ').all(req.tenantId, req.params.childId);
+    `).all(req.tenantId, req.params.childId);
 
     const credits = D().prepare(
       "SELECT * FROM credit_notes WHERE tenant_id=? AND child_id=? ORDER BY created_at DESC"
@@ -475,13 +475,13 @@ r.get('/statements/:childId', (req, res) => {
 // ── Fee schedules ─────────────────────────────────────────────────────────────
 r.get('/fee-schedules', (req, res) => {
   try {
-    const schedules = D().prepare('
+    const schedules = D().prepare(`
       SELECT fs.*, r.name as room_name, r.age_group
       FROM fee_schedules fs
       LEFT JOIN rooms r ON r.id=fs.room_id
       WHERE fs.tenant_id=? AND fs.active=1
       ORDER BY r.name
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     res.json({ schedules });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -498,11 +498,11 @@ r.post('/fee-schedules', (req, res) => {
     }
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO fee_schedules
         (id,tenant_id,room_id,name,daily_fee,hourly_rate,session_hours,effective_from,active)
       VALUES (?,?,?,?,?,?,?,?,1)
-    ').run(id, req.tenantId, room_id||null, name||'Standard Fee',
+    `).run(id, req.tenantId, room_id||null, name||'Standard Fee',
            parseFloat(daily_fee), hourly_rate ? parseFloat(hourly_rate) : null,
            session_hours ? parseFloat(session_hours) : 11,
            effective_from || new Date().toISOString().split('T')[0]);
@@ -514,14 +514,14 @@ r.post('/fee-schedules', (req, res) => {
 // ── Payment plans ─────────────────────────────────────────────────────────────
 r.get('/payment-plans', (req, res) => {
   try {
-    const plans = D().prepare('
+    const plans = D().prepare(`
       SELECT pp.*, c.first_name, c.last_name, i.invoice_number
       FROM payment_plans pp
       JOIN children c ON c.id=pp.child_id
       LEFT JOIN invoices i ON i.id=pp.invoice_id
       WHERE pp.tenant_id=?
       ORDER BY pp.created_at DESC
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     res.json({ plans: plans.map(p => ({ ...p, total: p.total_amount_cents/100, paid: p.amount_paid_cents/100, instalment: p.instalment_amount_cents/100 })) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -536,12 +536,12 @@ r.post('/payment-plans', (req, res) => {
     const totalInstalments = Math.ceil(totalCents / instalCents);
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO payment_plans
         (id,tenant_id,child_id,invoice_id,total_amount_cents,instalment_amount_cents,
          frequency,start_date,next_due_date,instalments_total,status,notes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,\'active\',?)
-    ').run(id, req.tenantId, child_id, invoice_id||null, totalCents, instalCents,
+      VALUES (?,?,?,?,?,?,?,?,?,?,'active',?)
+    `).run(id, req.tenantId, child_id, invoice_id||null, totalCents, instalCents,
            frequency||'weekly', start_date, start_date, totalInstalments, notes||null);
 
     res.json({ id, ok: true, total_instalments: totalInstalments });
@@ -570,19 +570,19 @@ r.put('/payment-plans/:id/pay', (req, res) => {
       nextDue = d.toISOString().split('T')[0];
     }
 
-    D().prepare('
+    D().prepare(`
       UPDATE payment_plans SET
         amount_paid_cents=?, instalments_paid=?, next_due_date=?,
-        status=CASE WHEN ? THEN \'completed\' ELSE \'active\' END
+        status=CASE WHEN ? THEN 'completed' ELSE 'active' END
       WHERE id=?
-    ').run(newPaid, newCount, fullyPaid ? null : nextDue, fullyPaid ? 1 : 0, req.params.id);
+    `).run(newPaid, newCount, fullyPaid ? null : nextDue, fullyPaid ? 1 : 0, req.params.id);
 
     // Record payment
     if (plan.invoice_id) {
-      D().prepare('
+      D().prepare(`
         INSERT INTO payments (id,tenant_id,invoice_id,child_id,amount,method,payment_date)
-        VALUES (?,?,?,?,?,?,date(\'now\'))
-      ').run(uuid(), req.tenantId, plan.invoice_id, plan.child_id, payAmount/100, method);
+        VALUES (?,?,?,?,?,?,date('now'))
+      `).run(uuid(), req.tenantId, plan.invoice_id, plan.child_id, payAmount/100, method);
     }
 
     res.json({ ok: true, fully_paid: fullyPaid, total_paid: newPaid/100 });
@@ -592,13 +592,13 @@ r.put('/payment-plans/:id/pay', (req, res) => {
 // ── Credit notes ──────────────────────────────────────────────────────────────
 r.get('/credit-notes', (req, res) => {
   try {
-    const credits = D().prepare('
+    const credits = D().prepare(`
       SELECT cn.*, c.first_name, c.last_name
       FROM credit_notes cn
       JOIN children c ON c.id=cn.child_id
       WHERE cn.tenant_id=?
       ORDER BY cn.created_at DESC
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     res.json({ credits: credits.map(c => ({ ...c, amount: c.amount_cents/100 })) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -611,10 +611,10 @@ r.post('/credit-notes', (req, res) => {
     const seq = D().prepare("SELECT COUNT(*)+1 as n FROM credit_notes WHERE tenant_id=?").get(req.tenantId)?.n || 1;
     const creditNumber = `CN-${String(seq).padStart(4,'0')}`;
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO credit_notes (id,tenant_id,child_id,invoice_id,credit_number,amount_cents,reason,status)
-      VALUES (?,?,?,?,?,?,?,\'available\')
-    ').run(id, req.tenantId, child_id, invoice_id||null, creditNumber, d2c(amount), reason||null);
+      VALUES (?,?,?,?,?,?,?,'available')
+    `).run(id, req.tenantId, child_id, invoice_id||null, creditNumber, d2c(amount), reason||null);
 
     res.json({ id, credit_number: creditNumber, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -640,12 +640,12 @@ r.post('/templates', (req, res) => {
     }
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO invoice_templates
         (id,tenant_id,name,payment_terms,bank_name,bank_bsb,bank_account,include_ccs_breakdown,colour,is_default)
       VALUES (?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT DO NOTHING
-    ').run(id, req.tenantId, name||'Default', payment_terms||'Due within 14 days',
+    `).run(id, req.tenantId, name||'Default', payment_terms||'Due within 14 days',
            bank_name||null, bank_bsb||null, bank_account||null,
            include_ccs_breakdown?1:0, colour||'#7C3AED', is_default?1:0);
 

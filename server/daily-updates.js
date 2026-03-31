@@ -62,9 +62,9 @@ router.post('/', (req, res) => {
     const id = uuid();
     const today = update_date || new Date().toISOString().split('T')[0];
 
-    D().prepare('INSERT INTO daily_updates 
+    D().prepare(`INSERT INTO daily_updates 
       (id,tenant_id,child_id,educator_id,update_date,category,sleep_start,sleep_end,sleep_checks,meal_type,ate_amount,food_details,diaper_type,notes,photo_url)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, child_id, educator_id||null, today, category,
         sleep_start||null, sleep_end||null, sleep_checks ? JSON.stringify(sleep_checks) : '[]',
         meal_type||null, ate_amount||null, food_details||null, diaper_type||null, notes||null, photo_url||null);
@@ -72,7 +72,7 @@ router.post('/', (req, res) => {
     // Log to event log
     try {
       const desc = buildEventDescription(category, req.body);
-      D().prepare('INSERT INTO child_event_log (id,tenant_id,child_id,event_type,description,created_by) VALUES(?,?,?,?,?,?)')
+      D().prepare(`INSERT INTO child_event_log (id,tenant_id,child_id,event_type,description,created_by) VALUES(?,?,?,?,?,?)`)
         .run(uuid(), req.tenantId, child_id, category, desc, req.userId);
     } catch(e) {}
 
@@ -90,8 +90,7 @@ router.put('/:id/sleep', (req, res) => {
     if (sleep_end) updates.sleep_end = sleep_end;
     if (sleep_checks) updates.sleep_checks = JSON.stringify(sleep_checks);
     const setClause = Object.keys(updates).map(k => k + ' = ?').join(', ');
-    const _duSql = 'UPDATE daily_updates SET ' + setClause + ' WHERE id = ?';
-    D().prepare(_duSql).run(...Object.values(updates), req.params.id);
+    D().prepare('UPDATE daily_updates SET ' + setClause + ' WHERE id = ?').run(...Object.values(updates), req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -113,14 +112,14 @@ router.get('/feed/:childId', (req, res) => {
   try {
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
-    const updates = D().prepare('
-      SELECT du.*, e.first_name||\' \'||e.last_name as educator_name,
+    const updates = D().prepare(`
+      SELECT du.*, e.first_name||' '||e.last_name as educator_name,
         e.first_name as educator_first, e.last_name as educator_last
       FROM daily_updates du
       LEFT JOIN educators e ON du.educator_id = e.id
       WHERE du.child_id = ? AND du.tenant_id = ? AND du.update_date = ?
       ORDER BY du.created_at ASC
-    ').all(req.params.childId, req.tenantId, targetDate);
+    `).all(req.params.childId, req.tenantId, targetDate);
     res.json(updates);
   } catch (err) {
     res.status(500).json({ error: err.message });

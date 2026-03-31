@@ -127,7 +127,7 @@ r.get('/menus', (req, res) => {
     const fromDate = from || new Date(Date.now() - 4 * 7 * 86400000).toISOString().split('T')[0];
     const toDate   = to   || new Date(Date.now() + 8 * 7 * 86400000).toISOString().split('T')[0];
 
-    const plans = D().prepare('
+    const plans = D().prepare(`
       SELECT mp.*,
         COUNT(mi.id) as item_count
       FROM menu_plans mp
@@ -135,7 +135,7 @@ r.get('/menus', (req, res) => {
       WHERE mp.tenant_id=? AND mp.week_starting BETWEEN ? AND ?
       GROUP BY mp.id
       ORDER BY mp.week_starting DESC
-    ').all(req.tenantId, fromDate, toDate);
+    `).all(req.tenantId, fromDate, toDate);
 
     res.json({ plans });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -174,23 +174,23 @@ r.post('/menus/:weekStarting', (req, res) => {
 
     const planId = existing?.id || uuid();
     if (existing) {
-      D().prepare('UPDATE menu_plans SET plan_name=COALESCE(?,plan_name), updated_at=datetime(\'now\') WHERE id=?')
+      D().prepare(`UPDATE menu_plans SET plan_name=COALESCE(?,plan_name), updated_at=datetime('now') WHERE id=?`)
         .run(plan_name||null, planId);
     } else {
-      D().prepare('
+      D().prepare(`
         INSERT INTO menu_plans (id,tenant_id,week_starting,plan_name,status)
-        VALUES (?,?,?,?,\'draft\')
-      ').run(planId, req.tenantId, req.params.weekStarting, plan_name || 'Weekly Menu');
+        VALUES (?,?,?,?,'draft')
+      `).run(planId, req.tenantId, req.params.weekStarting, plan_name || 'Weekly Menu');
     }
 
     // Replace all items for this plan
     D().prepare('DELETE FROM menu_items WHERE menu_plan_id=?').run(planId);
 
-    const insertItem = D().prepare('
+    const insertItem = D().prepare(`
       INSERT INTO menu_items
         (id,tenant_id,menu_plan_id,day_of_week,meal_type,description,allergens,is_vegetarian,is_halal,notes)
       VALUES (?,?,?,?,?,?,?,?,?,?)
-    ');
+    `);
     D().transaction(() => {
       for (const item of items) {
         insertItem.run(
@@ -211,10 +211,10 @@ r.post('/menus/:weekStarting', (req, res) => {
 r.put('/menus/:weekStarting/approve', (req, res) => {
   try {
     const { approved_by } = req.body;
-    D().prepare('
-      UPDATE menu_plans SET status=\'approved\', approved_by=?, approved_at=datetime(\'now\')
+    D().prepare(`
+      UPDATE menu_plans SET status='approved', approved_by=?, approved_at=datetime('now')
       WHERE tenant_id=? AND week_starting=?
-    ').run(approved_by || req.userId, req.tenantId, req.params.weekStarting);
+    `).run(approved_by || req.userId, req.tenantId, req.params.weekStarting);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -232,18 +232,18 @@ r.post('/menus/:weekStarting/copy-from/:sourceWeek', (req, res) => {
     ).all(source.id);
 
     const newId = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT OR REPLACE INTO menu_plans (id,tenant_id,week_starting,plan_name,status,created_by)
-      VALUES (?,?,?,?,\'draft\',?)
-    ').run(newId, req.tenantId, req.params.weekStarting, source.plan_name, req.userId);
+      VALUES (?,?,?,?,'draft',?)
+    `).run(newId, req.tenantId, req.params.weekStarting, source.plan_name, req.userId);
 
     D().prepare('DELETE FROM menu_items WHERE menu_plan_id IN (SELECT id FROM menu_plans WHERE tenant_id=? AND week_starting=?)')
       .run(req.tenantId, req.params.weekStarting);
 
-    const ins = D().prepare('
+    const ins = D().prepare(`
       INSERT INTO menu_items (id,tenant_id,menu_plan_id,day_of_week,meal_type,description,allergens,is_vegetarian,is_halal,notes)
       VALUES (?,?,?,?,?,?,?,?,?,?)
-    ');
+    `);
     D().transaction(() => {
       for (const item of sourceItems) {
         ins.run(uuid(), req.tenantId, newId, item.day_of_week, item.meal_type,
@@ -271,13 +271,13 @@ r.get('/menus/:weekStarting/allergen-check', (req, res) => {
       items.flatMap(i => JSON.parse(i.allergens || '[]'))
     );
 
-    const childRequirements = D().prepare('
+    const childRequirements = D().prepare(`
       SELECT dr.*, c.first_name, c.last_name, c.room_id, r.name as room_name
       FROM dietary_requirements dr
       JOIN children c ON c.id=dr.child_id
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE dr.tenant_id=? AND c.active=1
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     const alerts = childRequirements.filter(req => {
       const childAllergens = JSON.parse(req.allergens || '[]');
@@ -299,14 +299,14 @@ r.get('/menus/:weekStarting/allergen-check', (req, res) => {
 // ── Dietary requirements ──────────────────────────────────────────────────────
 r.get('/dietary', (req, res) => {
   try {
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT dr.*, c.first_name, c.last_name, c.room_id, r.name as room_name
       FROM dietary_requirements dr
       JOIN children c ON c.id=dr.child_id
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE dr.tenant_id=?
       ORDER BY dr.severity DESC, c.last_name
-    ').all(req.tenantId);
+    `).all(req.tenantId);
     res.json({ requirements: rows.map(r => ({ ...r, allergens: JSON.parse(r.allergens || '[]') })) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -316,11 +316,11 @@ r.post('/dietary', (req, res) => {
     const { child_id, requirement_type, description, severity, allergens, action_plan, medical_cert_url, review_date } = req.body;
     if (!child_id || !requirement_type) return res.status(400).json({ error: 'child_id and requirement_type required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO dietary_requirements
         (id,tenant_id,child_id,requirement_type,description,severity,allergens,action_plan,medical_cert_url,review_date)
       VALUES (?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, child_id, requirement_type, description||null, severity||'intolerance',
+    `).run(id, req.tenantId, child_id, requirement_type, description||null, severity||'intolerance',
            JSON.stringify(allergens||[]), action_plan||null, medical_cert_url||null, review_date||null);
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -393,7 +393,7 @@ r.post('/milestones/:childId', (req, res) => {
 
     const achievedDate = achieved ? new Date().toISOString().split('T')[0] : null;
 
-    D().prepare('
+    D().prepare(`
       INSERT INTO milestone_records
         (id,tenant_id,child_id,domain,milestone_key,milestone_label,age_months_expected,
          achieved,achieved_date,notes,observation_id,recorded_by)
@@ -403,7 +403,7 @@ r.post('/milestones/:childId', (req, res) => {
         achieved_date=CASE WHEN excluded.achieved=1 AND achieved_date IS NULL THEN excluded.achieved_date ELSE achieved_date END,
         notes=COALESCE(excluded.notes,notes),
         observation_id=COALESCE(excluded.observation_id,observation_id)
-    ').run(uuid(), req.tenantId, req.params.childId, domain||'other',
+    `).run(uuid(), req.tenantId, req.params.childId, domain||'other',
            milestone_key, milestone_label||milestone_key,
            age_months_expected||null, achieved?1:0, achievedDate,
            notes||null, observation_id||null, recorded_by||null);
@@ -418,14 +418,14 @@ r.post('/milestones/:childId/batch', (req, res) => {
     const { achievements = [] } = req.body; // [{milestone_key, domain, milestone_label, age_months_expected, achieved}]
     const today = new Date().toISOString().split('T')[0];
 
-    const upsert = D().prepare('
+    const upsert = D().prepare(`
       INSERT INTO milestone_records
         (id,tenant_id,child_id,domain,milestone_key,milestone_label,age_months_expected,achieved,achieved_date)
       VALUES (?,?,?,?,?,?,?,?,?)
       ON CONFLICT(child_id,milestone_key) DO UPDATE SET
         achieved=excluded.achieved,
         achieved_date=CASE WHEN excluded.achieved=1 AND achieved_date IS NULL THEN excluded.achieved_date ELSE achieved_date END
-    ');
+    `);
 
     D().transaction(() => {
       for (const a of achievements) {
@@ -443,7 +443,7 @@ r.post('/milestones/:childId/batch', (req, res) => {
 // Summary across all children — which milestones are commonly delayed
 r.get('/milestones/summary/centre', (req, res) => {
   try {
-    const summary = D().prepare('
+    const summary = D().prepare(`
       SELECT
         domain, milestone_key, milestone_label, age_months_expected,
         COUNT(*) as total_children,
@@ -453,7 +453,7 @@ r.get('/milestones/summary/centre', (req, res) => {
       WHERE tenant_id=?
       GROUP BY milestone_key
       ORDER BY achievement_rate ASC
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({ summary });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -485,12 +485,12 @@ r.get('/transitions', (req, res) => {
 
 r.get('/transitions/:id', (req, res) => {
   try {
-    const report = D().prepare('
+    const report = D().prepare(`
       SELECT tr.*, c.first_name, c.last_name, c.dob
       FROM transition_reports tr
       JOIN children c ON c.id=tr.child_id
       WHERE tr.id=? AND tr.tenant_id=?
-    ').get(req.params.id, req.tenantId);
+    `).get(req.params.id, req.tenantId);
     if (!report) return res.status(404).json({ error: 'Not found' });
 
     // Get milestone data for this child
@@ -508,11 +508,11 @@ r.post('/transitions', (req, res) => {
     if (!child_id) return res.status(400).json({ error: 'child_id required' });
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO transition_reports
         (id,tenant_id,child_id,report_type,report_date,transition_date,target_school,status,prepared_by)
-      VALUES (?,?,?,?,date(\'now\',\'localtime\'),?,?,?,?)
-    ').run(id, req.tenantId, child_id, report_type||'school_readiness',
+      VALUES (?,?,?,?,date('now','localtime'),?,?,?,?)
+    `).run(id, req.tenantId, child_id, report_type||'school_readiness',
            transition_date||null, target_school||null, 'draft', prepared_by||null);
 
     res.json({ id, ok: true });
@@ -537,7 +537,7 @@ r.put('/transitions/:id', (req, res) => {
       }
     }
 
-    D().prepare((() => { const _s = 'UPDATE transition_reports SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?'; return _s; })())
+    D().prepare('UPDATE transition_reports SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
       .run(...vals, req.params.id, req.tenantId);
 
     res.json({ ok: true });
@@ -576,13 +576,13 @@ r.post('/transitions/:id/auto-draft', (req, res) => {
 
     const recentObs = observations.slice(0, 3).map(o => o.notes).filter(Boolean).join(' ') || '';
 
-    D().prepare('
+    D().prepare(`
       UPDATE transition_reports SET
         communication=?, physical_development=?, social_emotional=?,
         independence=?, literacy=?, strengths=?, educator_notes=?,
-        status=\'draft\', updated_at=datetime(\'now\')
+        status='draft', updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(
+    `).run(
       communication, physical, social, selfCare, cognitive,
       draftStrengths, recentObs ? `Based on observations: ${recentObs.slice(0, 500)}` : null,
       req.params.id, req.tenantId
@@ -595,18 +595,18 @@ r.post('/transitions/:id/auto-draft', (req, res) => {
 // Children approaching school age (within 12 months)
 r.get('/transitions/upcoming/school-age', (req, res) => {
   try {
-    const upcoming = D().prepare('
+    const upcoming = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id, r.name as room_name,
-        CAST((julianday(date(\'now\')) - julianday(c.dob)) / 30.44 AS INTEGER) as age_months,
-        CAST((julianday(date(c.dob,\'+5 years\')) - julianday(date(\'now\'))) / 30.44 AS INTEGER) as months_to_school,
+        CAST((julianday(date('now')) - julianday(c.dob)) / 30.44 AS INTEGER) as age_months,
+        CAST((julianday(date(c.dob,'+5 years')) - julianday(date('now'))) / 30.44 AS INTEGER) as months_to_school,
         (SELECT id FROM transition_reports tr WHERE tr.child_id=c.id AND tr.tenant_id=c.tenant_id LIMIT 1) as has_report
       FROM children c
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE c.tenant_id=? AND c.active=1
         AND c.dob IS NOT NULL
-        AND julianday(date(c.dob,\'+5 years\')) - julianday(date(\'now\')) BETWEEN 0 AND 365
+        AND julianday(date(c.dob,'+5 years')) - julianday(date('now')) BETWEEN 0 AND 365
       ORDER BY c.dob
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({ upcoming });
   } catch(e) { res.status(500).json({ error: e.message }); }

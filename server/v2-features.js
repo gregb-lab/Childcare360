@@ -28,12 +28,12 @@ router.get('/activity-log', (req, res) => {
     const { entity_type, entity_id, limit } = req.query;
     if (!entity_type || !entity_id) return res.status(400).json({ error: 'entity_type and entity_id required' });
 
-    const rows = D().prepare('
+    const rows = D().prepare(`
       SELECT al.*, u.name as user_name FROM activity_log al
       LEFT JOIN users u ON u.id=al.performed_by
       WHERE al.tenant_id=? AND al.entity_type=? AND al.entity_id=?
       ORDER BY al.created_at DESC LIMIT ?
-    ').all(req.tenantId, entity_type, entity_id, parseInt(limit) || 100);
+    `).all(req.tenantId, entity_type, entity_id, parseInt(limit) || 100);
 
     res.json({ logs: rows });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -65,7 +65,7 @@ router.get('/todo', (req, res) => {
     const items = [];
 
     // Pending broadcast approvals
-    const broadcasts = db.prepare('SELECT * FROM broadcast_queue WHERE tenant_id=? AND status=\'pending_approval\' ORDER BY scheduled_at ASC').all(req.tenantId);
+    const broadcasts = db.prepare(`SELECT * FROM broadcast_queue WHERE tenant_id=? AND status='pending_approval' ORDER BY scheduled_at ASC`).all(req.tenantId);
     broadcasts.forEach(b => {
       items.push({
         id: b.id, type: 'broadcast_approval', priority: 'high',
@@ -77,7 +77,7 @@ router.get('/todo', (req, res) => {
     });
 
     // Pending individual messages
-    const messages = db.prepare('SELECT * FROM broadcast_queue WHERE tenant_id=? AND status=\'pending_review\' AND audience=\'individual\' ORDER BY created_at DESC').all(req.tenantId);
+    const messages = db.prepare(`SELECT * FROM broadcast_queue WHERE tenant_id=? AND status='pending_review' AND audience='individual' ORDER BY created_at DESC`).all(req.tenantId);
     messages.forEach(m => {
       items.push({
         id: m.id, type: 'message_review', priority: 'medium',
@@ -90,7 +90,7 @@ router.get('/todo', (req, res) => {
 
     // NECWR alerts
     try {
-      const necwr = db.prepare('SELECT id,first_name,last_name,start_date,termination_date,necwr_status FROM educators WHERE tenant_id=? AND ((status=\'active\' AND start_date>=date(?\'-30 days\') AND (necwr_status IS NULL OR necwr_status=\'not_submitted\')) OR (status=\'terminated\' AND termination_date>=date(?\'-30 days\') AND (necwr_status IS NULL OR necwr_status=\'not_submitted\' OR necwr_status=\'hire_submitted\')))').all(req.tenantId, today, today);
+      const necwr = db.prepare(`SELECT id,first_name,last_name,start_date,termination_date,necwr_status FROM educators WHERE tenant_id=? AND ((status='active' AND start_date>=date(?'-30 days') AND (necwr_status IS NULL OR necwr_status='not_submitted')) OR (status='terminated' AND termination_date>=date(?'-30 days') AND (necwr_status IS NULL OR necwr_status='not_submitted' OR necwr_status='hire_submitted')))`).all(req.tenantId, today, today);
       necwr.forEach(e => {
         const isHire = e.start_date && !e.termination_date;
         const eventDate = e.termination_date || e.start_date;
@@ -107,7 +107,7 @@ router.get('/todo', (req, res) => {
 
     // Compliance issues
     try {
-      const compIssues = db.prepare('SELECT * FROM compliance_todo WHERE tenant_id=? AND status=\'open\' ORDER BY priority DESC, created_at').all(req.tenantId);
+      const compIssues = db.prepare(`SELECT * FROM compliance_todo WHERE tenant_id=? AND status='open' ORDER BY priority DESC, created_at`).all(req.tenantId);
       compIssues.forEach(c => {
         items.push({
           id: c.id, type: 'compliance', priority: c.priority || 'medium',
@@ -120,7 +120,7 @@ router.get('/todo', (req, res) => {
 
     // Pending leave requests
     try {
-      const leave = db.prepare('SELECT lr.*, e.first_name, e.last_name FROM leave_requests lr JOIN educators e ON e.id=lr.educator_id WHERE lr.tenant_id=? AND lr.status=\'pending\'').all(req.tenantId);
+      const leave = db.prepare(`SELECT lr.*, e.first_name, e.last_name FROM leave_requests lr JOIN educators e ON e.id=lr.educator_id WHERE lr.tenant_id=? AND lr.status='pending'`).all(req.tenantId);
       leave.forEach(l => {
         items.push({
           id: l.id, type: 'leave_approval', priority: 'medium',
@@ -134,7 +134,7 @@ router.get('/todo', (req, res) => {
 
     // Expiring educator certs (next 30 days)
     try {
-      const certs = db.prepare('SELECT id,first_name,last_name,first_aid_expiry,cpr_expiry,wwcc_expiry,anaphylaxis_expiry FROM educators WHERE tenant_id=? AND status=\'active\'').all(req.tenantId);
+      const certs = db.prepare(`SELECT id,first_name,last_name,first_aid_expiry,cpr_expiry,wwcc_expiry,anaphylaxis_expiry FROM educators WHERE tenant_id=? AND status='active'`).all(req.tenantId);
       const in30 = new Date(Date.now()+30*86400000).toISOString().split('T')[0];
       certs.forEach(e => {
         const checks = [
@@ -171,7 +171,7 @@ router.post('/broadcast-queue', (req, res) => {
 
     const isIndividual = audience === 'individual';
     const id = uuid();
-    D().prepare('INSERT INTO broadcast_queue (id,tenant_id,audience,channel,subject,body,recipient_name,recipient_email,scheduled_at,status,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    D().prepare(`INSERT INTO broadcast_queue (id,tenant_id,audience,channel,subject,body,recipient_name,recipient_email,scheduled_at,status,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, audience || 'all_parents', channel || 'email', subject || '', body,
         recipient_name || null, recipient_email || null,
         scheduled_at || null, isIndividual ? 'pending_review' : 'pending_approval', req.userId);
@@ -277,9 +277,9 @@ router.post('/parent-learning-input', (req, res) => {
     })();
 
     const id = uuid();
-    D().prepare('INSERT OR REPLACE INTO parent_learning_input
+    D().prepare(`INSERT OR REPLACE INTO parent_learning_input
       (id,tenant_id,child_id,week_start,goals,focus_areas,notes,submitted_by,submitted_at)
-      VALUES(COALESCE((SELECT id FROM parent_learning_input WHERE tenant_id=? AND child_id=? AND week_start=?),?),?,?,?,?,?,?,?,datetime(\'now\'))')
+      VALUES(COALESCE((SELECT id FROM parent_learning_input WHERE tenant_id=? AND child_id=? AND week_start=?),?),?,?,?,?,?,?,?,datetime('now'))`)
       .run(req.tenantId, child_id, weekStart, id, req.tenantId, child_id, weekStart,
         goals || '', focus_areas || '', notes || '', req.userId);
 
@@ -319,9 +319,9 @@ router.get('/parent-learning-input', (req, res) => {
 // GET /api/v2/necwr/form-data/:educatorId — pre-filled NECWR submission form
 router.get('/necwr/form-data/:educatorId', (req, res) => {
   try {
-    const ed = D().prepare('SELECT e.*, t.name as centre_name, t.abn, t.address as centre_address
+    const ed = D().prepare(`SELECT e.*, t.name as centre_name, t.abn, t.address as centre_address
       FROM educators e JOIN tenants t ON t.id=e.tenant_id
-      WHERE e.id=? AND e.tenant_id=?').get(req.params.educatorId, req.tenantId);
+      WHERE e.id=? AND e.tenant_id=?`).get(req.params.educatorId, req.tenantId);
     if (!ed) return res.status(404).json({ error: 'Educator not found' });
 
     const isTermination = ed.status === 'terminated';
@@ -475,7 +475,7 @@ router.post('/compliance/weekly-scan', (req, res) => {
     }
 
     // Check NECWR compliance
-    const necwrPending = db.prepare('SELECT id,first_name,last_name FROM educators WHERE tenant_id=? AND ((status=\'active\' AND start_date>=date(?\'-30 days\') AND (necwr_status IS NULL OR necwr_status=\'not_submitted\')) OR (status=\'terminated\' AND termination_date>=date(?\'-30 days\') AND necwr_status!=\'completed\'))').all(req.tenantId, today, today);
+    const necwrPending = db.prepare(`SELECT id,first_name,last_name FROM educators WHERE tenant_id=? AND ((status='active' AND start_date>=date(?'-30 days') AND (necwr_status IS NULL OR necwr_status='not_submitted')) OR (status='terminated' AND termination_date>=date(?'-30 days') AND necwr_status!='completed'))`).all(req.tenantId, today, today);
     for (const ed of necwrPending) {
       const existing = db.prepare("SELECT id FROM compliance_todo WHERE tenant_id=? AND entity_id=? AND compliance_type='necwr' AND status='open'").get(req.tenantId, ed.id);
       if (!existing) {

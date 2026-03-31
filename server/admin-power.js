@@ -45,13 +45,13 @@ r.get('/recruitment/jobs', (req, res) => {
     `).all(...vals);
 
     // Pipeline summary
-    const pipeline = D().prepare('
+    const pipeline = D().prepare(`
       SELECT a.status, COUNT(*) as n
       FROM job_applications a
       JOIN job_postings j ON j.id=a.job_id
       WHERE j.tenant_id=?
       GROUP BY a.status
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     res.json({ jobs, pipeline: pipeline.reduce((m,r) => ({...m,[r.status]:r.n}), {}) });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -63,12 +63,12 @@ r.post('/recruitment/jobs', (req, res) => {
             salary_min, salary_max, location, room_preference, closing_date, created_by } = req.body;
     if (!title) return res.status(400).json({ error: 'title required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO job_postings
         (id,tenant_id,title,description,requirements,employment_type,hours_per_week,
          salary_min,salary_max,location,room_preference,closing_date,status,created_by,posted_date)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,\'active\',?,date(\'now\',\'localtime\'))
-    ').run(id, req.tenantId, title, description||null, requirements||null,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'active',?,date('now','localtime'))
+    `).run(id, req.tenantId, title, description||null, requirements||null,
            employment_type||'permanent', hours_per_week||null,
            salary_min||null, salary_max||null, location||null, room_preference||null,
            closing_date||null, created_by||null);
@@ -79,13 +79,13 @@ r.post('/recruitment/jobs', (req, res) => {
 r.put('/recruitment/jobs/:id', (req, res) => {
   try {
     const { status, title, description, closing_date } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE job_postings SET
         status=COALESCE(?,status), title=COALESCE(?,title),
         description=COALESCE(?,description), closing_date=COALESCE(?,closing_date),
-        updated_at=datetime(\'now\')
+        updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(status||null, title||null, description||null, closing_date||null,
+    `).run(status||null, title||null, description||null, closing_date||null,
            req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -121,12 +121,12 @@ r.post('/recruitment/applications', (req, res) => {
     if (!job_id || !applicant_name) return res.status(400).json({ error: 'job_id and applicant_name required' });
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO job_applications
         (id,tenant_id,job_id,applicant_name,applicant_email,applicant_phone,
          qualification,years_experience,resume_url,cover_letter,wwcc_number,wwcc_state,source)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, job_id, applicant_name, applicant_email||null,
+    `).run(id, req.tenantId, job_id, applicant_name, applicant_email||null,
            applicant_phone||null, qualification||null, years_experience||0,
            resume_url||null, cover_letter||null, wwcc_number||null, wwcc_state||null, source||'direct');
 
@@ -141,14 +141,14 @@ r.post('/recruitment/applications', (req, res) => {
 r.put('/recruitment/applications/:id', (req, res) => {
   try {
     const { status, rating, interview_date, interview_notes, offer_date, offer_accepted, rejection_reason } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE job_applications SET
         status=COALESCE(?,status), rating=COALESCE(?,rating),
         interview_date=COALESCE(?,interview_date), interview_notes=COALESCE(?,interview_notes),
         offer_date=COALESCE(?,offer_date), offer_accepted=COALESCE(?,offer_accepted),
-        rejection_reason=COALESCE(?,rejection_reason), updated_at=datetime(\'now\')
+        rejection_reason=COALESCE(?,rejection_reason), updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(status||null, rating||null, interview_date||null, interview_notes||null,
+    `).run(status||null, rating||null, interview_date||null, interview_notes||null,
            offer_date||null, offer_accepted!=null?offer_accepted:null,
            rejection_reason||null, req.params.id, req.tenantId);
     res.json({ ok: true });
@@ -244,12 +244,12 @@ r.post('/appraisals', (req, res) => {
     if (!educator_id) return res.status(400).json({ error: 'educator_id required' });
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO appraisals
         (id,tenant_id,educator_id,template_id,reviewer_id,
          review_period_start,review_period_end,due_date,status)
-      VALUES (?,?,?,?,?,?,?,?,\'pending\')
-    ').run(id, req.tenantId, educator_id, template_id||null, reviewer_id||null,
+      VALUES (?,?,?,?,?,?,?,?,'pending')
+    `).run(id, req.tenantId, educator_id, template_id||null, reviewer_id||null,
            review_period_start||null, review_period_end||null, due_date||null);
 
     res.json({ id, ok: true });
@@ -265,7 +265,7 @@ r.put('/appraisals/:id', (req, res) => {
     const now = new Date().toISOString();
     const bothSigned = signed_by_educator === 1 && signed_by_reviewer === 1;
 
-    D().prepare('
+    D().prepare(`
       UPDATE appraisals SET
         status=COALESCE(?,status),
         overall_rating=COALESCE(?,overall_rating),
@@ -279,9 +279,9 @@ r.put('/appraisals/:id', (req, res) => {
         signed_by_educator=COALESCE(?,signed_by_educator),
         signed_by_reviewer=COALESCE(?,signed_by_reviewer),
         signed_at=CASE WHEN ? THEN ? ELSE signed_at END,
-        updated_at=datetime(\'now\')
+        updated_at=datetime('now')
       WHERE id=? AND tenant_id=?
-    ').run(
+    `).run(
       status||null, overall_rating||null,
       educator_self_assessment ? JSON.stringify(educator_self_assessment) : null,
       reviewer_assessment ? JSON.stringify(reviewer_assessment) : null,
@@ -326,11 +326,11 @@ r.post('/occupancy/snapshot', (req, res) => {
         const capacity = room.capacity || 0;
         const occPct = capacity > 0 ? (enrolled / capacity) * 100 : 0;
 
-        D().prepare('
+        D().prepare(`
           INSERT OR REPLACE INTO occupancy_snapshots
             (id,tenant_id,snapshot_date,room_id,enrolled,capacity,attending,occupancy_pct)
           VALUES (?,?,?,?,?,?,?,?)
-        ').run(uuid(), req.tenantId, today, room.id, enrolled, capacity, attending, occPct);
+        `).run(uuid(), req.tenantId, today, room.id, enrolled, capacity, attending, occPct);
         count++;
       }
       return count;
@@ -347,19 +347,19 @@ r.get('/occupancy', (req, res) => {
     const since = new Date(Date.now() - weeks * 7 * 86400000).toISOString().split('T')[0];
 
     // Historical by room
-    const history = D().prepare('
+    const history = D().prepare(`
       SELECT os.snapshot_date, os.room_id, r.name as room_name, r.age_group,
              os.enrolled, os.capacity, os.attending, os.occupancy_pct
       FROM occupancy_snapshots os
       JOIN rooms r ON r.id=os.room_id
       WHERE os.tenant_id=? AND os.snapshot_date >= ?
       ORDER BY os.snapshot_date DESC, r.name
-    ').all(req.tenantId, since);
+    `).all(req.tenantId, since);
 
     // Whole-centre summary by week
-    const weekly = D().prepare('
+    const weekly = D().prepare(`
       SELECT
-        strftime(\'%Y-W%W\', snapshot_date) as week,
+        strftime('%Y-W%W', snapshot_date) as week,
         MIN(snapshot_date) as week_start,
         ROUND(AVG(occupancy_pct),1) as avg_occupancy,
         SUM(enrolled) as total_enrolled,
@@ -369,10 +369,10 @@ r.get('/occupancy', (req, res) => {
       WHERE tenant_id=? AND snapshot_date >= ?
       GROUP BY week
       ORDER BY week DESC
-    ').all(req.tenantId, since);
+    `).all(req.tenantId, since);
 
     // Current state per room
-    const current = D().prepare('
+    const current = D().prepare(`
       SELECT r.id, r.name, r.age_group, r.capacity,
         COUNT(CASE WHEN c.active=1 THEN 1 END) as enrolled,
         ROUND(COUNT(CASE WHEN c.active=1 THEN 1 END) * 100.0 / NULLIF(r.capacity,0),1) as occupancy_pct,
@@ -381,7 +381,7 @@ r.get('/occupancy', (req, res) => {
       LEFT JOIN children c ON c.room_id=r.id AND c.tenant_id=r.tenant_id
       WHERE r.tenant_id=?
       GROUP BY r.id
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
     // Simple 12-week forecast using linear trend from last 8 weeks
     const recentWeeks = weekly.slice(0, 8).reverse();
@@ -408,13 +408,13 @@ r.get('/occupancy', (req, res) => {
     }
 
     // Revenue estimate (using average daily rate × enrolled × attendance rate)
-    const totals = D().prepare('
+    const totals = D().prepare(`
       SELECT
         SUM(enrolled) as enrolled, SUM(capacity) as capacity,
         AVG(occupancy_pct) as avg_occ
       FROM occupancy_snapshots
-      WHERE tenant_id=? AND snapshot_date >= date(\'now\',\'-7 days\')
-    ').get(req.tenantId);
+      WHERE tenant_id=? AND snapshot_date >= date('now','-7 days')
+    `).get(req.tenantId);
 
     res.json({ current, history, weekly, forecast, totals });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -445,7 +445,7 @@ r.get('/debt', (req, res) => {
       LIMIT ? OFFSET ?
     `).all(...vals, limit, offset);
 
-    const summary = D().prepare('
+    const summary = D().prepare(`
       SELECT
         COUNT(*) as total_accounts,
         SUM(amount_cents - amount_paid_cents) as outstanding_cents,
@@ -453,10 +453,10 @@ r.get('/debt', (req, res) => {
         SUM(CASE WHEN actual_days_overdue > 60 THEN (amount_cents-amount_paid_cents) ELSE 0 END) as overdue_60_cents,
         SUM(CASE WHEN actual_days_overdue > 90 THEN (amount_cents-amount_paid_cents) ELSE 0 END) as overdue_90_cents
       FROM (
-        SELECT d.*, CAST((julianday(\'now\')-julianday(d.due_date)) AS INTEGER) as actual_days_overdue
-        FROM debt_records d WHERE d.tenant_id=? AND d.status != \'paid\'
+        SELECT d.*, CAST((julianday('now')-julianday(d.due_date)) AS INTEGER) as actual_days_overdue
+        FROM debt_records d WHERE d.tenant_id=? AND d.status != 'paid'
       )
-    ').get(req.tenantId);
+    `).get(req.tenantId);
 
     res.json({
       debts: debts.map(d => ({
@@ -481,10 +481,10 @@ r.post('/debt', (req, res) => {
     const { child_id, invoice_id, amount_cents, due_date, notes } = req.body;
     if (!child_id || !amount_cents) return res.status(400).json({ error: 'child_id and amount_cents required' });
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO debt_records (id,tenant_id,child_id,invoice_id,amount_cents,due_date,notes)
       VALUES (?,?,?,?,?,?,?)
-    ').run(id, req.tenantId, child_id, invoice_id||null, amount_cents, due_date||null, notes||null);
+    `).run(id, req.tenantId, child_id, invoice_id||null, amount_cents, due_date||null, notes||null);
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -515,7 +515,7 @@ r.put('/debt/:id', (req, res) => {
     if (reminder_sent === 2) { updates.push('reminder_2_sent=datetime(\'now\')'); }
     if (reminder_sent === 3) { updates.push('reminder_3_sent=datetime(\'now\')'); }
 
-    D().prepare((() => { const _s = 'UPDATE debt_records SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?'; return _s; })())
+    D().prepare('UPDATE debt_records SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
       .run(...vals, req.params.id, req.tenantId);
 
     res.json({ ok: true });
@@ -526,11 +526,11 @@ r.put('/debt/:id', (req, res) => {
 r.post('/debt/:id/reminder', (req, res) => {
   try {
     const { reminder_number, method = 'email' } = req.body;
-    const debt = D().prepare('
+    const debt = D().prepare(`
       SELECT d.*, c.first_name, c.last_name
       FROM debt_records d JOIN children c ON c.id=d.child_id
       WHERE d.id=? AND d.tenant_id=?
-    ').get(req.params.id, req.tenantId);
+    `).get(req.params.id, req.tenantId);
     if (!debt) return res.status(404).json({ error: 'Not found' });
 
     const col = `reminder_${reminder_number}_sent`;
@@ -605,12 +605,12 @@ r.post('/casual', (req, res) => {
     }
 
     const id = uuid();
-    D().prepare('
+    D().prepare(`
       INSERT INTO casual_bookings
         (id,tenant_id,child_id,room_id,requested_date,session_type,
          start_time,end_time,requested_by,fee_cents,notes,status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,\'pending\',\'pending\')
-    ').run(id, req.tenantId, child_id, room_id||null, requested_date,
+      VALUES (?,?,?,?,?,?,?,?,?,?,'pending','pending')
+    `).run(id, req.tenantId, child_id, room_id||null, requested_date,
            session_type||'full_day', start_time||null, end_time||null,
            requested_by||null, fee_cents||0, notes||null);
 
@@ -621,15 +621,15 @@ r.post('/casual', (req, res) => {
 r.put('/casual/:id', (req, res) => {
   try {
     const { status, confirmed_by, declined_reason, fee_cents } = req.body;
-    D().prepare('
+    D().prepare(`
       UPDATE casual_bookings SET
         status=COALESCE(?,status),
-        confirmed_by=CASE WHEN ?=\'confirmed\' THEN ? ELSE confirmed_by END,
-        confirmed_at=CASE WHEN ?=\'confirmed\' THEN datetime(\'now\') ELSE confirmed_at END,
+        confirmed_by=CASE WHEN ?='confirmed' THEN ? ELSE confirmed_by END,
+        confirmed_at=CASE WHEN ?='confirmed' THEN datetime('now') ELSE confirmed_at END,
         declined_reason=COALESCE(?,declined_reason),
         fee_cents=COALESCE(?,fee_cents)
       WHERE id=? AND tenant_id=?
-    ').run(status||null,
+    `).run(status||null,
            status, confirmed_by||null,
            status,
            declined_reason||null, fee_cents||null,
@@ -644,21 +644,21 @@ r.get('/casual/availability', (req, res) => {
     const { from, to } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
 
-    const rooms = D().prepare('
+    const rooms = D().prepare(`
       SELECT r.id, r.name, r.age_group, r.capacity,
         COUNT(CASE WHEN c.active=1 THEN 1 END) as enrolled
       FROM rooms r
       LEFT JOIN children c ON c.room_id=r.id AND c.tenant_id=r.tenant_id
       WHERE r.tenant_id=?
       GROUP BY r.id
-    ').all(req.tenantId);
+    `).all(req.tenantId);
 
-    const confirmedByRoomDate = D().prepare('
+    const confirmedByRoomDate = D().prepare(`
       SELECT room_id, requested_date, COUNT(*) as confirmed_casual
       FROM casual_bookings
-      WHERE tenant_id=? AND requested_date BETWEEN ? AND ? AND status=\'confirmed\'
+      WHERE tenant_id=? AND requested_date BETWEEN ? AND ? AND status='confirmed'
       GROUP BY room_id, requested_date
-    ').all(req.tenantId, from, to);
+    `).all(req.tenantId, from, to);
 
     const cbMap = {};
     confirmedByRoomDate.forEach(r => {
