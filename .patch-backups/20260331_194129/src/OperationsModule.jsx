@@ -91,14 +91,14 @@ function VisitorTab() {
 
   const signIn = async () => {
     if (!form.visitor_name) return;
-    await API("/api/operations/visitors", { method:"POST", body: form }.catch(e=>console.error('API error:',e)));
+    await API("/api/operations/visitors", { method:"POST", body: form });
     setForm({ visitor_name:"", visitor_type:"visitor", company:"", purpose:"", wwcc_number:"", vaccination_status:"not_checked" });
     setShowForm(false);
     load();
   };
 
   const signOut = async (id) => {
-    await API(`/api/operations/visitors/${id}/sign-out`, { method:"PUT" }.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/visitors/${id}/sign-out`, { method:"PUT" });
     load();
   };
 
@@ -220,20 +220,20 @@ function EvacuationTab() {
 
   const startDrill = async (type) => {
     setStarting(true);
-    const r = await API("/api/operations/evacuation", { method:"POST", body: { drill_type: type, conducted_by: "Admin" } }.catch(e=>console.error('API error:',e)));
+    const r = await API("/api/operations/evacuation", { method:"POST", body: { drill_type: type, conducted_by: "Admin" } });
     if (r.id) loadDrill(r.id);
     load();
     setStarting(false);
   };
 
   const loadDrill = async (id) => {
-    const r = await API(`/api/operations/evacuation/${id}`.catch(e=>console.error('API error:',e)));
+    const r = await API(`/api/operations/evacuation/${id}`);
     if (r.drill) { setActiveDrill(r.drill); setHeadcounts(r.headcounts||[]); }
   };
 
   const toggleAccounted = async (drillId, hcId, val) => {
-    await API(`/api/operations/evacuation/${drillId}/headcount/${hcId}`, { method:"PUT", body:{ accounted:val } }.catch(e=>console.error('API error:',e)));
-    const r = await API(`/api/operations/evacuation/${drillId}`.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/evacuation/${drillId}/headcount/${hcId}`, { method:"PUT", body:{ accounted:val } });
+    const r = await API(`/api/operations/evacuation/${drillId}`);
     if (r.drill) { setActiveDrill(r.drill); setHeadcounts(r.headcounts||[]); }
   };
 
@@ -241,7 +241,7 @@ function EvacuationTab() {
     const dur = activeDrill.started_at
       ? Math.round((Date.now() - new Date(activeDrill.started_at)) / 1000)
       : null;
-    await API(`/api/operations/evacuation/${activeDrill.id}`, { // catch: .catch(e=>console.error('API error:',e))
+    await API(`/api/operations/evacuation/${activeDrill.id}`, {
       method:"PUT",
       body: { completed_at: new Date().toISOString(), duration_seconds: dur,
               all_accounted: headcounts.every(h=>h.accounted)?1:0,
@@ -374,13 +374,13 @@ function SleepTab() {
 
   const startSleep = async () => {
     if (!childId) return;
-    await API("/api/operations/sleep", { method:"POST", body:{ child_id:childId } }.catch(e=>console.error('API error:',e)));
+    await API("/api/operations/sleep", { method:"POST", body:{ child_id:childId } });
     setChildId("");
     load();
   };
 
-  const doCheck = async (id) => { await API(`/api/operations/sleep/${id}/check`, { method:"PUT" }); load(); }; // catch: .catch(e=>console.error('API error:',e))
-  const wakeUp  = async (id) => { await API(`/api/operations/sleep/${id}/wake`,  { method:"PUT" }); load(); }; // catch: .catch(e=>console.error('API error:',e))
+  const doCheck = async (id) => { await API(`/api/operations/sleep/${id}/check`, { method:"PUT" }); load(); };
+  const wakeUp  = async (id) => { await API(`/api/operations/sleep/${id}/wake`,  { method:"PUT" }); load(); };
 
   const sleeping  = records.filter(r => r.sleep_start && !r.sleep_end);
   const completed = records.filter(r => r.sleep_end);
@@ -494,14 +494,14 @@ function HazardTab() {
 
   const submit = async () => {
     if (!form.title) return;
-    await API("/api/operations/hazards", { method:"POST", body:form }.catch(e=>console.error('API error:',e)));
+    await API("/api/operations/hazards", { method:"POST", body:form });
     setShowForm(false);
     setForm({ report_type:"hazard", title:"", description:"", location:"", risk_level:"medium", reported_by:"" });
     load();
   };
 
   const updateStatus = async (id, status) => {
-    await API(`/api/operations/hazards/${id}`, { method:"PUT", body:{ status } }.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/hazards/${id}`, { method:"PUT", body:{ status } });
     load();
   };
 
@@ -648,14 +648,14 @@ function RPLogTab() {
 
   const addEntry = async () => {
     if (!form.educator_id || !form.start_time) return;
-    await API(`/api/operations/rp-log?date=${date}`, { method:"POST", body:form }.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/rp-log?date=${date}`, { method:"POST", body:form });
     setForm({ educator_id:"", start_time:"", end_time:"" });
     setShowForm(false);
     load();
   };
 
   const sign = async (id, field) => {
-    await API(`/api/operations/rp-log/${id}`, { method:"PUT", body:{ [field]: 1 } }.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/rp-log/${id}`, { method:"PUT", body:{ [field]: 1 } });
     load();
   };
 
@@ -778,14 +778,14 @@ function HandoverTab() {
   useEffect(() => { load(); }, [load]);
 
   const submit = async () => {
-    await API("/api/operations/handover", { method:"POST", body:{ ...form, children_present:parseInt(form.children_present)||0 } }.catch(e=>console.error('API error:',e)));
+    await API("/api/operations/handover", { method:"POST", body:{ ...form, children_present:parseInt(form.children_present)||0 } });
     setShowForm(false);
     setForm({ shift_type:"end_of_day", room_id:"", submitted_by:"", children_present:"", incidents_summary:"", medications_given:"", sleep_notes:"", meals_notes:"", behaviour_notes:"", outstanding_tasks:"", messages_for_families:"", general_notes:"" });
     load();
   };
 
   const acknowledge = async (id) => {
-    await API(`/api/operations/handover/${id}/acknowledge`, { method:"PUT", body:{ acknowledged_by:"Admin" } }.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/handover/${id}/acknowledge`, { method:"PUT", body:{ acknowledged_by:"Admin" } });
     load();
   };
 
@@ -904,12 +904,12 @@ function RoomCheckinTab() {
 
   const checkIn = async () => {
     if (!form.educator_id || !form.room_id) return;
-    await API("/api/operations/room-checkins", { method:"POST", body:form }.catch(e=>console.error('API error:',e)));
+    await API("/api/operations/room-checkins", { method:"POST", body:form });
     load();
   };
 
   const checkOut = async (id) => {
-    await API(`/api/operations/room-checkins/${id}/checkout`, { method:"PUT" }.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/room-checkins/${id}/checkout`, { method:"PUT" });
     load();
   };
 
@@ -990,17 +990,17 @@ function ShiftBiddingTab() {
   useEffect(() => { load(); }, [load]);
 
   const loadBids = async (entryId) => {
-    const r = await API(`/api/operations/shift-bids?entry_id=${entryId}`.catch(e=>console.error('API error:',e)));
+    const r = await API(`/api/operations/shift-bids?entry_id=${entryId}`);
     setBids(p => ({ ...p, [entryId]: r.bids||[] }));
   };
 
   const placeBid = async (entryId, educatorId) => {
-    await API("/api/operations/shift-bids", { method:"POST", body:{ roster_entry_id:entryId, educator_id:educatorId } }.catch(e=>console.error('API error:',e)));
+    await API("/api/operations/shift-bids", { method:"POST", body:{ roster_entry_id:entryId, educator_id:educatorId } });
     loadBids(entryId);
   };
 
   const decide = async (bidId, status, entryId) => {
-    await API(`/api/operations/shift-bids/${bidId}/decide`, { method:"PUT", body:{ status } }.catch(e=>console.error('API error:',e)));
+    await API(`/api/operations/shift-bids/${bidId}/decide`, { method:"PUT", body:{ status } });
     load();
     loadBids(entryId);
   };

@@ -95,17 +95,17 @@ function PaymentsTab() {
   };
 
   const sendLink=async(id)=>{
-    const r=await API(`/api/payments/requests/${id}/send`,{method:"POST"});
+    const r=await API(`/api/payments/requests/${id}/send`,{method:"POST"}.catch(e=>console.error('API error:',e)));
     if(r.ok){alert(`✓ Payment link generated:\n${r.payment_url}`);load();}
   };
 
   const markPaid=async(id)=>{
-    await API(`/api/payments/requests/${id}/mark-paid`,{method:"POST",body:{payment_method:"manual"}});
+    await API(`/api/payments/requests/${id}/mark-paid`,{method:"POST",body:{payment_method:"manual"}}.catch(e=>console.error('API error:',e)));
     load();
   };
 
   const bulkCreate=async()=>{
-    const r=await API("/api/payments/requests/bulk-from-invoices",{method:"POST"});
+    const r=await API("/api/payments/requests/bulk-from-invoices",{method:"POST"}.catch(e=>console.error('API error:',e)));
     alert(r.message||"Done");load();
   };
 
@@ -315,12 +315,12 @@ function WaitlistPipelineTab() {
   };
 
   const decline=async(id)=>{
-    await API(`/api/waitlist-auto/decline/${id}`,{method:"POST"});
+    await API(`/api/waitlist-auto/decline/${id}`,{method:"POST"}.catch(e=>console.error('API error:',e)));
     load();
   };
 
   const bulkNotify=async()=>{
-    const r=await API("/api/waitlist-auto/bulk-notify",{method:"POST",body:{message:"A place may be becoming available soon. Please contact us to discuss your child's enrolment."}});
+    const r=await API("/api/waitlist-auto/bulk-notify",{method:"POST",body:{message:"A place may be becoming available soon. Please contact us to discuss your child's enrolment."}}.catch(e=>console.error('API error:',e)));
     alert(r.message||"Done");
   };
 

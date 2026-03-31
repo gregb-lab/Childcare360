@@ -430,7 +430,7 @@ export default function WeeklyStoryModule(){
 
   const publish=async id=>{await API(`/api/stories/${id}/publish`,{method:"POST"});toast("Published!");loadStories();};
   const unpublish=async id=>{await API(`/api/stories/${id}/unpublish`,{method:"POST"});toast("Unpublished");loadStories();};
-  const del=async id=>{if(!confirm("Delete?"))return;await API(`/api/stories/${id}`,{method:"DELETE"});toast("Deleted");loadStories();};
+  const del=async id=>{if(!confirm("Delete?"))return;await API(`/api/stories/${id}`,{method:"DELETE"});toast("Deleted");loadStories();}; // catch: .catch(e=>console.error('API error:',e))
 
   const play=s=>setPlaying({
     id:s.id,period:s.period||"week",year:s.year,term:s.term,week_start:s.week_start,

@@ -100,7 +100,7 @@ function InboxTab({onUnreadChange}) {
   useEffect(()=>{load();},[load]);
 
   const openThread=async(id)=>{
-    const r=await API(`/api/comms/threads/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/comms/threads/${id}`);
     setActive(r.thread);setMessages(r.messages||[]);
     load();
     setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),100);
@@ -108,13 +108,13 @@ function InboxTab({onUnreadChange}) {
 
   const sendReply=async()=>{
     if(!reply.trim()||!active)return;
-    await API(`/api/comms/threads/${active.id}/reply`,{method:"POST",body:{body:reply,sender_type:"admin",sender_name:"Centre"}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/comms/threads/${active.id}/reply`,{method:"POST",body:{body:reply,sender_type:"admin",sender_name:"Centre"}});
     setReply("");openThread(active.id);
   };
 
   const createThread=async()=>{
     if(!newForm.subject||!newForm.body)return;
-    const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}}.catch(e=>console.error('API error:',e)));
+    const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}});
     setShowNew(false);setNewForm({child_id:"",subject:"",body:""});
     load();if(r.id)openThread(r.id);
   };
@@ -182,7 +182,7 @@ function InboxTab({onUnreadChange}) {
                   <div style={{fontWeight:700,fontSize:14,color:DARK}}>{active.subject}</div>
                   {active.first_name&&<div style={{fontSize:12,color:MU}}>{active.first_name} {active.last_name}</div>}
                 </div>
-                <button onClick={async()=>{await API(`/api/comms/threads/${active.id}/close`,{method:"PUT"});setActive(null);load();}} // error: caught by caller
+                <button onClick={async()=>{await API(`/api/comms/threads/${active.id}/close`,{method:"PUT"});setActive(null);load();}}
                   style={{...bs,fontSize:11,padding:"4px 10px",color:MU,borderColor:"#EDE8F4"}}>Close</button>
               </div>
               <div style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
@@ -366,7 +366,7 @@ function HealthTab() {
 
   const save=async()=>{
     if(!form.child_id)return;
-    await API("/api/comms/health",{method:"POST",body:{...form,symptoms:selSymptoms,temperature:form.temperature?parseFloat(form.temperature):null}}.catch(e=>console.error('API error:',e)));
+    await API("/api/comms/health",{method:"POST",body:{...form,symptoms:selSymptoms,temperature:form.temperature?parseFloat(form.temperature):null}});
     setShowNew(false);
     setForm({child_id:"",event_type:"illness",event_date:new Date().toISOString().split("T")[0],description:"",temperature:"",action_taken:"",parent_notified:false,follow_up_required:false});
     setSelSymptoms([]);load();
@@ -483,13 +483,13 @@ function ImmunisationTab() {
 
   const loadChild=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/comms/immunisation/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/comms/immunisation/${id}`);
     setData(r);
   };
 
   const saveRecord=async()=>{
     if(!recForm.vaccine_name||!selChild)return;
-    await API(`/api/comms/immunisation/${selChild}`,{method:"POST",body:recForm}.catch(e=>console.error('API error:',e)));
+    await API(`/api/comms/immunisation/${selChild}`,{method:"POST",body:recForm});
     setShowRecord(false);setRecForm({vaccine_name:"",date_given:"",provider:""});
     loadChild(selChild);
   };
@@ -603,7 +603,7 @@ function TimelineTab() {
 
   const loadTimeline=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/bulk-comms/timeline/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/bulk-comms/timeline/${id}`);
     setData(r);
   };
 

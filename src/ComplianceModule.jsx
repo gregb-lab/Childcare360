@@ -244,7 +244,7 @@ function ImmTab({ childId, data, onRefresh }) {
   const [show, setShow] = useState(false);
   const [f, setF] = useState({vaccineName:"",doseNumber:1,dateGiven:"",batchNumber:"",provider:"",nextDueDate:""});
   const sched = data.schedule||{};
-  const add = async () => { if(!f.vaccineName||!f.dateGiven)return; await API(`/api/documents/immunisations/${childId}`,{method:"POST",body:f}); setShow(false); setF({vaccineName:"",doseNumber:1,dateGiven:"",batchNumber:"",provider:"",nextDueDate:""}); onRefresh(); };
+  const add = async () => { if(!f.vaccineName||!f.dateGiven)return; await API(`/api/documents/immunisations/${childId}`,{method:"POST",body:f}); setShow(false); setF({vaccineName:"",doseNumber:1,dateGiven:"",batchNumber:"",provider:"",nextDueDate:""}); onRefresh(); }; // catch: .catch(e=>console.error('API error:',e))
   return (<div>
     <div style={{display:"flex",gap:12,marginBottom:16}}>
       <Card style={{padding:"10px 16px"}}><div style={{fontSize:20,fontWeight:700,color:"#3D3248"}}>{sched.recorded||0}</div><div style={{fontSize:11,color:"#8A7F96"}}>Recorded</div></Card>
@@ -279,7 +279,7 @@ function ImmTab({ childId, data, onRefresh }) {
 function MedPlansTab({ childId, plans, onRefresh }) {
   const [show, setShow] = useState(false);
   const [f, setF] = useState({planType:"anaphylaxis",conditionName:"",severity:"moderate",reviewDate:"",doctorName:"",doctorPhone:"",notes:""});
-  const add = async () => { await API(`/api/documents/medical-plans/${childId}`,{method:"POST",body:f}); setShow(false); onRefresh(); };
+  const add = async () => { await API(`/api/documents/medical-plans/${childId}`,{method:"POST",body:f}); setShow(false); onRefresh(); }; // catch: .catch(e=>console.error('API error:',e))
   const types = {anaphylaxis:{l:"Anaphylaxis",c:"#C9828A"},asthma:{l:"Asthma",c:"#D4A26A"},allergy:{l:"Allergy",c:"#9B7DC0"},epilepsy:{l:"Epilepsy",c:"#9B7DC0"},diabetes:{l:"Diabetes",c:"#6BA38B"},other:{l:"Other",c:"#8A7F96"}};
   return (<div>
     <Btn small primary onClick={()=>setShow(!show)} style={{marginBottom:12}}>+ Add Medical Plan</Btn>
@@ -310,7 +310,7 @@ function MedPlansTab({ childId, plans, onRefresh }) {
 function MedsTab({ childId, meds, onRefresh }) {
   const [show, setShow] = useState(false);
   const [f, setF] = useState({name:"",dosage:"",frequency:"",route:"oral",reason:"",prescriber:"",expiryDate:"",quantityHeld:0,requiresRefrigeration:false,parentConsent:false});
-  const add = async () => { await API(`/api/documents/medications/${childId}`,{method:"POST",body:f}); setShow(false); onRefresh(); };
+  const add = async () => { await API(`/api/documents/medications/${childId}`,{method:"POST",body:f}); setShow(false); onRefresh(); }; // catch: .catch(e=>console.error('API error:',e))
   return (<div>
     <Btn small primary onClick={()=>setShow(!show)} style={{marginBottom:12}}>+ Add Medication</Btn>
     {show && <Card style={{background:"#F8F5F1",borderColor:"#D9D0C7",padding:14,marginBottom:12}}>
@@ -342,7 +342,7 @@ function MedsTab({ childId, meds, onRefresh }) {
 function ContactsTab({ childId, parents, onRefresh }) {
   const [show, setShow] = useState(false);
   const [f, setF] = useState({name:"",relationship:"parent",email:"",phone:"",isPrimary:false,receivesNotifications:true});
-  const add = async () => { await API(`/api/documents/parents/${childId}`,{method:"POST",body:f}); setShow(false); onRefresh(); };
+  const add = async () => { await API(`/api/documents/parents/${childId}`,{method:"POST",body:f}); setShow(false); onRefresh(); }; // catch: .catch(e=>console.error('API error:',e))
   return (<div>
     <Btn small primary onClick={()=>setShow(!show)} style={{marginBottom:12}}>+ Add Contact</Btn>
     {show && <Card style={{background:"#F8F5F1",borderColor:"#D9D0C7",padding:14,marginBottom:12}}>

@@ -108,7 +108,7 @@ function CalculatorTab() {
 
   const calculate=async()=>{
     setLoading(true);
-    const r=await API("/api/ccs/calculate",{method:"POST",body:form});
+    const r=await API("/api/ccs/calculate",{method:"POST",body:form}.catch(e=>console.error('API error:',e)));
     setResult(r);
     setLoading(false);
   };
@@ -319,7 +319,7 @@ function FamiliesTab({ dashboard }) {
   useEffect(()=>{load();},[load]);
 
   const save=async()=>{
-    await API("/api/ccs/families",{method:"POST",body:form});
+    await API("/api/ccs/families",{method:"POST",body:form}.catch(e=>console.error('API error:',e)));
     setSelected(null);load();
   };
 
@@ -474,7 +474,7 @@ function ReportsTab() {
 
   const generateAll=async()=>{
     setGenerating(true);
-    await API("/api/ccs/session-reports/generate-all",{method:"POST",body:{fortnight_start:fortnight}});
+    await API("/api/ccs/session-reports/generate-all",{method:"POST",body:{fortnight_start:fortnight}}.catch(e=>console.error('API error:',e)));
     load();
     setGenerating(false);
   };
@@ -482,7 +482,7 @@ function ReportsTab() {
   const markSubmitted=async(id)=>{
     const ref=prompt("Enter submission reference number (from PEP):");
     if(!ref)return;
-    await API(`/api/ccs/session-reports/${id}/submit`,{method:"PUT",body:{submission_ref:ref}});
+    await API(`/api/ccs/session-reports/${id}/submit`,{method:"PUT",body:{submission_ref:ref}}.catch(e=>console.error('API error:',e)));
     load();
   };
 

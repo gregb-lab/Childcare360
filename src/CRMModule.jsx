@@ -151,13 +151,13 @@ function EnquiriesView() {
 
   const createEnquiry=async()=>{
     if(!form.first_name)return;
-    await API("/api/crm/enquiries",{method:"POST",body:form});
+    await API("/api/crm/enquiries",{method:"POST",body:form}.catch(e=>console.error('API error:',e)));
     setForm({first_name:"",last_name:"",email:"",phone:"",child_first_name:"",child_dob:"",preferred_start_date:"",message:"",source:"website"});
     setShowForm(false);load();
   };
 
   const updateStatus=async(id,status)=>{
-    await API(`/api/crm/enquiries/${id}`,{method:"PUT",body:{status}});
+    await API(`/api/crm/enquiries/${id}`,{method:"PUT",body:{status}}.catch(e=>console.error('API error:',e)));
     load();
   };
 
@@ -373,8 +373,8 @@ function FollowUpsView() {
   },[]);
 
   const updateFollowUp=async(id,updates)=>{
-    await API(`/api/crm/enquiries/${id}`,{method:"PUT",body:updates});
-    const r=await API("/api/crm/dashboard");
+    await API(`/api/crm/enquiries/${id}`,{method:"PUT",body:updates}.catch(e=>console.error('API error:',e)));
+    const r=await API("/api/crm/dashboard".catch(e=>console.error('API error:',e)));
     setFollowUps(r.followUps||[]);
   };
 

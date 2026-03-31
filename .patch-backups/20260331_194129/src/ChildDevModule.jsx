@@ -121,7 +121,7 @@ function MenusTab() {
       const mealType=key.substring(key.indexOf("_")+1);
       items.push({day_of_week:parseInt(day),meal_type:mealType,...val});
     });
-    await API(`/api/childdev/menus/${weekStart}`,{method:"POST",body:{plan_name:"Weekly Menu",items}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/menus/${weekStart}`,{method:"POST",body:{plan_name:"Weekly Menu",items}});
     setSaving(false);setEditing(false);
     API(`/api/childdev/menus/${weekStart}/allergen-check`).then(r=>setAllergenAlerts(r.alerts||[]));
     load();
@@ -130,19 +130,19 @@ function MenusTab() {
   const copyLastWeek=async()=>{
     const prev=new Date(weekStart);prev.setDate(prev.getDate()-7);
     const prevStr=prev.toISOString().split("T")[0];
-    await API(`/api/childdev/menus/${weekStart}/copy-from/${prevStr}`,{method:"POST"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/menus/${weekStart}/copy-from/${prevStr}`,{method:"POST"});
     load();
   };
 
   const addDietary=async()=>{
     if(!dietForm.child_id||!dietForm.requirement_type)return;
-    await API("/api/childdev/dietary",{method:"POST",body:dietForm}.catch(e=>console.error('API error:',e)));
+    await API("/api/childdev/dietary",{method:"POST",body:dietForm});
     setDietForm({child_id:"",requirement_type:"",description:"",severity:"intolerance",allergens:[]});
     load();
   };
 
   const removeDietary=async(id)=>{
-    await API(`/api/childdev/dietary/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/dietary/${id}`,{method:"DELETE"});
     load();
   };
 
@@ -167,7 +167,7 @@ function MenusTab() {
         {editing&&<><button onClick={saveMenu} disabled={saving} style={bp}>{saving?"Saving…":"Save Menu"}</button>
           <button onClick={()=>{setEditing(false);load();}} style={bs}>Cancel</button></>}
         {menuData.plan?.status==="draft"&&!editing&&(
-          <button onClick={async()=>{await API(`/api/childdev/menus/${weekStart}/approve`,{method:"PUT",body:{approved_by:"Director"}});load();}} // error: caught by caller
+          <button onClick={async()=>{await API(`/api/childdev/menus/${weekStart}/approve`,{method:"PUT",body:{approved_by:"Director"}});load();}}
             style={{...bs,color:OK,borderColor:OK,fontSize:12}}>✓ Approve</button>
         )}
       </div>
@@ -347,7 +347,7 @@ function MilestonesTab() {
 
   const loadMilestones=async(childId)=>{
     setSelChild(childId);
-    const r=await API(`/api/childdev/milestones/${childId}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/childdev/milestones/${childId}`);
     setData(r);
   };
 
@@ -355,11 +355,11 @@ function MilestonesTab() {
     const currently=data?.framework?.[domain]?.milestones?.find(m=>m.key===milestone.key);
     const nowAchieved=!currently?.achieved;
     setSaving(true);
-    await API(`/api/childdev/milestones/${childId}`,{method:"POST",body:{ // catch: .catch(e=>console.error('API error:',e))
+    await API(`/api/childdev/milestones/${childId}`,{method:"POST",body:{
       milestone_key:milestone.key, domain, milestone_label:milestone.label,
       age_months_expected:milestone.age, achieved:nowAchieved
     }});
-    const r=await API(`/api/childdev/milestones/${childId}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/childdev/milestones/${childId}`);
     setData(r);setSaving(false);
   };
 
@@ -504,13 +504,13 @@ function TransitionsTab() {
   useEffect(()=>{load();},[load]);
 
   const loadReport=async(id)=>{
-    const r=await API(`/api/childdev/transitions/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/childdev/transitions/${id}`);
     setActive(r.report);
     setMilestones(r.milestones||[]);
   };
 
   const createReport=async(childId)=>{
-    const r=await API("/api/childdev/transitions",{method:"POST",body:{child_id:childId,prepared_by:"Educator"}}.catch(e=>console.error('API error:',e)));
+    const r=await API("/api/childdev/transitions",{method:"POST",body:{child_id:childId,prepared_by:"Educator"}});
     load();
     loadReport(r.id);
   };
@@ -518,7 +518,7 @@ function TransitionsTab() {
   const autoDraft=async()=>{
     if(!active)return;
     setDrafting(true);
-    const r=await API(`/api/childdev/transitions/${active.id}/auto-draft`,{method:"POST"}.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/childdev/transitions/${active.id}/auto-draft`,{method:"POST"});
     await loadReport(active.id);
     setDrafting(false);
     alert(`✓ Auto-drafted ${r.drafted_sections} sections from ${r.milestone_count} milestone records`);
@@ -527,7 +527,7 @@ function TransitionsTab() {
   const save=async()=>{
     if(!active)return;
     setSaving(true);
-    await API(`/api/childdev/transitions/${active.id}`,{method:"PUT",body:active}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/transitions/${active.id}`,{method:"PUT",body:active});
     setSaving(false);load();
   };
 

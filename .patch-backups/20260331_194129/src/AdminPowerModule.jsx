@@ -79,19 +79,19 @@ function RecruitmentTab() {
   useEffect(()=>{load();},[load]);
 
   const loadApps=async(jobId)=>{
-    const r=await API(`/api/admin/recruitment/applications?job_id=${jobId}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/admin/recruitment/applications?job_id=${jobId}`);
     setApps(r.applications||[]);setSelJob(jobId);
   };
 
   const saveJob=async()=>{
     if(!form.title)return;
-    await API("/api/admin/recruitment/jobs",{method:"POST",body:{...form,salary_min:form.salary_min?parseFloat(form.salary_min):null,salary_max:form.salary_max?parseFloat(form.salary_max):null}}.catch(e=>console.error('API error:',e)));
+    await API("/api/admin/recruitment/jobs",{method:"POST",body:{...form,salary_min:form.salary_min?parseFloat(form.salary_min):null,salary_max:form.salary_max?parseFloat(form.salary_max):null}});
     setShowNewJob(false);setForm({title:"",employment_type:"permanent",description:"",requirements:"",salary_min:"",salary_max:"",closing_date:""});
     load();
   };
 
   const moveApp=async(id,status)=>{
-    await API(`/api/admin/recruitment/applications/${id}`,{method:"PUT",body:{status}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/admin/recruitment/applications/${id}`,{method:"PUT",body:{status}});
     if(selJob)loadApps(selJob);
   };
 
@@ -238,7 +238,7 @@ function AppraisalsTab() {
 
   const createAppraisal=async()=>{
     if(!form.educator_id)return;
-    await API("/api/admin/appraisals",{method:"POST",body:{...form,template_id:template?.id}}.catch(e=>console.error('API error:',e)));
+    await API("/api/admin/appraisals",{method:"POST",body:{...form,template_id:template?.id}});
     setShowNew(false);load();
   };
 
@@ -247,7 +247,7 @@ function AppraisalsTab() {
     const assessment={};
     Object.entries(ratings).forEach(([k,v])=>{assessment[k]=v;});
     const overallRating=Object.values(ratings).filter(v=>typeof v==="number").reduce((s,v,_,a)=>s+v/a.length,0);
-    await API(`/api/admin/appraisals/${active.id}`,{method:"PUT",body:{ // catch: .catch(e=>console.error('API error:',e))
+    await API(`/api/admin/appraisals/${active.id}`,{method:"PUT",body:{
       reviewer_assessment:assessment, overall_rating:parseFloat(overallRating.toFixed(1)),
       status:"completed", signed_by_reviewer:1
     }});
@@ -397,7 +397,7 @@ function OccupancyTab() {
 
   const takeSnapshot=async()=>{
     setSnapshotting(true);
-    await API("/api/admin/occupancy/snapshot",{method:"POST"}.catch(e=>console.error('API error:',e)));
+    await API("/api/admin/occupancy/snapshot",{method:"POST"});
     load();setSnapshotting(false);
   };
 
@@ -496,12 +496,12 @@ function DebtTab() {
   useEffect(()=>{load();},[load]);
 
   const remind=async(id,n)=>{
-    await API(`/api/admin/debt/${id}/reminder`,{method:"POST",body:{reminder_number:n}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/admin/debt/${id}/reminder`,{method:"POST",body:{reminder_number:n}});
     load();
   };
 
   const markPaid=async(id,amountCents)=>{
-    await API(`/api/admin/debt/${id}`,{method:"PUT",body:{amount_paid_cents:amountCents,status:"paid"}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/admin/debt/${id}`,{method:"PUT",body:{amount_paid_cents:amountCents,status:"paid"}});
     load();
   };
 

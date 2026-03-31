@@ -77,14 +77,14 @@ function EventsTab() {
   useEffect(()=>{load();},[load]);
 
   const loadDetail=async(id)=>{
-    const r=await API(`/api/engagement/events/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/engagement/events/${id}`);
     setSelected(r.event);
     setRsvps(r.rsvps||[]);
   };
 
   const save=async()=>{
     if(!form.title||!form.event_date)return;
-    await API("/api/engagement/events",{method:"POST",body:{...form,rsvp_required:form.rsvp_required?1:0,max_attendees:form.max_attendees?parseInt(form.max_attendees):null}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/events",{method:"POST",body:{...form,rsvp_required:form.rsvp_required?1:0,max_attendees:form.max_attendees?parseInt(form.max_attendees):null}});
     setShowForm(false);
     setForm({title:"",description:"",event_type:"general",event_date:"",start_time:"",end_time:"",location:"",rsvp_required:false,rsvp_deadline:"",max_attendees:""});
     load();
@@ -92,7 +92,7 @@ function EventsTab() {
 
   const del=async(id)=>{
     if(!confirm("Delete this event?"))return;
-    await API(`/api/engagement/events/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/events/${id}`,{method:"DELETE"});
     setSelected(null);load();
   };
 
@@ -273,35 +273,35 @@ function CommunityTab() {
 
   const submit=async()=>{
     if(!form.body)return;
-    await API("/api/engagement/posts",{method:"POST",body:{...form,author_user_id:"admin"}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/posts",{method:"POST",body:{...form,author_user_id:"admin"}});
     setForm({title:"",body:"",author_name:"",author_type:"educator",visibility:"centre"});
     setShowForm(false);load();
   };
 
   const del=async(id)=>{
-    await API(`/api/engagement/posts/${id}`,{method:"DELETE"});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/posts/${id}`,{method:"DELETE"});load();
   };
 
   const pin=async(id,pinned)=>{
-    await API(`/api/engagement/posts/${id}/pin`,{method:"PUT",body:{pinned:!pinned}});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/posts/${id}/pin`,{method:"PUT",body:{pinned:!pinned}});load();
   };
 
   const loadComments=async(id)=>{
-    const r=await API(`/api/engagement/comments/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/engagement/comments/${id}`);
     setComments(p=>({...p,[id]:r.comments||[]}));
   };
 
   const addComment=async(postId)=>{
     const body=commentInput[postId];
     if(!body)return;
-    await API("/api/engagement/comments",{method:"POST",body:{story_id:postId,story_type:"community",body,author_name:"Admin",author_type:"educator",author_user_id:"admin"}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/comments",{method:"POST",body:{story_id:postId,story_type:"community",body,author_name:"Admin",author_type:"educator",author_user_id:"admin"}});
     setCommentInput(p=>({...p,[postId]:""}));
     loadComments(postId);
     load();
   };
 
   const react=async(postId)=>{
-    const r=await API("/api/engagement/reactions",{method:"POST",body:{story_id:postId,story_type:"community",user_id:"admin",reaction:"heart"}}.catch(e=>console.error('API error:',e)));
+    const r=await API("/api/engagement/reactions",{method:"POST",body:{story_id:postId,story_type:"community",user_id:"admin",reaction:"heart"}});
     setReactions(p=>({...p,[postId]:r.counts||[]}));
     load();
   };
@@ -431,20 +431,20 @@ function PoliciesTab() {
   useEffect(()=>{load();},[load]);
 
   const loadAcks=async(id)=>{
-    const r=await API(`/api/engagement/policies/${id}/acknowledgements`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/engagement/policies/${id}/acknowledgements`);
     setAckData(r);
   };
 
   const save=async()=>{
     if(!form.title)return;
-    await API("/api/engagement/policies",{method:"POST",body:{...form,requires_acknowledgement:form.requires_acknowledgement?1:0,visible_to_parents:form.visible_to_parents?1:0}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/policies",{method:"POST",body:{...form,requires_acknowledgement:form.requires_acknowledgement?1:0,visible_to_parents:form.visible_to_parents?1:0}});
     setShowForm(false);
     setForm({title:"",category:"policy",description:"",file_url:"",version:"1.0",requires_acknowledgement:true,visible_to_parents:false});
     load();
   };
 
   const archive=async(id)=>{
-    await API(`/api/engagement/policies/${id}`,{method:"PUT",body:{status:"archived"}});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/policies/${id}`,{method:"PUT",body:{status:"archived"}});load();
   };
 
   const byCategory={};
@@ -608,7 +608,7 @@ function ChecklistsTab() {
 
   const saveTemplate=async()=>{
     if(!form.title||!form.items.length)return;
-    await API("/api/engagement/checklists",{method:"POST",body:{...form,created_by:"Admin"}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/checklists",{method:"POST",body:{...form,created_by:"Admin"}});
     setShowBuilder(false);
     setForm({title:"",category:"daily",frequency:"daily",description:"",assign_to_role:"educator",items:[]});
     load();
@@ -623,12 +623,12 @@ function ChecklistsTab() {
 
   const submitComplete=async()=>{
     const r=active.items.map(i=>({item_id:i.id,label:i.label,checked:!!responses[i.id]}));
-    await API(`/api/engagement/checklists/${active.id}/complete`,{method:"POST",body:{responses:r,completed_by:"Admin",date:today()}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/checklists/${active.id}/complete`,{method:"POST",body:{responses:r,completed_by:"Admin",date:today()}});
     setActive(null);setResponses({});load();
   };
 
   const del=async(id)=>{
-    await API(`/api/engagement/checklists/${id}`,{method:"DELETE"});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/checklists/${id}`,{method:"DELETE"});load();
   };
 
   const CATEGORIES=["daily","opening","closing","safety","cleaning","admin","other"];

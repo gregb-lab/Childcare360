@@ -116,7 +116,7 @@ function AIWriterTab() {
 
   const save=async()=>{
     setSaving(true);
-    await API("/api/ai-assistant/save",{method:"POST",body:{
+    await API("/api/ai-assistant/save",{method:"POST",body:{ // catch: .catch(e=>console.error('API error:',e))
       session_id:result?.session_id,
       final_text:finalText,
       child_id:form.child_id||null,
@@ -285,12 +285,12 @@ function FeeOverridesTab() {
       daily_rate_cents:form.daily_rate_cents?Math.round(parseFloat(form.daily_rate_cents)*100):null,
       discount_pct:form.discount_pct?parseFloat(form.discount_pct):0,
     };
-    await API("/api/fee-overrides",{method:"POST",body});
+    await API("/api/fee-overrides",{method:"POST",body}.catch(e=>console.error('API error:',e)));
     setShowNew(false);load();
   };
 
   const remove=async(id)=>{
-    await API(`/api/fee-overrides/${id}`,{method:"DELETE"});
+    await API(`/api/fee-overrides/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
     load();
   };
 
@@ -411,20 +411,20 @@ function ComplianceTasksTab({onCountChange}) {
 
   const autoGenerate=async()=>{
     setGenerating(true);
-    const r=await API("/api/compliance-tasks/auto-generate",{method:"POST"});
+    const r=await API("/api/compliance-tasks/auto-generate",{method:"POST"}.catch(e=>console.error('API error:',e)));
     load();setGenerating(false);
     if(r.generated>0)window.showToast?.(`Generated ${r.generated} compliance task${r.generated>1?"s":""}`, "success");
     else window.showToast?.("No new tasks to generate", "info");
   };
 
   const complete=async(id)=>{
-    await API(`/api/compliance-tasks/${id}`,{method:"PUT",body:{status:"completed",completed_by:"Director"}});
+    await API(`/api/compliance-tasks/${id}`,{method:"PUT",body:{status:"completed",completed_by:"Director"}}.catch(e=>console.error('API error:',e)));
     load();
   };
 
   const createTask=async()=>{
     if(!form.title)return;
-    await API("/api/compliance-tasks",{method:"POST",body:form});
+    await API("/api/compliance-tasks",{method:"POST",body:form}.catch(e=>console.error('API error:',e)));
     setShowNew(false);setForm({task_type:"general",title:"",description:"",due_date:"",assigned_to:"",priority:"normal"});
     load();
   };

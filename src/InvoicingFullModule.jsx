@@ -433,7 +433,7 @@ function BulkTab({onRefresh}) {
 
   const run=async()=>{
     setRunning(true);
-    const r=await API("/api/invoicing-full/bulk-generate",{method:"POST",body:form});
+    const r=await API("/api/invoicing-full/bulk-generate",{method:"POST",body:form}.catch(e=>console.error('API error:',e)));
     setResult(r);setRunning(false);onRefresh?.();
   };
 
@@ -531,17 +531,17 @@ function PaymentsTab({onRefresh}) {
   useEffect(()=>{load();},[load]);
 
   const createPlan=async()=>{
-    const r=await API("/api/invoicing-full/payment-plans",{method:"POST",body:planForm});
+    const r=await API("/api/invoicing-full/payment-plans",{method:"POST",body:planForm}.catch(e=>console.error('API error:',e)));
     if(r.ok){setShowNewPlan(false);load();onRefresh?.();}
   };
 
   const payInstalment=async(id)=>{
-    const r=await API(`/api/invoicing-full/payment-plans/${id}/pay`,{method:"PUT"});
+    const r=await API(`/api/invoicing-full/payment-plans/${id}/pay`,{method:"PUT"}.catch(e=>console.error('API error:',e)));
     if(r.ok){load();onRefresh?.();}
   };
 
   const createCredit=async()=>{
-    const r=await API("/api/invoicing-full/credit-notes",{method:"POST",body:creditForm});
+    const r=await API("/api/invoicing-full/credit-notes",{method:"POST",body:creditForm}.catch(e=>console.error('API error:',e)));
     if(r.ok){setShowNewCredit(false);load();}
   };
 
@@ -716,7 +716,7 @@ function FeesTab() {
   useEffect(()=>{load();},[load]);
 
   const save=async()=>{
-    await API("/api/invoicing-full/fee-schedules",{method:"POST",body:form});
+    await API("/api/invoicing-full/fee-schedules",{method:"POST",body:form}.catch(e=>console.error('API error:',e)));
     setEditing(null);load();
   };
 
@@ -793,7 +793,7 @@ function StatementsTab() {
 
   const load=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/invoicing-full/statements/${id}`);
+    const r=await API(`/api/invoicing-full/statements/${id}`.catch(e=>console.error('API error:',e)));
     setStmt(r);
   };
 
@@ -889,7 +889,7 @@ function SettingsTab() {
   },[]);
 
   const save=async()=>{
-    await API("/api/invoicing-full/templates",{method:"POST",body:{...template,is_default:1}});
+    await API("/api/invoicing-full/templates",{method:"POST",body:{...template,is_default:1}}.catch(e=>console.error('API error:',e)));
     setSaved(true);setTimeout(()=>setSaved(false),2000);
   };
 

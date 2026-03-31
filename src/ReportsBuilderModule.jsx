@@ -85,7 +85,7 @@ function ReportsTab() {
   const run=async()=>{
     if(!selType)return;
     setRunning(true);
-    const r=await API("/api/reports-builder/run",{method:"POST",body:{report_type:selType,config}});
+    const r=await API("/api/reports-builder/run",{method:"POST",body:{report_type:selType,config}}.catch(e=>console.error('API error:',e)));
     setResult(r);setRunning(false);
   };
 
@@ -109,8 +109,8 @@ function ReportsTab() {
   const saveReport=async()=>{
     const name=prompt("Report name:");
     if(!name)return;
-    await API("/api/reports-builder/saved",{method:"POST",body:{name,report_type:selType,config}});
-    const s=await API("/api/reports-builder/saved");
+    await API("/api/reports-builder/saved",{method:"POST",body:{name,report_type:selType,config}}.catch(e=>console.error('API error:',e)));
+    const s=await API("/api/reports-builder/saved".catch(e=>console.error('API error:',e)));
     setSaved(s.reports||[]);
   };
 
@@ -120,7 +120,7 @@ function ReportsTab() {
   };
 
   const deleteSaved=async(id)=>{
-    await API(`/api/reports-builder/saved/${id}`,{method:"DELETE"});
+    await API(`/api/reports-builder/saved/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
     setSaved(s=>s.filter(r=>r.id!==id));
   };
 
@@ -659,18 +659,18 @@ function ScheduledReportsTab() {
 
   const save=async()=>{
     if(!form.name||!form.report_type)return;
-    const r=await API("/api/reports-builder/schedules",{method:"POST",body:form});
+    const r=await API("/api/reports-builder/schedules",{method:"POST",body:form}.catch(e=>console.error('API error:',e)));
     if(r.ok){setShowNew(false);setForm({name:"",report_type:"attendance",frequency:"weekly",day_of_week:1,time:"08:00"});load();}
   };
 
   const toggle=async(id,enabled)=>{
-    await API(`/api/reports-builder/schedules/${id}`,{method:"PUT",body:{enabled}});
+    await API(`/api/reports-builder/schedules/${id}`,{method:"PUT",body:{enabled}}.catch(e=>console.error('API error:',e)));
     load();
   };
 
   const del=async(id)=>{
     if(!confirm("Delete this scheduled report?"))return;
-    await API(`/api/reports-builder/schedules/${id}`,{method:"DELETE"});
+    await API(`/api/reports-builder/schedules/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
     load();
   };
 

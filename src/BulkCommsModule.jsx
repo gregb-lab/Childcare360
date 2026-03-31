@@ -244,7 +244,7 @@ function ChildTimelineTab() {
 
   const loadTimeline=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/bulk-comms/timeline/${id}`);
+    const r=await API(`/api/bulk-comms/timeline/${id}`.catch(e=>console.error('API error:',e)));
     setData(r);
   };
 

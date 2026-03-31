@@ -440,7 +440,7 @@ Use Australian early childhood education language aligned with EYLF principles.`
                   const sid = await ensureSheet(roomData.room.id);
                   if (!sid) return;
                   for (const child of roomData.children) {
-                    await API(`/api/runsheet/child/${child.id}`, {
+                    await API(`/api/runsheet/child/${child.id}`, { // catch: .catch(e=>console.error('API error:',e))
                       method: "PUT",
                       body: { run_sheet_id: sid, ...(childData[child.id] || {}) },
                     });
