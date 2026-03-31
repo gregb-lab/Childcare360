@@ -29,7 +29,7 @@ r.get('/', (req, res) => {
 // GET /api/incidents/:id
 r.get('/:id', (req, res) => {
   try {
-    const row = D().prepare(`SELECT i.*, c.first_name, c.last_name FROM incidents i LEFT JOIN children c ON c.id=i.child_id WHERE i.id=? AND i.tenant_id=?`).get(req.params.id, req.tenantId);
+    const row = D().prepare('SELECT i.*, c.first_name, c.last_name FROM incidents i LEFT JOIN children c ON c.id=i.child_id WHERE i.id=? AND i.tenant_id=?').get(req.params.id, req.tenantId);
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -59,7 +59,7 @@ r.post('/', (req, res) => {
 r.put('/:id', (req, res) => {
   try {
     const b = req.body;
-    D().prepare(`UPDATE incidents SET
+    D().prepare('UPDATE incidents SET
       child_id=COALESCE(?,child_id), date=COALESCE(?,date), time=COALESCE(?,time),
       type=COALESCE(?,type), severity=COALESCE(?,severity), title=COALESCE(?,title),
       description=COALESCE(?,description), location=COALESCE(?,location),
@@ -70,8 +70,8 @@ r.put('/:id', (req, res) => {
       follow_up_required=COALESCE(?,follow_up_required), follow_up_notes=COALESCE(?,follow_up_notes),
       regulatory_report_required=COALESCE(?,regulatory_report_required),
       regulatory_reported_at=COALESCE(?,regulatory_reported_at),
-      updated_at=datetime('now')
-      WHERE id=? AND tenant_id=?`).run(
+      updated_at=datetime(\'now\')
+      WHERE id=? AND tenant_id=?').run(
       b.child_id, b.date, b.time, b.type, b.severity, b.title, b.description, b.location,
       b.action_taken, b.first_aid_given!=null?b.first_aid_given?1:0:null, b.first_aid_by,
       b.parent_notified!=null?b.parent_notified?1:0:null, b.parent_notified_at, b.parent_notified_method,

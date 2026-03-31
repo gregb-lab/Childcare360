@@ -89,7 +89,7 @@ r.get('/attendance', (req, res) => {
     `).all(...[req.tenantId, from, ...(room_id ? [room_id] : [])]);
 
     // Children with most absences
-    const absentees = D().prepare(`
+    const absentees = D().prepare('
       SELECT c.first_name, c.last_name, r.name as room,
         COUNT(CASE WHEN a.absent=1 THEN 1 END) as absences,
         COUNT(*) as total_days,
@@ -102,7 +102,7 @@ r.get('/attendance', (req, res) => {
       HAVING absences > 0
       ORDER BY absences DESC
       LIMIT 10
-    `).all(req.tenantId, from);
+    ').all(req.tenantId, from);
 
     res.json({ daily, weekly, by_dow: dowEnriched, hourly, absentees });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -113,17 +113,17 @@ r.get('/rooms', (req, res) => {
   try {
     const from = daysAgo(30);
 
-    const rooms = D().prepare(`
+    const rooms = D().prepare('
       SELECT r.id, r.name, r.age_group, r.capacity,
         COUNT(CASE WHEN c.active=1 THEN 1 END) as enrolled
       FROM rooms r
       LEFT JOIN children c ON c.room_id=r.id AND c.tenant_id=r.tenant_id
       WHERE r.tenant_id=?
       GROUP BY r.id
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     const roomStats = rooms.map(room => {
-      const attendanceLast30 = D().prepare(`
+      const attendanceLast30 = D().prepare('
         SELECT AVG(daily_present) as avg_daily,
                MAX(daily_present) as peak_day
         FROM (
@@ -133,7 +133,7 @@ r.get('/rooms', (req, res) => {
           WHERE a.tenant_id=? AND c.room_id=? AND a.date >= ? AND a.absent=0
           GROUP BY a.date
         )
-      `).get(req.tenantId, room.id, from);
+      ').get(req.tenantId, room.id, from);
 
       return {
         ...room,
@@ -155,19 +155,19 @@ r.get('/forecast', (req, res) => {
     // Get last 8 weeks of attendance by day-of-week
     const from = daysAgo(56);
 
-    const byDow = D().prepare(`
-      SELECT strftime('%w', a.date) as dow,
+    const byDow = D().prepare('
+      SELECT strftime(\'%w\', a.date) as dow,
         AVG(daily_count) as avg_present
       FROM (
-        SELECT a.date, strftime('%w', a.date) as dow,
+        SELECT a.date, strftime(\'%w\', a.date) as dow,
           COUNT(CASE WHEN a.absent=0 AND a.sign_in IS NOT NULL THEN 1 END) as daily_count
         FROM attendance_sessions a
         WHERE a.tenant_id=? AND a.date >= ?
         GROUP BY a.date
       )
-      WHERE dow BETWEEN '1' AND '5'
+      WHERE dow BETWEEN \'1\' AND \'5\'
       GROUP BY dow
-    `).all(req.tenantId, from);
+    ').all(req.tenantId, from);
 
     const avgByDow = {};
     byDow.forEach(d => { avgByDow[d.dow] = Math.round(d.avg_present || 0); });
@@ -204,18 +204,18 @@ r.get('/forecast', (req, res) => {
 // ── Revenue analytics ─────────────────────────────────────────────────────────
 r.get('/revenue', (req, res) => {
   try {
-    const monthly = D().prepare(`
-      SELECT strftime('%Y-%m', created_at) as month,
+    const monthly = D().prepare('
+      SELECT strftime(\'%Y-%m\', created_at) as month,
         COUNT(*) as invoice_count,
         SUM(total_cents) as billed_cents,
-        SUM(CASE WHEN status='paid' THEN total_cents ELSE 0 END) as collected_cents,
-        SUM(CASE WHEN status='overdue' THEN total_cents ELSE 0 END) as overdue_cents
+        SUM(CASE WHEN status=\'paid\' THEN total_cents ELSE 0 END) as collected_cents,
+        SUM(CASE WHEN status=\'overdue\' THEN total_cents ELSE 0 END) as overdue_cents
       FROM invoices
       WHERE tenant_id=?
       GROUP BY month
       ORDER BY month DESC
       LIMIT 12
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     const currentMonth = new Date().toISOString().slice(0,7);
     const thisMonth = monthly.find(m => m.month === currentMonth) || {};
@@ -244,19 +244,19 @@ r.get('/educator-hours', (req, res) => {
   try {
     const from = daysAgo(30);
 
-    const weekly = D().prepare(`
-      SELECT strftime('%Y-W%W', COALESCE(clock_date, date)) as week,
+    const weekly = D().prepare('
+      SELECT strftime(\'%Y-W%W\', COALESCE(clock_date, date)) as week,
         MIN(COALESCE(clock_date, date)) as week_start,
         COUNT(DISTINCT educator_id) as educator_count,
         ROUND(SUM(COALESCE(hours_worked,0)), 1) as total_hours,
         ROUND(AVG(COALESCE(hours_worked,0)), 1) as avg_hours_per_shift
       FROM clock_records
       WHERE tenant_id=? AND COALESCE(clock_date, date) >= ? AND clock_out IS NOT NULL
-      GROUP BY strftime('%Y-W%W', COALESCE(clock_date, date))
+      GROUP BY strftime(\'%Y-W%W\', COALESCE(clock_date, date))
       ORDER BY week
-    `).all(req.tenantId, from);
+    ').all(req.tenantId, from);
 
-    const byEducator = D().prepare(`
+    const byEducator = D().prepare('
       SELECT e.first_name, e.last_name, e.qualification,
         COUNT(*) as shifts,
         ROUND(SUM(COALESCE(cr.hours_worked, 0)), 1) as total_hours
@@ -265,7 +265,7 @@ r.get('/educator-hours', (req, res) => {
       WHERE cr.tenant_id=? AND COALESCE(cr.clock_date, cr.date) >= ? AND cr.clock_out IS NOT NULL
       GROUP BY COALESCE(cr.educator_id, cr.member_id)
       ORDER BY total_hours DESC
-    `).all(req.tenantId, from);
+    ').all(req.tenantId, from);
 
     res.json({ weekly, by_educator: byEducator });
   } catch(e) { res.status(500).json({ error: e.message }); }

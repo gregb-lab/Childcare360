@@ -59,7 +59,7 @@ const REPORT_TYPES = {
       const fromDate = from || new Date(Date.now() - 14*86400000).toISOString().split('T')[0];
       const toDate   = to   || new Date().toISOString().split('T')[0];
 
-      const rows = D().prepare(`
+      const rows = D().prepare('
         SELECT e.first_name, e.last_name, e.qualification, e.employment_type,
                cr.clock_date as date, cr.clock_in, cr.clock_out,
                ROUND(COALESCE(cr.hours_worked, 0), 2) as net_hours,
@@ -68,7 +68,7 @@ const REPORT_TYPES = {
         JOIN educators e ON e.id=cr.educator_id
         WHERE cr.tenant_id=? AND cr.clock_date BETWEEN ? AND ? AND cr.clock_out IS NOT NULL
         ORDER BY cr.clock_date DESC, e.last_name
-      `).all(tenantId, fromDate, toDate);
+      ').all(tenantId, fromDate, toDate);
 
       const byEducator = {};
       rows.forEach(r => {
@@ -90,10 +90,10 @@ const REPORT_TYPES = {
     label: 'Enrolment Report',
     description: 'Current enrolments by room, age group, and status',
     run: (tenantId, config) => {
-      const rows = D().prepare(`
+      const rows = D().prepare('
         SELECT c.first_name, c.last_name,
                date(c.dob) as dob,
-               CAST((julianday('now') - julianday(c.dob)) / 365.25 AS INTEGER) as age_years,
+               CAST((julianday(\'now\') - julianday(c.dob)) / 365.25 AS INTEGER) as age_years,
                r.name as room, r.age_group,
                c.start_date, c.medical_conditions, c.allergies,
                c.crn_number
@@ -101,7 +101,7 @@ const REPORT_TYPES = {
         LEFT JOIN rooms r ON r.id=c.room_id
         WHERE c.tenant_id=? AND c.active=1
         ORDER BY r.name, c.last_name
-      `).all(tenantId);
+      ').all(tenantId);
 
       const byRoom = {};
       rows.forEach(r => {
@@ -123,18 +123,18 @@ const REPORT_TYPES = {
       const today = new Date().toISOString().split('T')[0];
       const in90  = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
 
-      const rows = D().prepare(`
+      const rows = D().prepare('
         SELECT e.first_name, e.last_name, e.qualification, e.employment_type,
                e.first_aid_expiry, e.cpr_expiry, e.wwcc_expiry, e.wwcc_number,
                e.anaphylaxis_expiry, e.status,
-               CASE WHEN e.first_aid_expiry < ? THEN 'EXPIRED'
-                    WHEN e.first_aid_expiry < ? THEN 'EXPIRING SOON' ELSE 'OK' END as first_aid_status,
-               CASE WHEN e.wwcc_expiry < ? THEN 'EXPIRED'
-                    WHEN e.wwcc_expiry < ? THEN 'EXPIRING SOON' ELSE 'OK' END as wwcc_status
+               CASE WHEN e.first_aid_expiry < ? THEN \'EXPIRED\'
+                    WHEN e.first_aid_expiry < ? THEN \'EXPIRING SOON\' ELSE \'OK\' END as first_aid_status,
+               CASE WHEN e.wwcc_expiry < ? THEN \'EXPIRED\'
+                    WHEN e.wwcc_expiry < ? THEN \'EXPIRING SOON\' ELSE \'OK\' END as wwcc_status
         FROM educators e
-        WHERE e.tenant_id=? AND e.status='active'
+        WHERE e.tenant_id=? AND e.status=\'active\'
         ORDER BY e.last_name
-      `).all(today, in90, today, in90, tenantId);
+      ').all(today, in90, today, in90, tenantId);
 
       const summary = {
         total: rows.length,
@@ -154,19 +154,19 @@ const REPORT_TYPES = {
     label: 'Outstanding Debt Report',
     description: 'Overdue accounts and payment history',
     run: (tenantId, config) => {
-      const rows = D().prepare(`
+      const rows = D().prepare('
         SELECT c.first_name, c.last_name, r.name as room,
                d.amount_cents, d.amount_paid_cents,
                d.amount_cents - d.amount_paid_cents as outstanding_cents,
                d.due_date, d.status,
-               CAST(julianday('now') - julianday(d.due_date) AS INTEGER) as days_overdue,
+               CAST(julianday(\'now\') - julianday(d.due_date) AS INTEGER) as days_overdue,
                d.reminder_1_sent, d.reminder_2_sent, d.reminder_3_sent
         FROM debt_records d
         JOIN children c ON c.id=d.child_id
         LEFT JOIN rooms r ON r.id=c.room_id
-        WHERE d.tenant_id=? AND d.status != 'paid'
+        WHERE d.tenant_id=? AND d.status != \'paid\'
         ORDER BY days_overdue DESC
-      `).all(tenantId);
+      ').all(tenantId);
 
       const summary = {
         total_accounts: rows.length,
@@ -187,7 +187,7 @@ const REPORT_TYPES = {
     label: 'Occupancy Report',
     description: 'Room capacity, enrolment, and occupancy trends',
     run: (tenantId, config) => {
-      const rooms = D().prepare(`
+      const rooms = D().prepare('
         SELECT r.id, r.name, r.age_group, r.capacity,
           COUNT(c.id) as enrolled,
           ROUND(COUNT(c.id)*100.0/NULLIF(r.capacity,0),1) as occupancy_pct
@@ -196,13 +196,13 @@ const REPORT_TYPES = {
         WHERE r.tenant_id=?
         GROUP BY r.id
         ORDER BY r.name
-      `).all(tenantId);
+      ').all(tenantId);
 
-      const waitlist = D().prepare(`
+      const waitlist = D().prepare('
         SELECT preferred_room, COUNT(*) as waiting
-        FROM waitlist WHERE tenant_id=? AND status='waiting'
+        FROM waitlist WHERE tenant_id=? AND status=\'waiting\'
         GROUP BY preferred_room
-      `).all(tenantId);
+      ').all(tenantId);
 
       const waitMap = {};
       waitlist.forEach(w => { waitMap[w.preferred_room] = w.waiting; });
@@ -315,10 +315,10 @@ rb.post('/schedules', (req, res) => {
     const nextRun = new Date(now.getTime() + (dayMap[frequency]||7)*86400000).toISOString().split('T')[0];
     
     const id = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO report_schedules (id,tenant_id,name,report_type,config,frequency,day_of_week,time,recipients,next_run,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    `).run(id, req.tenantId, name, report_type, JSON.stringify(config||{}),
+    ').run(id, req.tenantId, name, report_type, JSON.stringify(config||{}),
            frequency||'weekly', day_of_week||1, time||'08:00',
            JSON.stringify(recipients||[]), nextRun, req.userId||null);
     res.json({ id, ok: true });
@@ -375,13 +375,13 @@ ra.get('/library', (req, res) => res.json({ hazards: HAZARD_LIBRARY }));
 
 ra.get('/', (req, res) => {
   try {
-    const assessments = D().prepare(`
+    const assessments = D().prepare('
       SELECT ra.*, e.title as excursion_title, e.excursion_date, e.destination
       FROM risk_assessments ra
       LEFT JOIN excursions e ON e.id=ra.excursion_id
       WHERE ra.tenant_id=?
       ORDER BY ra.assessment_date DESC
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     res.json({ assessments: assessments.map(a => ({...a, hazards: JSON.parse(a.hazards||'[]')})) });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -389,13 +389,13 @@ ra.get('/', (req, res) => {
 
 ra.get('/:id', (req, res) => {
   try {
-    const assessment = D().prepare(`
+    const assessment = D().prepare('
       SELECT ra.*, e.title as excursion_title, e.destination, e.excursion_date,
              e.transport_method, e.max_children
       FROM risk_assessments ra
       LEFT JOIN excursions e ON e.id=ra.excursion_id
       WHERE ra.id=? AND ra.tenant_id=?
-    `).get(req.params.id, req.tenantId);
+    ').get(req.params.id, req.tenantId);
     if (!assessment) return res.status(404).json({ error: 'Not found' });
     res.json({ assessment: {...assessment, hazards: JSON.parse(assessment.hazards||'[]')} });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -421,13 +421,13 @@ ra.post('/', (req, res) => {
     });
 
     const id = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO risk_assessments
         (id,tenant_id,excursion_id,title,assessment_date,location,assessor,
          hazards,overall_risk_level,emergency_plan,
          medical_kit_checked,ratios_confirmed,transport_checked,parent_permissions_complete,notes,status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft')
-    `).run(id, req.tenantId, excursion_id||null, title,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,\'draft\')
+    ').run(id, req.tenantId, excursion_id||null, title,
            assessment_date||new Date().toISOString().split('T')[0],
            location||null, assessor||null,
            JSON.stringify(hazards||[]), maxRisk,

@@ -4,11 +4,9 @@
 //  Safe to re-run — uses INSERT OR IGNORE throughout
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const Database = require('better-sqlite3');
-const { randomUUID } = require('crypto');
-const path = require('path');
+import Database from 'better-sqlite3';
+import { randomUUID } from 'crypto';
+import path from 'path';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'childcare360.db');
 const db = new Database(DB_PATH);
@@ -384,7 +382,7 @@ enrolData.forEach(a => {
   const ex = db.prepare("SELECT id FROM enrolment_applications WHERE child_first_name=? AND child_last_name=? AND tenant_id=?").get(a.cfn, a.cln, TENANT);
   if (ex) return;
   try {
-    db.prepare(`INSERT OR IGNORE INTO enrolment_applications (id,tenant_id,status,child_first_name,child_last_name,child_dob,child_gender,child_language,child_allergies,child_dietary,child_immunisation_status,preferred_room,preferred_days,preferred_start_date,parent1_name,parent1_email,parent1_phone,parent1_address,parent1_crn,emergency_contact1_name,emergency_contact1_phone,emergency_contact1_relationship,doctor_name,doctor_phone,sunscreen_consent,photo_consent,excursion_consent,authorised_medical_treatment,authorised_ambulance,submitted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,1,1,1,1,?,datetime('now'),datetime('now'))`)
+    db.prepare('INSERT OR IGNORE INTO enrolment_applications (id,tenant_id,status,child_first_name,child_last_name,child_dob,child_gender,child_language,child_allergies,child_dietary,child_immunisation_status,preferred_room,preferred_days,preferred_start_date,parent1_name,parent1_email,parent1_phone,parent1_address,parent1_crn,emergency_contact1_name,emergency_contact1_phone,emergency_contact1_relationship,doctor_name,doctor_phone,sunscreen_consent,photo_consent,excursion_consent,authorised_medical_treatment,authorised_ambulance,submitted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,1,1,1,1,?,datetime(\'now\'),datetime(\'now\'))')
       .run(randomUUID(),TENANT,a.status,a.cfn,a.cln,a.dob,a.g,a.lang,a.al,a.di,'current',a.room,a.days,a.start,a.p1n,a.p1e,a.p1p,a.p1a,a.p1crn,a.ec1,a.ec1p,a.ec1r,a.dr,a.drp,a.sub);
     enrolAdded++;
   } catch(e) {}

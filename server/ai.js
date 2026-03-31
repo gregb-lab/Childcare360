@@ -123,21 +123,21 @@ router.post('/providers', (req, res) => {
     const { provider, api_key, default_model, is_default } = req.body;
     if (!provider) return res.status(400).json({ error: 'provider required' });
     const id = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO ai_provider_config (id, tenant_id, provider, api_key, default_model, is_default, updated_at)
-      VALUES (?,?,?,?,?,?,datetime('now'))
+      VALUES (?,?,?,?,?,?,datetime(\'now\'))
       ON CONFLICT(tenant_id, provider) DO UPDATE SET
         api_key=excluded.api_key, default_model=excluded.default_model,
         is_default=excluded.is_default, updated_at=excluded.updated_at
-    `).run(id, req.tenantId, provider, api_key || null, default_model || null, is_default ? 1 : 0);
+    ').run(id, req.tenantId, provider, api_key || null, default_model || null, is_default ? 1 : 0);
     // Also save to unified credentials
     if (api_key) {
       const credId = uuid();
-      D().prepare(`
+      D().prepare('
         INSERT INTO tenant_credentials (id, tenant_id, provider, key_name, key_value, updated_at)
-        VALUES (?,?,?,?,?,datetime('now'))
+        VALUES (?,?,?,?,?,datetime(\'now\'))
         ON CONFLICT(tenant_id, provider, key_name) DO UPDATE SET key_value=excluded.key_value, updated_at=excluded.updated_at
-      `).run(credId, req.tenantId, provider, 'api_key', api_key);
+      ').run(credId, req.tenantId, provider, 'api_key', api_key);
     }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -147,7 +147,7 @@ router.post('/providers', (req, res) => {
 router.delete('/providers/:key', (req, res) => {
   try {
     ensureTable();
-    D().prepare(`DELETE FROM ai_provider_config WHERE tenant_id=? AND provider=?`)
+    D().prepare('DELETE FROM ai_provider_config WHERE tenant_id=? AND provider=?')
        .run(req.tenantId, req.params.key);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -189,18 +189,18 @@ router.post('/test/:key', async (req, res) => {
 // GET /api/ai/usage
 router.get('/usage', (req, res) => {
   try {
-    const rows = D().prepare(`
+    const rows = D().prepare('
       SELECT feature, model, COUNT(*) as requests,
              SUM(tokens_in) as total_in, SUM(tokens_out) as total_out,
              SUM(cost_usd) as total_cost, AVG(latency_ms) as avg_latency
       FROM ai_usage_log
-      WHERE tenant_id=? AND created_at > datetime('now','-30 days')
+      WHERE tenant_id=? AND created_at > datetime(\'now\',\'-30 days\')
       GROUP BY feature, model ORDER BY total_cost DESC
-    `).all(req.tenantId);
-    const totals = D().prepare(`
+    ').all(req.tenantId);
+    const totals = D().prepare('
       SELECT SUM(cost_usd) as spend, SUM(tokens_in+tokens_out) as tokens, COUNT(*) as requests
-      FROM ai_usage_log WHERE tenant_id=? AND created_at > datetime('now','-30 days')
-    `).get(req.tenantId);
+      FROM ai_usage_log WHERE tenant_id=? AND created_at > datetime(\'now\',\'-30 days\')
+    ').get(req.tenantId);
     res.json({ by_feature: rows, totals });
   } catch { res.json({ by_feature: [], totals: {} }); }
 });
@@ -222,11 +222,11 @@ router.put('/credentials', (req, res) => {
     ensureTable();
     const { credentials } = req.body; // [{ provider, key_name, key_value }]
     if (!Array.isArray(credentials)) return res.status(400).json({ error: 'credentials array required' });
-    const stmt = D().prepare(`
+    const stmt = D().prepare('
       INSERT INTO tenant_credentials (id, tenant_id, provider, key_name, key_value, updated_at)
-      VALUES (?,?,?,?,?,datetime('now'))
+      VALUES (?,?,?,?,?,datetime(\'now\'))
       ON CONFLICT(tenant_id, provider, key_name) DO UPDATE SET key_value=excluded.key_value, updated_at=excluded.updated_at
-    `);
+    ');
     const tx = D().transaction((creds) => {
       for (const c of creds) {
         if (c.key_value && c.key_value !== '••••' && !c.key_value.includes('••••')) {

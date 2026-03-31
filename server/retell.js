@@ -121,13 +121,13 @@ function dayLabel(dateStr) {
 function getUpcomingShifts(educatorId, tenantId) {
   const today = new Date().toISOString().split('T')[0];
   const in14  = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
-  return D().prepare(`
+  return D().prepare('
     SELECT re.*, r.name as room_name
     FROM roster_entries re LEFT JOIN rooms r ON r.id = re.room_id
     WHERE re.educator_id=? AND re.tenant_id=? AND re.date BETWEEN ? AND ?
-    AND re.status NOT IN ('cancelled','unfilled')
+    AND re.status NOT IN (\'cancelled\',\'unfilled\')
     ORDER BY re.date ASC, re.start_time ASC LIMIT 5
-  `).all(educatorId, tenantId, today, in14).map(s => ({ ...s, day_label: dayLabel(s.date) }));
+  ').all(educatorId, tenantId, today, in14).map(s => ({ ...s, day_label: dayLabel(s.date) }));
 }
 
 function identifyCaller(from, tenantId) {
@@ -146,17 +146,17 @@ async function processConfirmedSickCall(tenantId, educatorId, shift) {
   const reqQualIdx = qualOrder.indexOf(shift.qualification_required || 'cert3');
 
   const absId = uuid();
-  D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
+  D().prepare('INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)')
     .run(absId, tenantId, educatorId, shift.date, 'sick', 'Called in sick via Retell voice agent', 0, 'phone');
   D().prepare("UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime('now') WHERE id=?").run(educatorId);
   D().prepare("UPDATE roster_entries SET status='unfilled', notes='Educator called in sick via Retell voice agent', updated_at=datetime('now') WHERE id=?").run(shift.id);
 
-  const candidates = D().prepare(`
+  const candidates = D().prepare('
     SELECT e.* FROM educators e JOIN educator_availability ea ON ea.educator_id=e.id
-    WHERE e.tenant_id=? AND e.status='active' AND e.id!=? AND ea.day_of_week=? AND ea.available=1
+    WHERE e.tenant_id=? AND e.status=\'active\' AND e.id!=? AND ea.day_of_week=? AND ea.available=1
     AND e.id NOT IN (SELECT educator_id FROM roster_entries WHERE date=? AND tenant_id=?)
     ORDER BY e.reliability_score DESC, e.distance_km ASC
-  `).all(tenantId, educatorId, dayOfWeek, shift.date, tenantId)
+  ').all(tenantId, educatorId, dayOfWeek, shift.date, tenantId)
     .filter(c => {
       const idx = qualOrder.indexOf(c.qualification);
       // idx must be a valid entry AND at or above the required qualification level
@@ -166,7 +166,7 @@ async function processConfirmedSickCall(tenantId, educatorId, shift) {
   if (!candidates.length) { console.log('[Retell] No eligible cover candidates'); return; }
 
   const fillId = uuid();
-  D().prepare(`INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+  D().prepare('INSERT INTO shift_fill_requests (id,tenant_id,absence_id,original_educator_id,roster_entry_id,room_id,date,start_time,end_time,qualification_required,status,ai_initiated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
     .run(fillId, tenantId, absId, educatorId, shift.id, shift.room_id, shift.date, shift.start_time, shift.end_time, shift.qualification_required, 'open', 1);
   candidates.forEach(c => D().prepare('INSERT INTO shift_fill_attempts (id,request_id,educator_id,contact_method,status) VALUES(?,?,?,?,?)').run(uuid(), fillId, c.id, 'call', 'queued'));
 
@@ -182,7 +182,7 @@ webhooks.post('/event', (req, res) => {
   console.log(`[Retell:event] ${event} call_id=${call?.call_id}`);
   try {
     if (event === 'call_ended' && call?.call_id) {
-      D().prepare(`UPDATE voice_calls SET status='completed', ended_at=COALESCE(ended_at,datetime('now')), duration_seconds=? WHERE call_sid=?`)
+      D().prepare('UPDATE voice_calls SET status=\'completed\', ended_at=COALESCE(ended_at,datetime(\'now\')), duration_seconds=? WHERE call_sid=?')
         .run(call.duration_ms ? Math.round(call.duration_ms / 1000) : null, call.call_id);
     }
   } catch(e) { console.error('[Retell:event] DB error:', e.message); }
@@ -319,7 +319,7 @@ router.post('/test-call', async (req, res) => {
     }, s.retell_api_key);
 
     // Log it
-    D().prepare(`INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose) VALUES(?,?,?,?,?,?,?,?)`)
+    D().prepare('INSERT INTO voice_calls (id,tenant_id,call_sid,direction,status,from_number,to_number,purpose) VALUES(?,?,?,?,?,?,?,?)')
       .run(uuid(), req.tenantId, call.call_id, 'outbound', 'ringing', s.retell_phone_number_id || 'retell', to, 'test');
 
     res.json({ ok: true, call_id: call.call_id, to: DEV_OVERRIDE ? `${to} (DEV OVERRIDE)` : to });
@@ -481,7 +481,7 @@ async function buildResponse(lastUserMsg, messages, meta, tenantId, settings, te
     const shifts = getUpcomingShifts(meta.educatorId, tenantId);
     if (!shifts.length) {
       const today = new Date().toISOString().split('T')[0];
-      D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
+      D().prepare('INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)')
         .run(uuid(), tenantId, meta.educatorId, today, 'sick', 'Called in sick via Retell — no roster shifts found', 0, 'phone');
       return { content: `I'm sorry to hear that, ${meta.educatorName || 'there'}. I don't see any upcoming shifts for you in the next two weeks. I've made a note and management will be in touch. Is there anything else I can help with?` };
     }
@@ -518,7 +518,7 @@ async function buildResponse(lastUserMsg, messages, meta, tenantId, settings, te
       const shifts = getUpcomingShifts(found.id, tenantId);
       if (!shifts.length) {
         const today = new Date().toISOString().split('T')[0];
-        D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
+        D().prepare('INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)')
           .run(uuid(), tenantId, found.id, today, 'sick', 'Called in sick via Retell — no roster shifts found', 0, 'phone');
         return { content: `Thanks ${found.first_name || 'there'}. I don't see any upcoming shifts for you in the next two weeks. I've made a note and management will be in touch.` };
       }

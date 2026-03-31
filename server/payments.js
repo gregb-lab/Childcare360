@@ -22,11 +22,11 @@ r.post('/webhook', (req, res) => {
     const { type, data } = req.body;
     if (type === 'payment_intent.succeeded') {
       const pi = data.object;
-      D().prepare(`
-        UPDATE payment_requests SET status='paid', paid_at=datetime('now'),
-          paid_amount_cents=?, payment_method='stripe'
+      D().prepare('
+        UPDATE payment_requests SET status=\'paid\', paid_at=datetime(\'now\'),
+          paid_amount_cents=?, payment_method=\'stripe\'
         WHERE stripe_payment_intent_id=?
-      `).run(pi.amount_received, pi.id);
+      ').run(pi.amount_received, pi.id);
     }
     res.json({ received: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -53,15 +53,15 @@ r.post('/setup', (req, res) => {
     const { publishable_key, secret_key, currency = 'AUD' } = req.body;
     if (!publishable_key) return res.status(400).json({ error: 'publishable_key required' });
 
-    D().prepare(`
+    D().prepare('
       INSERT INTO stripe_accounts (id, tenant_id, stripe_publishable_key, stripe_secret_key_enc, currency, connected, updated_at)
-      VALUES (?,?,?,?,?,1,datetime('now'))
+      VALUES (?,?,?,?,?,1,datetime(\'now\'))
       ON CONFLICT(tenant_id) DO UPDATE SET
         stripe_publishable_key=excluded.stripe_publishable_key,
         stripe_secret_key_enc=excluded.stripe_secret_key_enc,
         currency=excluded.currency,
-        connected=1, updated_at=datetime('now')
-    `).run(uuid(), req.tenantId, publishable_key,
+        connected=1, updated_at=datetime(\'now\')
+    ').run(uuid(), req.tenantId, publishable_key,
            secret_key ? `enc:${secret_key}` : null, currency);
 
     res.json({ ok: true, message: 'Stripe keys saved. Payments are now enabled.' });
@@ -87,15 +87,15 @@ r.get('/requests', (req, res) => {
       LIMIT 100
     `).all(...vals);
 
-    const summary = D().prepare(`
+    const summary = D().prepare('
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) as paid,
-        SUM(CASE WHEN status='paid' THEN paid_amount_cents ELSE 0 END) as total_collected_cents,
-        SUM(CASE WHEN status='pending' THEN amount_cents ELSE 0 END) as total_outstanding_cents
+        SUM(CASE WHEN status=\'pending\' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status=\'paid\' THEN 1 ELSE 0 END) as paid,
+        SUM(CASE WHEN status=\'paid\' THEN paid_amount_cents ELSE 0 END) as total_collected_cents,
+        SUM(CASE WHEN status=\'pending\' THEN amount_cents ELSE 0 END) as total_outstanding_cents
       FROM payment_requests WHERE tenant_id=?
-    `).get(req.tenantId);
+    ').get(req.tenantId);
 
     res.json({
       requests: requests.map(r => ({
@@ -118,10 +118,10 @@ r.post('/requests', (req, res) => {
     if (!amount_cents) return res.status(400).json({ error: 'amount_cents required' });
 
     const id = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO payment_requests (id, tenant_id, child_id, invoice_id, amount_cents, description, status)
-      VALUES (?,?,?,?,?,?,'pending')
-    `).run(id, req.tenantId, child_id||null, invoice_id||null, amount_cents,
+      VALUES (?,?,?,?,?,?,\'pending\')
+    ').run(id, req.tenantId, child_id||null, invoice_id||null, amount_cents,
            description||'Childcare fees');
 
     res.json({ id, ok: true });
@@ -131,22 +131,22 @@ r.post('/requests', (req, res) => {
 // Bulk create payment requests from outstanding invoices
 r.post('/requests/bulk-from-invoices', (req, res) => {
   try {
-    const outstanding = D().prepare(`
+    const outstanding = D().prepare('
       SELECT i.id, i.child_id, i.total_cents, i.description,
              c.first_name, c.last_name
       FROM invoices i
       JOIN children c ON c.id=i.child_id
-      WHERE i.tenant_id=? AND i.status='overdue'
-        AND i.id NOT IN (SELECT invoice_id FROM payment_requests WHERE tenant_id=? AND status='pending')
-    `).all(req.tenantId, req.tenantId);
+      WHERE i.tenant_id=? AND i.status=\'overdue\'
+        AND i.id NOT IN (SELECT invoice_id FROM payment_requests WHERE tenant_id=? AND status=\'pending\')
+    ').all(req.tenantId, req.tenantId);
 
     let created = 0;
     D().transaction(() => {
       for (const inv of outstanding) {
-        D().prepare(`
+        D().prepare('
           INSERT INTO payment_requests (id,tenant_id,child_id,invoice_id,amount_cents,description)
-          VALUES (?,?,?,?,?,'Outstanding invoice - click link to pay')
-        `).run(uuid(), req.tenantId, inv.child_id, inv.id, inv.total_cents);
+          VALUES (?,?,?,?,?,\'Outstanding invoice - click link to pay\')
+        ').run(uuid(), req.tenantId, inv.child_id, inv.id, inv.total_cents);
         created++;
       }
     })();
@@ -176,10 +176,10 @@ r.post('/requests/:id/send', (req, res) => {
       .run(paymentUrl, req.params.id);
 
     // Log the send action
-    D().prepare(`
+    D().prepare('
       INSERT INTO notification_log (id,tenant_id,channel,subject,body,entity_type,entity_id,status)
-      VALUES (?,?,'email',?,?,?,?,'sent')
-    `).run(uuid(), req.tenantId,
+      VALUES (?,?,\'email\',?,?,?,?,\'sent\')
+    ').run(uuid(), req.tenantId,
            `Payment Request — $${(pr.amount_cents/100).toFixed(2)}`,
            `Payment link sent to ${pr.first_name} ${pr.last_name}: ${paymentUrl}`,
            'payment_request', pr.id);
@@ -195,11 +195,11 @@ r.post('/requests/:id/mark-paid', (req, res) => {
       .get(req.params.id, req.tenantId);
     if (!pr) return res.status(404).json({ error: 'Not found' });
 
-    D().prepare(`
-      UPDATE payment_requests SET status='paid', paid_at=datetime('now'),
+    D().prepare('
+      UPDATE payment_requests SET status=\'paid\', paid_at=datetime(\'now\'),
         paid_amount_cents=?, payment_method=?
       WHERE id=?
-    `).run(amount_cents || pr.amount_cents, payment_method, req.params.id);
+    ').run(amount_cents || pr.amount_cents, payment_method, req.params.id);
 
     // Update invoice if linked
     if (pr.invoice_id) {
@@ -214,23 +214,23 @@ r.post('/requests/:id/mark-paid', (req, res) => {
 // Revenue summary by week/month
 r.get('/summary', (req, res) => {
   try {
-    const monthly = D().prepare(`
-      SELECT strftime('%Y-%m', paid_at) as month,
+    const monthly = D().prepare('
+      SELECT strftime(\'%Y-%m\', paid_at) as month,
         COUNT(*) as payments,
         SUM(paid_amount_cents) as collected_cents
       FROM payment_requests
-      WHERE tenant_id=? AND status='paid' AND paid_at IS NOT NULL
+      WHERE tenant_id=? AND status=\'paid\' AND paid_at IS NOT NULL
       GROUP BY month
       ORDER BY month DESC
       LIMIT 12
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
-    const byMethod = D().prepare(`
+    const byMethod = D().prepare('
       SELECT payment_method, COUNT(*) as n, SUM(paid_amount_cents) as total_cents
       FROM payment_requests
-      WHERE tenant_id=? AND status='paid'
+      WHERE tenant_id=? AND status=\'paid\'
       GROUP BY payment_method
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     res.json({
       monthly: monthly.map(m => ({ ...m, collected: (m.collected_cents||0)/100 })),

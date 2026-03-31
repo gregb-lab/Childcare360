@@ -35,11 +35,11 @@ function issueTokens(user, tenantId) {
 }
 
 function getUserTenants(userId) {
-  return D().prepare(`
+  return D().prepare('
     SELECT t.id, t.name, t.service_type, tm.role
     FROM tenant_members tm JOIN tenants t ON t.id = tm.tenant_id
     WHERE tm.user_id = ? AND tm.active = 1
-  `).all(userId);
+  ').all(userId);
 }
 
 function isPlatformAdmin(userId) {

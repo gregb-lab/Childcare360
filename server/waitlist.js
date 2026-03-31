@@ -16,7 +16,7 @@ const r = Router();
 
 // GET /api/waitlist
 r.get('/', requireAuth, requireTenant, (req, res) => {
-  const rows = D().prepare(`SELECT w.*, r.name as room_name FROM waitlist w LEFT JOIN rooms r ON r.id=w.preferred_room WHERE w.tenant_id=? ORDER BY CASE w.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, w.created_at ASC`).all(req.tenantId);
+  const rows = D().prepare('SELECT w.*, r.name as room_name FROM waitlist w LEFT JOIN rooms r ON r.id=w.preferred_room WHERE w.tenant_id=? ORDER BY CASE w.priority WHEN \'urgent\' THEN 0 WHEN \'high\' THEN 1 WHEN \'normal\' THEN 2 ELSE 3 END, w.created_at ASC').all(req.tenantId);
   res.json(rows.map(row => ({ ...row, preferred_days: JSON.parse(row.preferred_days || '[]') })));
 });
 
@@ -32,7 +32,7 @@ r.post('/', requireAuth, requireTenant, (req, res) => {
 // PUT /api/waitlist/:id
 r.put('/:id', requireAuth, requireTenant, (req, res) => {
   const { priority, status, preferred_room } = req.body;
-  D().prepare(`UPDATE waitlist SET priority=COALESCE(?,priority), status=COALESCE(?,status), preferred_room=COALESCE(?,preferred_room), updated_at=datetime('now') WHERE id=? AND tenant_id=?`).run(priority || null, status || null, preferred_room || null, req.params.id, req.tenantId);
+  D().prepare('UPDATE waitlist SET priority=COALESCE(?,priority), status=COALESCE(?,status), preferred_room=COALESCE(?,preferred_room), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?').run(priority || null, status || null, preferred_room || null, req.params.id, req.tenantId);
   res.json({ ok: true });
 });
 
@@ -47,7 +47,7 @@ r.post('/:id/convert', requireAuth, requireTenant, (req, res) => {
   const entry = D().prepare('SELECT * FROM waitlist WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
   if (!entry) return res.status(404).json({ error: 'Not found' });
   const appId = uuid();
-  D().prepare(`INSERT INTO enrolment_applications (id,tenant_id,status,child_first_name,preferred_room,preferred_days,preferred_start_date,parent1_name,parent1_email,parent1_phone,additional_notes,submitted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`).run(appId, req.tenantId, 'submitted', entry.child_name, entry.preferred_room, entry.preferred_days, entry.preferred_start, entry.parent_name, entry.parent_email, entry.parent_phone, entry.notes);
+  D().prepare('INSERT INTO enrolment_applications (id,tenant_id,status,child_first_name,preferred_room,preferred_days,preferred_start_date,parent1_name,parent1_email,parent1_phone,additional_notes,submitted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))').run(appId, req.tenantId, 'submitted', entry.child_name, entry.preferred_room, entry.preferred_days, entry.preferred_start, entry.parent_name, entry.parent_email, entry.parent_phone, entry.notes);
   D().prepare("UPDATE waitlist SET status='converted',updated_at=datetime('now') WHERE id=?").run(req.params.id);
   res.json({ id: appId, ok: true });
 });

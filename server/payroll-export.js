@@ -38,7 +38,7 @@ r.get('/summary', (req, res) => {
     const period = from && to ? { start: from, end: to } : getPayPeriod();
 
     // Clock records for period
-    const clocks = D().prepare(`
+    const clocks = D().prepare('
       SELECT cr.*, e.first_name, e.last_name, e.qualification,
              e.base_hourly_rate, e.employment_type, e.tax_file_number
       FROM clock_records cr
@@ -46,7 +46,7 @@ r.get('/summary', (req, res) => {
       WHERE cr.tenant_id=? AND COALESCE(cr.clock_date, cr.date) BETWEEN ? AND ?
         AND cr.clock_out IS NOT NULL
       ORDER BY e.last_name, cr.clock_date
-    `).all(req.tenantId, period.start, period.end);
+    ').all(req.tenantId, period.start, period.end);
 
     // Group by educator
     const byEducator = {};
@@ -112,7 +112,7 @@ r.post('/export', (req, res) => {
     const { from, to, export_type = 'csv', generated_by } = req.body;
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
 
-    const clocks = D().prepare(`
+    const clocks = D().prepare('
       SELECT cr.*, e.first_name, e.last_name, e.qualification,
              e.base_hourly_rate, e.employment_type, e.bank_account_number,
              e.bank_bsb, e.tax_file_number, e.super_fund, e.super_member_number
@@ -121,7 +121,7 @@ r.post('/export', (req, res) => {
       WHERE cr.tenant_id=? AND COALESCE(cr.clock_date, cr.date) BETWEEN ? AND ?
         AND cr.clock_out IS NOT NULL
       ORDER BY e.last_name, cr.clock_date
-    `).all(req.tenantId, from, to);
+    ').all(req.tenantId, from, to);
 
     // Group by educator (same as summary)
     const byEducator = {};
@@ -197,12 +197,12 @@ r.post('/export', (req, res) => {
     }, 0);
 
     const exportId = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO payroll_exports
         (id, tenant_id, period_start, period_end, export_type, status,
          total_hours, total_cost_cents, educator_count, generated_by, generated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
-    `).run(exportId, req.tenantId, from, to, export_type, 'complete',
+      VALUES (?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))
+    ').run(exportId, req.tenantId, from, to, export_type, 'complete',
            fmtHours(educators.reduce((s,e) => s+e.total_hours, 0)),
            Math.round(totalGross * 100),
            educators.length, generated_by || null);
@@ -220,9 +220,9 @@ r.post('/export', (req, res) => {
 
 r.get('/exports', (req, res) => {
   try {
-    const exports = D().prepare(`
+    const exports = D().prepare('
       SELECT * FROM payroll_exports WHERE tenant_id=? ORDER BY generated_at DESC LIMIT 20
-    `).all(req.tenantId);
+    ').all(req.tenantId);
     res.json({ exports });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

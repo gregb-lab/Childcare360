@@ -110,12 +110,12 @@ router.get('/logs/export', (req, res) => {
 // ── GET /api/audit/actions — distinct action types for filter ─────────────
 router.get('/actions', (req, res) => {
   try {
-    const actions = D().prepare(`
+    const actions = D().prepare('
       SELECT DISTINCT action, COUNT(*) as count
       FROM audit_log
       WHERE tenant_id = ? OR tenant_id IS NULL
       GROUP BY action ORDER BY count DESC
-    `).all(req.tenantId);
+    ').all(req.tenantId);
     res.json(actions);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -125,15 +125,15 @@ router.get('/actions', (req, res) => {
 // ── GET /api/audit/sessions — active sessions for tenant users ─────────────
 router.get('/sessions', (req, res) => {
   try {
-    const sessions = D().prepare(`
+    const sessions = D().prepare('
       SELECT s.id, s.created_at, s.expires_at, u.email, u.name,
              s.last_used_at
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       JOIN tenant_members tm ON tm.user_id = s.user_id AND tm.tenant_id = ?
-      WHERE s.expires_at > datetime('now') AND s.revoked = 0
+      WHERE s.expires_at > datetime(\'now\') AND s.revoked = 0
       ORDER BY s.created_at DESC
-    `).all(req.tenantId);
+    ').all(req.tenantId);
     res.json(sessions);
   } catch (err) {
     // last_used_at or revoked column may not exist yet — handle gracefully
@@ -157,50 +157,50 @@ router.get('/compliance', (req, res) => {
     const db = D();
 
     // Count audit events in last 30 days
-    const recentAuditCount = db.prepare(`
+    const recentAuditCount = db.prepare('
       SELECT COUNT(*) as n FROM audit_log
-      WHERE created_at > datetime('now', '-30 days')
+      WHERE created_at > datetime(\'now\', \'-30 days\')
       AND (tenant_id = ? OR tenant_id IS NULL)
-    `).get(req.tenantId).n;
+    ').get(req.tenantId).n;
 
     // Count users with 2FA enabled
-    const mfaStats = db.prepare(`
+    const mfaStats = db.prepare('
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN u.mfa_enabled = 1 THEN 1 ELSE 0 END) as mfa_count
       FROM users u
       JOIN tenant_members tm ON tm.user_id = u.id AND tm.tenant_id = ? AND tm.active = 1
-    `).get(req.tenantId);
+    ').get(req.tenantId);
 
     // Count locked accounts
-    const lockedCount = db.prepare(`
+    const lockedCount = db.prepare('
       SELECT COUNT(*) as n FROM users u
       JOIN tenant_members tm ON tm.user_id = u.id AND tm.tenant_id = ? AND tm.active = 1
       WHERE u.locked = 1
-    `).get(req.tenantId).n;
+    ').get(req.tenantId).n;
 
     // Count active sessions
-    const activeSessions = db.prepare(`
+    const activeSessions = db.prepare('
       SELECT COUNT(*) as n FROM sessions s
       JOIN tenant_members tm ON tm.user_id = s.user_id AND tm.tenant_id = ?
-      WHERE s.expires_at > datetime('now')
-    `).get(req.tenantId).n;
+      WHERE s.expires_at > datetime(\'now\')
+    ').get(req.tenantId).n;
 
     // Failed login attempts in last 7 days
-    const failedLogins = db.prepare(`
+    const failedLogins = db.prepare('
       SELECT COUNT(*) as n FROM audit_log
-      WHERE action = 'login_failed'
-      AND created_at > datetime('now', '-7 days')
+      WHERE action = \'login_failed\'
+      AND created_at > datetime(\'now\', \'-7 days\')
       AND (tenant_id = ? OR tenant_id IS NULL)
-    `).get(req.tenantId).n;
+    ').get(req.tenantId).n;
 
     // Last audit export
-    const lastExport = db.prepare(`
+    const lastExport = db.prepare('
       SELECT created_at FROM audit_log
-      WHERE action = 'audit_export'
+      WHERE action = \'audit_export\'
       AND (tenant_id = ? OR tenant_id IS NULL)
       ORDER BY created_at DESC LIMIT 1
-    `).get(req.tenantId);
+    ').get(req.tenantId);
 
     const mfaPercent = mfaStats.total > 0 ? Math.round((mfaStats.mfa_count / mfaStats.total) * 100) : 0;
 

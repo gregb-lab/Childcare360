@@ -31,10 +31,10 @@ xero.get('/status', (req, res) => {
       ? D().prepare("SELECT * FROM xero_sync_log WHERE tenant_id=? ORDER BY created_at DESC LIMIT 1").get(req.tenantId)
       : null;
 
-    const pendingCount = D().prepare(`
+    const pendingCount = D().prepare('
       SELECT COUNT(*) as n FROM invoices
-      WHERE tenant_id=? AND status='paid' AND paid_at >= date('now','-30 days')
-    `).get(req.tenantId)?.n || 0;
+      WHERE tenant_id=? AND status=\'paid\' AND paid_at >= date(\'now\',\'-30 days\')
+    ').get(req.tenantId)?.n || 0;
 
     res.json({
       connected: conn?.connected === 1,
@@ -53,7 +53,7 @@ xero.post('/setup', (req, res) => {
     const { client_id, client_secret, tenant_name, account_code_fees, account_code_ccs } = req.body;
     if (!client_id) return res.status(400).json({ error: 'client_id required' });
 
-    D().prepare(`
+    D().prepare('
       INSERT INTO xero_connections
         (id, tenant_id, xero_tenant_name, access_token, refresh_token, connected, account_code_fees, account_code_ccs)
       VALUES (?,?,?,?,?,1,?,?)
@@ -63,7 +63,7 @@ xero.post('/setup', (req, res) => {
         connected=1,
         account_code_fees=excluded.account_code_fees,
         account_code_ccs=excluded.account_code_ccs
-    `).run(uuid(), req.tenantId,
+    ').run(uuid(), req.tenantId,
            tenant_name || 'Xero Organisation',
            client_id, client_secret || null,
            account_code_fees || '200',
@@ -79,17 +79,17 @@ xero.get('/preview', (req, res) => {
     const fromDate = from || new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
     const toDate   = to || new Date().toISOString().split('T')[0];
 
-    const invoices = D().prepare(`
+    const invoices = D().prepare('
       SELECT i.id, i.invoice_number, i.period_start, i.period_end,
              i.total_fee, i.ccs_amount, i.gap_fee, i.amount_paid, i.paid_at,
              c.first_name, c.last_name
       FROM invoices i
       JOIN children c ON c.id=i.child_id
-      WHERE i.tenant_id=? AND i.status='paid'
+      WHERE i.tenant_id=? AND i.status=\'paid\'
         AND i.paid_at BETWEEN ? AND ?
       ORDER BY i.paid_at DESC
       LIMIT 100
-    `).all(req.tenantId, fromDate, toDate + 'T23:59:59');
+    ').all(req.tenantId, fromDate, toDate + 'T23:59:59');
 
     const totals = {
       count: invoices.length,
@@ -111,12 +111,12 @@ xero.post('/sync-invoices', (req, res) => {
     const fromDate = from || new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
     const toDate   = to || new Date().toISOString().split('T')[0];
 
-    const invoices = D().prepare(`
+    const invoices = D().prepare('
       SELECT i.*, c.first_name, c.last_name
       FROM invoices i JOIN children c ON c.id=i.child_id
-      WHERE i.tenant_id=? AND i.status='paid'
+      WHERE i.tenant_id=? AND i.status=\'paid\'
         AND i.paid_at BETWEEN ? AND ?
-    `).all(req.tenantId, fromDate, toDate + 'T23:59:59');
+    ').all(req.tenantId, fromDate, toDate + 'T23:59:59');
 
     if (dry_run) {
       return res.json({ ok: true, dry_run: true, would_sync: invoices.length, invoices });
@@ -138,10 +138,10 @@ xero.post('/sync-invoices', (req, res) => {
     }));
 
     // Log the sync
-    D().prepare(`
+    D().prepare('
       INSERT INTO xero_sync_log (id,tenant_id,sync_type,status,records_synced)
-      VALUES (?,?,'invoices','success',?)
-    `).run(uuid(), req.tenantId, invoices.length);
+      VALUES (?,?,\'invoices\',\'success\',?)
+    ').run(uuid(), req.tenantId, invoices.length);
 
     D().prepare('UPDATE xero_connections SET last_sync=datetime(\'now\') WHERE tenant_id=?')
       .run(req.tenantId);
@@ -183,14 +183,14 @@ selfService.get('/schedule', (req, res) => {
     const from = req.query.from || new Date().toISOString().split('T')[0];
     const to   = req.query.to   || new Date(Date.now() + 28*86400000).toISOString().split('T')[0];
 
-    const shifts = D().prepare(`
+    const shifts = D().prepare('
       SELECT re.*, r.name as room_name, r.age_group
       FROM roster_entries re
       LEFT JOIN rooms r ON r.id=re.room_id
       WHERE re.tenant_id=? AND re.educator_id=? AND re.shift_date BETWEEN ? AND ?
-        AND re.status != 'cancelled'
+        AND re.status != \'cancelled\'
       ORDER BY re.shift_date, re.start_time
-    `).all(req.tenantId, edu.id, from, to);
+    ').all(req.tenantId, edu.id, from, to);
 
     const totalMins = shifts.reduce((s, sh) => {
       if (!sh.start_time || !sh.end_time) return s;
@@ -208,13 +208,13 @@ selfService.get('/leave', (req, res) => {
     const edu = getEducator(req.tenantId, req.userId);
     if (!edu) return res.json({ requests: [] });
 
-    const requests = D().prepare(`
+    const requests = D().prepare('
       SELECT lr.*, u.name as approved_by_name
       FROM educator_leave_requests lr
       LEFT JOIN users u ON u.id=lr.approved_by
       WHERE lr.tenant_id=? AND lr.educator_id=?
       ORDER BY lr.start_date DESC
-    `).all(req.tenantId, edu.id);
+    ').all(req.tenantId, edu.id);
 
     // Leave entitlement summary (simple AU award)
     const currentYear = new Date().getFullYear();
@@ -251,18 +251,18 @@ selfService.post('/leave', (req, res) => {
     }
 
     const id = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO educator_leave_requests
         (id,tenant_id,educator_id,leave_type,start_date,end_date,days,reason,status)
-      VALUES (?,?,?,?,?,?,?,'pending',?)
-    `).run(id, req.tenantId, edu.id, leave_type, start_date, end_date, days, reason||null);
+      VALUES (?,?,?,?,?,?,?,\'pending\',?)
+    ').run(id, req.tenantId, edu.id, leave_type, start_date, end_date, days, reason||null);
 
     // Auto-create compliance task for manager
-    D().prepare(`
+    D().prepare('
       INSERT INTO compliance_tasks
         (id,tenant_id,task_type,title,description,due_date,priority,entity_type,entity_id,auto_generated)
-      VALUES (?,?,'leave_approval',?,?,?,?,?,?,1)
-    `).run(uuid(), req.tenantId,
+      VALUES (?,?,\'leave_approval\',?,?,?,?,?,?,1)
+    ').run(uuid(), req.tenantId,
            `Leave request — ${edu.first_name} ${edu.last_name}`,
            `${leave_type} leave ${start_date} to ${end_date} (${days} day${days>1?'s':''})`,
            start_date, 'high', 'leave_request', id);
@@ -286,11 +286,11 @@ selfService.get('/availability', (req, res) => {
     if (!edu) return res.json({ submissions: [] });
 
     const from = new Date().toISOString().split('T')[0];
-    const subs = D().prepare(`
+    const subs = D().prepare('
       SELECT * FROM educator_availability
       WHERE tenant_id=? AND educator_id=? AND week_start >= ?
       ORDER BY week_start
-    `).all(req.tenantId, edu.id, from);
+    ').all(req.tenantId, edu.id, from);
 
     res.json({ submissions: subs.map(s => ({ ...s, availability: JSON.parse(s.availability || '{}') })) });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -304,11 +304,11 @@ selfService.post('/availability', (req, res) => {
     const { week_start, availability, notes } = req.body;
     if (!week_start) return res.status(400).json({ error: 'week_start required' });
 
-    D().prepare(`
+    D().prepare('
       INSERT INTO educator_availability (id,tenant_id,educator_id,week_start,availability,notes)
       VALUES (?,?,?,?,?,?)
-      ON CONFLICT(educator_id,week_start) DO UPDATE SET availability=excluded.availability, notes=excluded.notes, submitted_at=datetime('now')
-    `).run(uuid(), req.tenantId, edu.id, week_start, JSON.stringify(availability||{}), notes||null);
+      ON CONFLICT(educator_id,week_start) DO UPDATE SET availability=excluded.availability, notes=excluded.notes, submitted_at=datetime(\'now\')
+    ').run(uuid(), req.tenantId, edu.id, week_start, JSON.stringify(availability||{}), notes||null);
 
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -345,20 +345,20 @@ leaveAdmin.put('/:id', (req, res) => {
     const { status, notes } = req.body;
     if (!['approved','declined'].includes(status)) return res.status(400).json({ error: 'status must be approved or declined' });
 
-    D().prepare(`
+    D().prepare('
       UPDATE educator_leave_requests
-      SET status=?, approved_by=?, approved_at=datetime('now'), notes=COALESCE(?,notes)
+      SET status=?, approved_by=?, approved_at=datetime(\'now\'), notes=COALESCE(?,notes)
       WHERE id=? AND tenant_id=?
-    `).run(status, req.userId||null, notes||null, req.params.id, req.tenantId);
+    ').run(status, req.userId||null, notes||null, req.params.id, req.tenantId);
 
     // If approved, mark roster entries as leave
     if (status === 'approved') {
       const lr = D().prepare('SELECT * FROM educator_leave_requests WHERE id=?').get(req.params.id);
       if (lr) {
-        D().prepare(`
-          UPDATE roster_entries SET status='cancelled', notes='Leave approved'
+        D().prepare('
+          UPDATE roster_entries SET status=\'cancelled\', notes=\'Leave approved\'
           WHERE tenant_id=? AND educator_id=? AND shift_date BETWEEN ? AND ?
-        `).run(req.tenantId, lr.educator_id, lr.start_date, lr.end_date);
+        ').run(req.tenantId, lr.educator_id, lr.start_date, lr.end_date);
       }
     }
 

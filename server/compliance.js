@@ -13,16 +13,16 @@ router.use(requireTenant);
 
 // ── Get all compliance items for the centre ─────────────────────────────────
 router.get('/overview', (req, res) => {
-  const items = D().prepare(`
+  const items = D().prepare('
     SELECT ci.*, c.first_name, c.last_name, c.room_id, r.name as room_name
     FROM compliance_items ci
     JOIN children c ON c.id = ci.child_id
     LEFT JOIN rooms r ON r.id = c.room_id
     WHERE ci.tenant_id = ? AND c.active = 1
     ORDER BY
-      CASE ci.status WHEN 'non_compliant' THEN 0 WHEN 'expiring_soon' THEN 1 WHEN 'review_needed' THEN 2 ELSE 3 END,
+      CASE ci.status WHEN \'non_compliant\' THEN 0 WHEN \'expiring_soon\' THEN 1 WHEN \'review_needed\' THEN 2 ELSE 3 END,
       ci.days_until_expiry ASC
-  `).all(req.tenantId);
+  ').all(req.tenantId);
   const summary = {
     total: items.length,
     nonCompliant: items.filter(i => i.status === 'non_compliant').length,
@@ -227,10 +227,10 @@ function queueNotification(tenantId, childId, type, priority, subject, body) {
   ).all(childId, tenantId);
 
   // CC the centre admin/director
-  const admins = D().prepare(`
+  const admins = D().prepare('
     SELECT u.email, u.name FROM tenant_members tm JOIN users u ON u.id=tm.user_id
-    WHERE tm.tenant_id=? AND tm.role IN ('admin','director') AND tm.active=1
-  `).all(tenantId);
+    WHERE tm.tenant_id=? AND tm.role IN (\'admin\',\'director\') AND tm.active=1
+  ').all(tenantId);
 
   const recipients = parents.map(p => ({ email: p.email, name: p.name }));
   const cc = admins.map(a => ({ email: a.email, name: a.name }));

@@ -47,10 +47,10 @@ r.post('/equipment', (req, res) => {
           storage_instructions, disposal_instructions, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuid();
-  D().prepare(`INSERT INTO equipment_register
+  D().prepare('INSERT INTO equipment_register
     (id,tenant_id,category,name,description,location,quantity,expiry_date,batch_number,supplier,
      child_id,requires_prescription,storage_instructions,disposal_instructions,notes,created_by)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
     .run(id, req.tenantId, category, name, description, location, quantity,
          expiry_date || null, batch_number, supplier, child_id || null,
          requires_prescription ? 1 : 0, storage_instructions, disposal_instructions,
@@ -62,14 +62,14 @@ r.put('/equipment/:id', (req, res) => {
   const { name, category, description, location, quantity, expiry_date, batch_number,
           supplier, child_id, requires_prescription, storage_instructions,
           disposal_instructions, notes, status, last_checked_date } = req.body;
-  D().prepare(`UPDATE equipment_register SET
+  D().prepare('UPDATE equipment_register SET
     name=COALESCE(?,name), category=COALESCE(?,category), description=COALESCE(?,description),
     location=COALESCE(?,location), quantity=COALESCE(?,quantity), expiry_date=COALESCE(?,expiry_date),
     batch_number=COALESCE(?,batch_number), supplier=COALESCE(?,supplier), child_id=COALESCE(?,child_id),
     requires_prescription=COALESCE(?,requires_prescription), storage_instructions=COALESCE(?,storage_instructions),
     disposal_instructions=COALESCE(?,disposal_instructions), notes=COALESCE(?,notes),
     status=COALESCE(?,status), last_checked_date=COALESCE(?,last_checked_date),
-    last_checked_by=COALESCE(?,last_checked_by), updated_at=datetime('now') WHERE id=? AND tenant_id=?`)
+    last_checked_by=COALESCE(?,last_checked_by), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
     .run(name, category, description, location, quantity, expiry_date,
          batch_number, supplier, child_id, requires_prescription != null ? (requires_prescription ? 1 : 0) : null,
          storage_instructions, disposal_instructions, notes, status, last_checked_date,
@@ -114,8 +114,8 @@ r.post('/parent-messages', (req, res) => {
   const { child_id, to_parent_email, subject, body, message_type = 'general' } = req.body;
   if (!body) return res.status(400).json({ error: 'body required' });
   const id = uuid();
-  D().prepare(`INSERT INTO parent_messages (id,tenant_id,child_id,from_type,from_user_id,from_name,to_parent_email,subject,body,message_type)
-    VALUES(?,?,?,?,?,?,?,?,?,?)`)
+  D().prepare('INSERT INTO parent_messages (id,tenant_id,child_id,from_type,from_user_id,from_name,to_parent_email,subject,body,message_type)
+    VALUES(?,?,?,?,?,?,?,?,?,?)')
     .run(id, req.tenantId, child_id || null, 'centre', req.userId, req.user?.name || 'Centre', to_parent_email || null, subject, body, message_type);
   res.json({ id, ok: true });
 });
@@ -138,8 +138,8 @@ r.post('/educator-notes', (req, res) => {
   // Get educator record for this user
   const educator = D().prepare('SELECT id, first_name, last_name FROM educators WHERE tenant_id = ? AND user_id = ?').get(req.tenantId, req.userId);
   const educatorName = educator ? `${educator.first_name} ${educator.last_name}` : (req.user?.name || 'Staff');
-  D().prepare(`INSERT INTO educator_notes (id,tenant_id,child_id,educator_id,educator_name,note_date,category,content,visible_to_parents)
-    VALUES(?,?,?,?,?,?,?,?,?)`)
+  D().prepare('INSERT INTO educator_notes (id,tenant_id,child_id,educator_id,educator_name,note_date,category,content,visible_to_parents)
+    VALUES(?,?,?,?,?,?,?,?,?)')
     .run(id, req.tenantId, child_id, educator?.id || null, educatorName,
          note_date || new Date().toISOString().split('T')[0], category, content, visible_to_parents ? 1 : 0);
   res.json({ id, ok: true });
@@ -170,8 +170,8 @@ r.post('/lunch-cover', (req, res) => {
   const { roster_entry_id, cover_educator_id, room_id, date, cover_start, cover_end, notes } = req.body;
   if (!date || !cover_start || !cover_end) return res.status(400).json({ error: 'date, cover_start, cover_end required' });
   const id = uuid();
-  D().prepare(`INSERT INTO lunch_cover_sessions (id,tenant_id,roster_entry_id,cover_educator_id,room_id,date,cover_start,cover_end,notes)
-    VALUES(?,?,?,?,?,?,?,?,?)`)
+  D().prepare('INSERT INTO lunch_cover_sessions (id,tenant_id,roster_entry_id,cover_educator_id,room_id,date,cover_start,cover_end,notes)
+    VALUES(?,?,?,?,?,?,?,?,?)')
     .run(id, req.tenantId, roster_entry_id || null, cover_educator_id || null, room_id || null, date, cover_start, cover_end, notes || null);
   res.json({ id, ok: true });
 });
@@ -203,8 +203,8 @@ r.post('/medications', requireAuth, requireTenant, (req, res) => {
     const { child_id, medication_name, dosage, frequency, prescribing_doctor, start_date, end_date, notes } = req.body;
     if (!child_id || !medication_name) return res.status(400).json({ error: 'child_id and medication_name required' });
     const id = uuid();
-    D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescribing_doctor,start_date,end_date,notes,active)
-      VALUES(?,?,?,?,?,?,?,?,?,?,1)`).run(id,req.tenantId,child_id,medication_name,dosage||'',frequency||'',prescribing_doctor||'',start_date||null,end_date||null,notes||'');
+    D().prepare('INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescribing_doctor,start_date,end_date,notes,active)
+      VALUES(?,?,?,?,?,?,?,?,?,?,1)').run(id,req.tenantId,child_id,medication_name,dosage||'',frequency||'',prescribing_doctor||'',start_date||null,end_date||null,notes||'');
     res.json({ id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -212,10 +212,10 @@ r.post('/medications', requireAuth, requireTenant, (req, res) => {
 r.put('/medications/:id', requireAuth, requireTenant, (req, res) => {
   try {
     const { medication_name, dosage, frequency, prescribing_doctor, end_date, notes, active } = req.body;
-    D().prepare(`UPDATE medications SET medication_name=COALESCE(?,medication_name), dosage=COALESCE(?,dosage),
+    D().prepare('UPDATE medications SET medication_name=COALESCE(?,medication_name), dosage=COALESCE(?,dosage),
       frequency=COALESCE(?,frequency), prescribing_doctor=COALESCE(?,prescribing_doctor),
       end_date=COALESCE(?,end_date), notes=COALESCE(?,notes), active=COALESCE(?,active)
-      WHERE id=? AND tenant_id=?`).run(medication_name,dosage,frequency,prescribing_doctor,end_date,notes,active,req.params.id,req.tenantId);
+      WHERE id=? AND tenant_id=?').run(medication_name,dosage,frequency,prescribing_doctor,end_date,notes,active,req.params.id,req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -243,8 +243,8 @@ r.post('/medication-log', requireAuth, requireTenant, (req, res) => {
     const { medication_id, child_id, given_at, given_by, dose_given, parent_notified, notes } = req.body;
     if (!medication_id || !child_id) return res.status(400).json({ error: 'medication_id and child_id required' });
     const id = uuid();
-    D().prepare(`INSERT INTO medication_log (id,tenant_id,medication_id,child_id,given_at,given_by,dose_given,parent_notified,notes)
-      VALUES(?,?,?,?,?,?,?,?,?)`).run(id,req.tenantId,medication_id,child_id,given_at||new Date().toISOString(),given_by||null,dose_given||'',parent_notified?1:0,notes||'');
+    D().prepare('INSERT INTO medication_log (id,tenant_id,medication_id,child_id,given_at,given_by,dose_given,parent_notified,notes)
+      VALUES(?,?,?,?,?,?,?,?,?)').run(id,req.tenantId,medication_id,child_id,given_at||new Date().toISOString(),given_by||null,dose_given||'',parent_notified?1:0,notes||'');
     res.json({ id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

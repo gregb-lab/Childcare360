@@ -89,8 +89,8 @@ router.get('/', (req, res) => {
 
     // ── 1. Get rooms ─────────────────────────────────────────────────────────
     const roomsQuery = room_id
-      ? D().prepare(`SELECT * FROM rooms WHERE id=? AND tenant_id=?`).all(room_id, tid)
-      : D().prepare(`SELECT * FROM rooms WHERE tenant_id=? ORDER BY name ASC`).all(tid);
+      ? D().prepare('SELECT * FROM rooms WHERE id=? AND tenant_id=?').all(room_id, tid)
+      : D().prepare('SELECT * FROM rooms WHERE tenant_id=? ORDER BY name ASC').all(tid);
 
     // ── 2. Get all children with their room assignment ────────────────────────
     const children = D().prepare(
@@ -271,14 +271,14 @@ router.get('/live', (req, res) => {
     const slotMins = Math.floor(now.getMinutes() / 30) * 30;
     const currentSlot = `${String(now.getHours()).padStart(2,'0')}:${String(slotMins).padStart(2,'0')}`;
 
-    const rooms = D().prepare(`SELECT * FROM rooms WHERE tenant_id=? ORDER BY name ASC`).all(tid);
+    const rooms = D().prepare('SELECT * FROM rooms WHERE tenant_id=? ORDER BY name ASC').all(tid);
     const children = D().prepare(
       `SELECT c.id, c.first_name, c.last_name, c.room_id, c.dob, c.active,
               r.age_group, r.name as room_name
        FROM children c JOIN rooms r ON r.id=c.room_id
        WHERE c.tenant_id=? AND c.active=1`
     ).all(tid);
-    const sessions = D().prepare(`SELECT * FROM attendance_sessions WHERE tenant_id=? AND date=? AND absent=0 AND sign_in IS NOT NULL`).all(tid, today);
+    const sessions = D().prepare('SELECT * FROM attendance_sessions WHERE tenant_id=? AND date=? AND absent=0 AND sign_in IS NOT NULL').all(tid, today);
     const clocks = D().prepare(
       `SELECT cr.id, cr.member_id, cr.date, cr.clock_in, cr.clock_out,
               e.first_name, e.last_name, e.qualification

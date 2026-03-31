@@ -198,19 +198,19 @@ r.post('/generate', async (req, res) => {
 
     // Save session
     const sessionId = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO ai_writing_sessions
         (id,tenant_id,educator_id,child_id,session_type,prompt_used,generated_text,eylf_suggested)
       VALUES (?,?,?,?,?,?,?,?)
-    `).run(sessionId, req.tenantId, educator_id||null, child_id||null,
+    ').run(sessionId, req.tenantId, educator_id||null, child_id||null,
            session_type, prompt.slice(0,500), generatedText, JSON.stringify(eylfSuggested));
 
     // Log AI usage
     try {
-      D().prepare(`
+      D().prepare('
         INSERT INTO ai_usage_log (id,tenant_id,action,tokens_used,cost_usd,created_at)
-        VALUES (?,?,?,?,?,datetime('now'))
-      `).run(uuid(), req.tenantId, `ai_writing_${session_type}`,
+        VALUES (?,?,?,?,?,datetime(\'now\'))
+      ').run(uuid(), req.tenantId, `ai_writing_${session_type}`,
              data.usage?.input_tokens + data.usage?.output_tokens || 0,
              ((data.usage?.input_tokens||0) * 0.00000025 + (data.usage?.output_tokens||0) * 0.00000125));
     } catch(e) {}
@@ -227,13 +227,13 @@ r.post('/generate', async (req, res) => {
 
 r.get('/history', (req, res) => {
   try {
-    const sessions = D().prepare(`
+    const sessions = D().prepare('
       SELECT s.*, c.first_name, c.last_name
       FROM ai_writing_sessions s
       LEFT JOIN children c ON c.id=s.child_id
       WHERE s.tenant_id=?
       ORDER BY s.created_at DESC LIMIT 50
-    `).all(req.tenantId);
+    ').all(req.tenantId);
     res.json({ sessions: sessions.map(s => ({...s, eylf_suggested: JSON.parse(s.eylf_suggested||'[]')})) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -249,10 +249,10 @@ r.post('/save', (req, res) => {
 
     // Optionally auto-create an observation from the saved text
     if (final_text && child_id && session_type === 'observation') {
-      D().prepare(`
+      D().prepare('
         INSERT INTO observations (id,tenant_id,child_id,notes,category,eylf_links,created_at)
-        VALUES (?,?,?,?,?,?,datetime('now'))
-      `).run(uuid(), req.tenantId, child_id, final_text, 'learning',
+        VALUES (?,?,?,?,?,?,datetime(\'now\'))
+      ').run(uuid(), req.tenantId, child_id, final_text, 'learning',
              JSON.stringify(eylf_links||[]));
     }
 
@@ -269,7 +269,7 @@ feeOverrideRouter.use(requireAuth, requireTenant);
 
 feeOverrideRouter.get('/', (req, res) => {
   try {
-    const overrides = D().prepare(`
+    const overrides = D().prepare('
       SELECT fo.*, c.first_name, c.last_name, c.room_id, r.name as room_name,
              fs.daily_rate_cents as standard_rate_cents
       FROM child_fee_overrides fo
@@ -277,12 +277,12 @@ feeOverrideRouter.get('/', (req, res) => {
       LEFT JOIN rooms r ON r.id=c.room_id
       LEFT JOIN fee_schedules fs ON fs.room_id=c.room_id AND fs.tenant_id=fo.tenant_id
       WHERE fo.tenant_id=?
-        AND (fo.effective_to IS NULL OR fo.effective_to >= date('now'))
+        AND (fo.effective_to IS NULL OR fo.effective_to >= date(\'now\'))
       ORDER BY c.last_name, fo.effective_from DESC
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     // Also get all active children with their current rates
-    const children = D().prepare(`
+    const children = D().prepare('
       SELECT c.id, c.first_name, c.last_name, c.room_id, r.name as room_name,
              fs.daily_rate_cents as room_rate_cents,
              fo.id as override_id, fo.daily_rate_cents as override_rate_cents,
@@ -291,11 +291,11 @@ feeOverrideRouter.get('/', (req, res) => {
       LEFT JOIN rooms r ON r.id=c.room_id
       LEFT JOIN fee_schedules fs ON fs.room_id=c.room_id AND fs.tenant_id=c.tenant_id
       LEFT JOIN child_fee_overrides fo ON fo.child_id=c.id AND fo.tenant_id=c.tenant_id
-        AND fo.effective_from <= date('now')
-        AND (fo.effective_to IS NULL OR fo.effective_to >= date('now'))
+        AND fo.effective_from <= date(\'now\')
+        AND (fo.effective_to IS NULL OR fo.effective_to >= date(\'now\'))
       WHERE c.tenant_id=? AND c.active=1
       ORDER BY r.name, c.last_name
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     res.json({
       overrides: overrides.map(o => ({ ...o, session_rates: JSON.parse(o.session_rates||'{}') })),
@@ -315,12 +315,12 @@ feeOverrideRouter.post('/', (req, res) => {
     if (!child_id) return res.status(400).json({ error: 'child_id required' });
 
     const id = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO child_fee_overrides
         (id,tenant_id,child_id,override_type,daily_rate_cents,discount_pct,
          discount_reason,effective_from,effective_to,notes,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    `).run(id, req.tenantId, child_id, override_type||'fixed',
+    ').run(id, req.tenantId, child_id, override_type||'fixed',
            daily_rate_cents||null, discount_pct||0, discount_reason||null,
            effective_from||new Date().toISOString().split('T')[0],
            effective_to||null, notes||null, req.userId||null);
@@ -385,11 +385,11 @@ complianceTaskRouter.post('/', (req, res) => {
     const { task_type, title, description, due_date, assigned_to, priority, entity_type, entity_id } = req.body;
     if (!title) return res.status(400).json({ error: 'title required' });
     const id = uuid();
-    D().prepare(`
+    D().prepare('
       INSERT INTO compliance_tasks
         (id,tenant_id,task_type,title,description,due_date,assigned_to,priority,entity_type,entity_id)
       VALUES (?,?,?,?,?,?,?,?,?,?)
-    `).run(id, req.tenantId, task_type||'general', title, description||null,
+    ').run(id, req.tenantId, task_type||'general', title, description||null,
            due_date||null, assigned_to||null, priority||'normal', entity_type||null, entity_id||null);
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -422,13 +422,13 @@ complianceTaskRouter.post('/auto-generate', (req, res) => {
     const tasks = [];
 
     // Cert renewals
-    const expiringCerts = D().prepare(`
+    const expiringCerts = D().prepare('
       SELECT id, first_name, last_name,
         first_aid_expiry, cpr_expiry, wwcc_expiry, anaphylaxis_expiry
-      FROM educators WHERE tenant_id=? AND status='active'
+      FROM educators WHERE tenant_id=? AND status=\'active\'
         AND (first_aid_expiry BETWEEN ? AND ? OR cpr_expiry BETWEEN ? AND ?
              OR wwcc_expiry BETWEEN ? AND ? OR anaphylaxis_expiry BETWEEN ? AND ?)
-    `).all(req.tenantId, today, in30, today, in30, today, in30, today, in30);
+    ').all(req.tenantId, today, in30, today, in30, today, in30, today, in30);
 
     for (const e of expiringCerts) {
       const certs = [];
@@ -444,11 +444,11 @@ complianceTaskRouter.post('/auto-generate', (req, res) => {
       if (exists) continue;
 
       const taskId = uuid();
-      D().prepare(`
+      D().prepare('
         INSERT INTO compliance_tasks
           (id,tenant_id,task_type,title,description,due_date,priority,entity_type,entity_id,auto_generated)
-        VALUES (?,?,'cert_renewal',?,?,?,?,?,?,1)
-      `).run(taskId, req.tenantId,
+        VALUES (?,?,\'cert_renewal\',?,?,?,?,?,?,1)
+      ').run(taskId, req.tenantId,
              `Renew certifications — ${e.first_name} ${e.last_name}`,
              `Expiring: ${certs.join(', ')}`,
              certs[0].match(/\d{4}-\d{2}-\d{2}/)?.[0] || in30,
@@ -457,11 +457,11 @@ complianceTaskRouter.post('/auto-generate', (req, res) => {
     }
 
     // Overdue appraisals
-    const overdueAppraisals = D().prepare(`
+    const overdueAppraisals = D().prepare('
       SELECT a.id, e.first_name, e.last_name, a.due_date
       FROM appraisals a JOIN educators e ON e.id=a.educator_id
-      WHERE a.tenant_id=? AND a.status!='completed' AND a.due_date < ?
-    `).all(req.tenantId, today);
+      WHERE a.tenant_id=? AND a.status!=\'completed\' AND a.due_date < ?
+    ').all(req.tenantId, today);
 
     for (const a of overdueAppraisals) {
       const exists = D().prepare(
@@ -470,11 +470,11 @@ complianceTaskRouter.post('/auto-generate', (req, res) => {
       if (exists) continue;
 
       const taskId = uuid();
-      D().prepare(`
+      D().prepare('
         INSERT INTO compliance_tasks
           (id,tenant_id,task_type,title,description,due_date,priority,entity_type,entity_id,auto_generated)
-        VALUES (?,?,'appraisal',?,?,?,?,?,?,1)
-      `).run(taskId, req.tenantId,
+        VALUES (?,?,\'appraisal\',?,?,?,?,?,?,1)
+      ').run(taskId, req.tenantId,
              `Complete overdue appraisal — ${a.first_name} ${a.last_name}`,
              `Appraisal due date was ${a.due_date}`,
              today, 'normal', 'appraisal', a.id);
@@ -482,23 +482,23 @@ complianceTaskRouter.post('/auto-generate', (req, res) => {
     }
 
     // Missing immunisation records
-    const missingImm = D().prepare(`
+    const missingImm = D().prepare('
       SELECT c.id, c.first_name, c.last_name FROM children c
       WHERE c.tenant_id=? AND c.active=1
-        AND NOT EXISTS (SELECT 1 FROM immunisation_records ir WHERE ir.child_id=c.id AND ir.status='current')
+        AND NOT EXISTS (SELECT 1 FROM immunisation_records ir WHERE ir.child_id=c.id AND ir.status=\'current\')
         AND NOT EXISTS (SELECT 1 FROM compliance_tasks ct
                         WHERE ct.tenant_id=c.tenant_id AND ct.entity_id=c.id
-                          AND ct.task_type='immunisation' AND ct.status='open')
+                          AND ct.task_type=\'immunisation\' AND ct.status=\'open\')
       LIMIT 10
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     for (const c of missingImm) {
       const taskId = uuid();
-      D().prepare(`
+      D().prepare('
         INSERT INTO compliance_tasks
           (id,tenant_id,task_type,title,due_date,priority,entity_type,entity_id,auto_generated)
-        VALUES (?,?,'immunisation',?,?,?,?,?,1)
-      `).run(taskId, req.tenantId,
+        VALUES (?,?,\'immunisation\',?,?,?,?,?,1)
+      ').run(taskId, req.tenantId,
              `Request immunisation records — ${c.first_name} ${c.last_name}`,
              in14, 'normal', 'child', c.id);
       tasks.push({ type: 'immunisation', name: `${c.first_name} ${c.last_name}` });

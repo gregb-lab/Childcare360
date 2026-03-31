@@ -177,27 +177,27 @@ r.post('/credentials/:integration', (req, res) => {
     ).get(req.tenantId, req.params.integration);
 
     if (existing) {
-      D().prepare(`
+      D().prepare('
         UPDATE integration_credentials SET
           credential_key=COALESCE(?,credential_key),
           credential_secret=COALESCE(?,credential_secret),
           endpoint=COALESCE(?,endpoint),
           extra_config=COALESCE(?,extra_config),
           enabled=COALESCE(?,enabled),
-          status='configured', updated_at=datetime('now')
+          status=\'configured\', updated_at=datetime(\'now\')
         WHERE tenant_id=? AND integration=?
-      `).run(credential_key||null,
+      ').run(credential_key||null,
              credential_secret && credential_secret !== '••••••••' ? credential_secret : null,
              endpoint||null,
              extra_config ? JSON.stringify(extra_config) : null,
              enabled!=null ? (enabled?1:0) : null,
              req.tenantId, req.params.integration);
     } else {
-      D().prepare(`
+      D().prepare('
         INSERT INTO integration_credentials
           (id,tenant_id,integration,credential_key,credential_secret,endpoint,extra_config,enabled,status)
-        VALUES (?,?,?,?,?,?,?,?,'configured')
-      `).run(uuid(), req.tenantId, req.params.integration,
+        VALUES (?,?,?,?,?,?,?,?,\'configured\')
+      ').run(uuid(), req.tenantId, req.params.integration,
              credential_key||null, credential_secret||null, endpoint||null,
              extra_config ? JSON.stringify(extra_config) : '{}', enabled?1:0);
     }
@@ -244,10 +244,10 @@ r.post('/validate-abn', async (req, res) => {
     }
 
     // Log
-    D().prepare(`
+    D().prepare('
       INSERT INTO integration_log (id,tenant_id,integration,action,direction,payload_summary,success,created_at)
-      VALUES (?,?,'abr_abn','validate_abn','outbound',?,?,datetime('now'))
-    `).run(uuid(), req.tenantId, `ABN: ${cleanABN}`, valid?1:0);
+      VALUES (?,?,\'abr_abn\',\'validate_abn\',\'outbound\',?,?,datetime(\'now\'))
+    ').run(uuid(), req.tenantId, `ABN: ${cleanABN}`, valid?1:0);
 
     res.json({
       valid,
@@ -271,13 +271,13 @@ r.get('/proda/status', (req, res) => {
     const hasSoftwareID = !!(extra.software_id);
 
     // Recent submission stats
-    const stats = D().prepare(`
+    const stats = D().prepare('
       SELECT status, COUNT(*) as n,
              SUM(ccs_amount_cents)/100.0 as ccs_total,
              SUM(gap_fee_cents)/100.0 as gap_total
       FROM ccs_submission_queue WHERE tenant_id=?
       GROUP BY status
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     res.json({
       configured: hasProviderID,
@@ -299,31 +299,31 @@ r.get('/proda/status', (req, res) => {
 // ── NER / WWCC educator check status ─────────────────────────────────────────
 r.get('/ner/educators', (req, res) => {
   try {
-    const educators = D().prepare(`
+    const educators = D().prepare('
       SELECT e.id, e.first_name, e.last_name, e.qualification,
              e.wwcc_number, e.wwcc_state, e.wwcc_expiry, e.wwcc_verified,
              e.first_aid_expiry, e.cpr_expiry, e.anaphylaxis_expiry,
              CASE
-               WHEN e.wwcc_expiry < date('now') THEN 'expired'
-               WHEN e.wwcc_expiry < date('now', '+30 days') THEN 'expiring_soon'
-               WHEN e.wwcc_expiry < date('now', '+90 days') THEN 'expiring_warning'
-               WHEN e.wwcc_number IS NULL THEN 'missing'
-               ELSE 'current'
+               WHEN e.wwcc_expiry < date(\'now\') THEN \'expired\'
+               WHEN e.wwcc_expiry < date(\'now\', \'+30 days\') THEN \'expiring_soon\'
+               WHEN e.wwcc_expiry < date(\'now\', \'+90 days\') THEN \'expiring_warning\'
+               WHEN e.wwcc_number IS NULL THEN \'missing\'
+               ELSE \'current\'
              END as wwcc_status,
              CASE
-               WHEN e.first_aid_expiry < date('now') THEN 'expired'
-               WHEN e.first_aid_expiry < date('now', '+30 days') THEN 'expiring_soon'
-               ELSE 'current'
+               WHEN e.first_aid_expiry < date(\'now\') THEN \'expired\'
+               WHEN e.first_aid_expiry < date(\'now\', \'+30 days\') THEN \'expiring_soon\'
+               ELSE \'current\'
              END as first_aid_status
       FROM educators e
       WHERE e.tenant_id=?
       ORDER BY
-        CASE WHEN e.wwcc_expiry < date('now') THEN 1
-             WHEN e.wwcc_expiry < date('now', '+30 days') THEN 2
+        CASE WHEN e.wwcc_expiry < date(\'now\') THEN 1
+             WHEN e.wwcc_expiry < date(\'now\', \'+30 days\') THEN 2
              WHEN e.wwcc_number IS NULL THEN 3
              ELSE 4 END,
         e.last_name
-    `).all(req.tenantId);
+    ').all(req.tenantId);
 
     const summary = {
       total: educators.length,
@@ -343,22 +343,22 @@ r.get('/ner/educators', (req, res) => {
 r.put('/ner/educators/:id', (req, res) => {
   try {
     const { wwcc_number, wwcc_state, wwcc_expiry, wwcc_verified } = req.body;
-    D().prepare(`
+    D().prepare('
       UPDATE educators SET
         wwcc_number=COALESCE(?,wwcc_number),
         wwcc_state=COALESCE(?,wwcc_state),
         wwcc_expiry=COALESCE(?,wwcc_expiry),
         wwcc_verified=COALESCE(?,wwcc_verified)
       WHERE id=? AND tenant_id=?
-    `).run(wwcc_number||null, wwcc_state||null, wwcc_expiry||null,
+    ').run(wwcc_number||null, wwcc_state||null, wwcc_expiry||null,
            wwcc_verified!=null?(wwcc_verified?1:0):null,
            req.params.id, req.tenantId);
 
     // Log
-    D().prepare(`
+    D().prepare('
       INSERT INTO integration_log (id,tenant_id,integration,action,direction,payload_summary,success,created_at)
-      VALUES (?,?,'ner_wwcc','wwcc_updated','inbound',?,1,datetime('now'))
-    `).run(uuid(), req.tenantId, `Educator ${req.params.id} WWCC updated`);
+      VALUES (?,?,\'ner_wwcc\',\'wwcc_updated\',\'inbound\',?,1,datetime(\'now\'))
+    ').run(uuid(), req.tenantId, `Educator ${req.params.id} WWCC updated`);
 
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

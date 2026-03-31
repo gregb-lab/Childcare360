@@ -23,7 +23,7 @@ r.get('/', (req, res) => {
       let sheet = db.prepare('SELECT * FROM daily_run_sheets WHERE room_id=? AND date=? AND tenant_id=?').get(room.id, today, req.tenantId);
 
       // Get children in this room with their health/learning data
-      const children = db.prepare(`
+      const children = db.prepare('
         SELECT c.id, c.first_name, c.last_name, c.dob, c.allergies, c.photo_url,
                c.medical_notes,
                (SELECT content FROM learning_stories ls WHERE ls.child_id=c.id AND ls.tenant_id=? ORDER BY ls.created_at DESC LIMIT 1) as last_observation,
@@ -33,13 +33,13 @@ r.get('/', (req, res) => {
                a.sign_in, a.sign_out, a.absent,
                rsc.attended, rsc.mood, rsc.observations, rsc.learning_highlights, rsc.educator_notes, rsc.activities_completed, rsc.id as rsc_id
         FROM children c
-        LEFT JOIN medical_plans mp ON mp.child_id=c.id AND mp.status='current' AND mp.tenant_id=?
+        LEFT JOIN medical_plans mp ON mp.child_id=c.id AND mp.status=\'current\' AND mp.tenant_id=?
         LEFT JOIN attendance_sessions a ON a.child_id=c.id AND a.date=? AND a.tenant_id=?
         LEFT JOIN daily_run_sheets drs ON drs.room_id=c.room_id AND drs.date=? AND drs.tenant_id=?
         LEFT JOIN run_sheet_children rsc ON rsc.child_id=c.id AND rsc.run_sheet_id=drs.id
         WHERE c.room_id=? AND c.tenant_id=? AND c.active=1
         ORDER BY c.first_name
-      `).all(req.tenantId, req.tenantId, req.tenantId, req.tenantId, today, req.tenantId, today, req.tenantId, room.id, req.tenantId);
+      ').all(req.tenantId, req.tenantId, req.tenantId, req.tenantId, today, req.tenantId, today, req.tenantId, room.id, req.tenantId);
 
       return {
         room: { id: room.id, name: room.name, group_label: room.group_label, ratio: room.ratio, capacity: room.capacity },
@@ -97,14 +97,14 @@ r.put('/child/:childId', (req, res) => {
 // GET /api/runsheet/history/:childId — last 30 days for a child
 r.get('/history/:childId', (req, res) => {
   try {
-    const rows = D().prepare(`
+    const rows = D().prepare('
       SELECT rsc.*, drs.date, r.name as room_name
       FROM run_sheet_children rsc
       JOIN daily_run_sheets drs ON drs.id=rsc.run_sheet_id
       JOIN rooms r ON r.id=drs.room_id
       WHERE rsc.child_id=? AND drs.tenant_id=?
       ORDER BY drs.date DESC LIMIT 30
-    `).all(req.params.childId, req.tenantId);
+    ').all(req.params.childId, req.tenantId);
     res.json(rows.map(r => ({ ...r, activities_completed: JSON.parse(r.activities_completed || '[]') })));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
