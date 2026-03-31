@@ -498,7 +498,7 @@ router.get('/:id/events', (req, res) => {
 router.get('/:id/educator-notes', (req, res) => {
   try {
     D().prepare(`CREATE TABLE IF NOT EXISTS child_educator_notes (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, educator_id TEXT, educator_name TEXT, note TEXT, created_at TEXT DEFAULT (datetime('now')))`).run();
-    const rows = D().prepare('SELECT n.*, u.name as educator_name FROM child_educator_notes n LEFT JOIN users u ON u.id=n.educator_id WHERE n.child_id=? ORDER BY n.created_at DESC LIMIT 50').all(req.params.id);
+    const rows = D().prepare(`SELECT n.*, u.name as educator_name FROM child_educator_notes n LEFT JOIN users u ON u.id=n.educator_id WHERE n.child_id=? ORDER BY n.created_at DESC LIMIT 50`).all(req.params.id);
     res.json(rows);
   } catch(err) { res.json([]); }
 });

@@ -233,7 +233,7 @@ router.get('/:id/leave-balance', (req, res) => {
     const yearsService = (Date.now() - startDate.getTime()) / (365.25 * 24 * 3600 * 1000);
     const annualLeaveHrs = Math.min(yearsService * 152, 760); // 4 weeks accrual, max 5 years
     const personalLeaveHrs = Math.min(yearsService * 76, 228);  // 2 weeks/yr, max 3 years
-    const approvedTaken = D().prepare('SELECT SUM(days_requested * ?) as hrs FROM leave_requests WHERE educator_id = ? AND status = \'approved\' AND tenant_id = ?')
+    const approvedTaken = D().prepare(`SELECT SUM(days_requested * ?) as hrs FROM leave_requests WHERE educator_id = ? AND status = 'approved'`)
       .get(edu.contracted_hours / 5 || 7.6, req.params.id);
     res.json({
       annual: { accrued: Math.round(annualLeaveHrs * 10) / 10, taken: approvedTaken?.hrs || 0 },
@@ -443,7 +443,7 @@ router.put('/leave/:id/decide', requireAuth, requireTenant, (req, res) => {
     if (!['approved','rejected'].includes(status)) return res.status(400).json({ error: 'status must be approved or rejected' });
     const existing = D().prepare('SELECT id FROM leave_requests WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!existing) return res.status(404).json({ error: 'Leave request not found' });
-    D().prepare('UPDATE leave_requests SET status=?, approved_by=?, approved_at=datetime(\'now\'), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
+    D().prepare(`UPDATE leave_requests SET status=?, approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=?`)
       .run(status, req.userName || 'manager', req.params.id);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -274,7 +274,7 @@ selfService.post('/leave', (req, res) => {
 selfService.put('/leave/:id/cancel', (req, res) => {
   try {
     const edu = getEducator(req.tenantId, req.userId);
-    D().prepare("UPDATE educator_leave_requests SET status='cancelled' WHERE id=? AND educator_id=? AND status='pending' AND tenant_id=?")
+    D().prepare("UPDATE educator_leave_requests SET status='cancelled' WHERE id=? AND educator_id=? AND status='pending'")
       .run(req.params.id, edu?.id);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -353,7 +353,7 @@ leaveAdmin.put('/:id', (req, res) => {
 
     // If approved, mark roster entries as leave
     if (status === 'approved') {
-      const lr = D().prepare('SELECT * FROM educator_leave_requests WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+      const lr = D().prepare('SELECT * FROM educator_leave_requests WHERE id=?').get(req.params.id);
       if (lr) {
         D().prepare(`
           UPDATE roster_entries SET status='cancelled', notes='Leave approved'

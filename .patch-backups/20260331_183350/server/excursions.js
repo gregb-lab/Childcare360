@@ -127,7 +127,7 @@ router.post('/:id/children', (req, res) => {
 // DELETE child from excursion
 router.delete('/:id/children/:childId', (req, res) => {
   try {
-    D().prepare('DELETE FROM excursion_children WHERE excursion_id = ? AND child_id = ? AND tenant_id = ?').run(req.params.id, req.params.childId, req.tenantId);
+    D().prepare('DELETE FROM excursion_children WHERE excursion_id = ? AND child_id = ?').run(req.params.id, req.params.childId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -155,7 +155,7 @@ router.post('/:id/send-permission', (req, res) => {
   try {
     D().prepare('UPDATE excursions SET status = \'permission_sent\' WHERE id = ? AND tenant_id = ?').run(req.params.id, req.tenantId);
     // In production this would send emails; for now just mark sent
-    const children = D().prepare('SELECT ec.*, c.first_name, c.last_name FROM excursion_children ec JOIN children c ON ec.child_id = c.id WHERE ec.excursion_id = ? AND ec.tenant_id = ?').all(req.params.id, req.tenantId);
+    const children = D().prepare('SELECT ec.*, c.first_name, c.last_name FROM excursion_children ec JOIN children c ON ec.child_id = c.id WHERE ec.excursion_id = ?').all(req.params.id);
     res.json({ success: true, notified: children.length });
   } catch (err) {
     res.status(500).json({ error: err.message });

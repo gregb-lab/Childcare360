@@ -215,7 +215,7 @@ r.put('/evacuation/:id/headcount/:hcId', (req, res) => {
       FROM evacuation_headcounts WHERE drill_id=?
     `).get(req.params.id);
 
-    D().prepare('UPDATE evacuation_drills SET all_accounted=?, missing_count=? WHERE id=? AND tenant_id=?')
+    D().prepare('UPDATE evacuation_drills SET all_accounted=?, missing_count=? WHERE id=?')
       .run(stats.acc >= stats.total ? 1 : 0, stats.total - stats.acc, req.params.id);
 
     res.json({ ok: true, accounted: stats.acc, total: stats.total });

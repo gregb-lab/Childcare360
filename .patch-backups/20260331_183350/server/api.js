@@ -172,9 +172,9 @@ router.delete('/age-groups/:id', requireAuth, requireTenant, requireRole('owner'
 router.get('/rooms/:id/stats', requireAuth, requireTenant, (req, res) => {
   const room = D().prepare('SELECT * FROM rooms WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
-  const children = D().prepare('SELECT c.*, pc.name as parent_name, pc.email as parent_email, pc.phone as parent_phone FROM children c LEFT JOIN parent_contacts pc ON pc.child_id=c.id AND pc.is_primary=1 WHERE c.room_id=? AND c.tenant_id=? AND c.active=1 ORDER BY c.first_name').all(req.params.id, req.tenantId);
-  const recentUpdates = D().prepare("SELECT du.*, c.first_name FROM daily_updates du JOIN children c ON c.id=du.child_id WHERE c.room_id=? AND c.tenant_id=? AND du.update_date=date('now','localtime') ORDER BY du.created_at DESC LIMIT 20").all(req.params.id, req.tenantId);
-  const todayAttendance = D().prepare("SELECT COUNT(*) as present FROM attendance_sessions WHERE date=date('now','localtime') AND child_id IN (SELECT id FROM children WHERE room_id=? AND tenant_id=?)").get(req.params.id, req.tenantId);
+  const children = D().prepare('SELECT c.*, pc.name as parent_name, pc.email as parent_email, pc.phone as parent_phone FROM children c LEFT JOIN parent_contacts pc ON pc.child_id=c.id AND pc.is_primary=1 WHERE c.room_id=? AND c.active=1 ORDER BY c.first_name').all(req.params.id);
+  const recentUpdates = D().prepare("SELECT du.*, c.first_name FROM daily_updates du JOIN children c ON c.id=du.child_id WHERE c.room_id=? AND du.update_date=date('now','localtime') ORDER BY du.created_at DESC LIMIT 20").all(req.params.id);
+  const todayAttendance = D().prepare("SELECT COUNT(*) as present FROM attendance_sessions WHERE date=date('now','localtime') AND child_id IN (SELECT id FROM children WHERE room_id=?)").get(req.params.id);
   res.json({ room, children, recentUpdates, todayAttendance: todayAttendance?.present || 0, childCount: children.length });
 });
 
@@ -216,7 +216,7 @@ router.post('/observations', requireAuth, requireTenant, (req, res) => {
     if (child) {
       const domains = JSON.parse(child.domains || '{}');
       Object.entries(o.progressUpdates).forEach(([k, v]) => { if (v) domains[k] = v; });
-      D().prepare("UPDATE children SET domains = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?")
+      D().prepare("UPDATE children SET domains = ?, updated_at = datetime('now') WHERE id = ?")
         .run(JSON.stringify(domains), o.childId);
     }
   }

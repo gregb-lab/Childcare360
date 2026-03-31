@@ -138,7 +138,7 @@ r.post('/send', (req, res) => {
     })();
 
     // Update sent count
-    D().prepare('UPDATE bulk_messages SET sent_count=? WHERE id=? AND tenant_id=?')
+    D().prepare('UPDATE bulk_messages SET sent_count=? WHERE id=?')
       .run(children.length, msgId);
 
     res.json({

@@ -131,7 +131,7 @@ r.post('/recruitment/applications', (req, res) => {
            resume_url||null, cover_letter||null, wwcc_number||null, wwcc_state||null, source||'direct');
 
     // Update job application count
-    D().prepare('UPDATE job_postings SET applications_count=applications_count+1 WHERE id=? AND tenant_id=?')
+    D().prepare('UPDATE job_postings SET applications_count=applications_count+1 WHERE id=?')
       .run(job_id);
 
     res.json({ id, ok: true });

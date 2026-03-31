@@ -148,8 +148,8 @@ async function processConfirmedSickCall(tenantId, educatorId, shift) {
   const absId = uuid();
   D().prepare(`INSERT INTO educator_absences (id,tenant_id,educator_id,date,type,reason,notice_given_mins,notified_via) VALUES(?,?,?,?,?,?,?,?)`)
     .run(absId, tenantId, educatorId, shift.date, 'sick', 'Called in sick via Retell voice agent', 0, 'phone');
-  D().prepare("UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(educatorId, tenantId);
-  D().prepare("UPDATE roster_entries SET status='unfilled', notes='Educator called in sick via Retell voice agent', updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(shift.id, tenantId);
+  D().prepare("UPDATE educators SET total_sick_days=total_sick_days+1, reliability_score=MAX(0,reliability_score-2), updated_at=datetime('now') WHERE id=?").run(educatorId);
+  D().prepare("UPDATE roster_entries SET status='unfilled', notes='Educator called in sick via Retell voice agent', updated_at=datetime('now') WHERE id=?").run(shift.id);
 
   const candidates = D().prepare(`
     SELECT e.* FROM educators e JOIN educator_availability ea ON ea.educator_id=e.id

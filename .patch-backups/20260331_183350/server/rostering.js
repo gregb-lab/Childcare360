@@ -18,9 +18,9 @@ r.get('/educators', (req, res) => {
 r.get('/educators/:id', (req, res) => {
   const ed = D().prepare('SELECT * FROM educators WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
   if (!ed) return res.status(404).json({ error: 'Educator not found' });
-  const availability = D().prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ? ORDER BY day_of_week').all(ed.id, req.tenantId);
-  const absences = D().prepare('SELECT * FROM educator_absences WHERE educator_id = ? AND tenant_id = ? ORDER BY date DESC LIMIT 20').all(ed.id, req.tenantId);
-  const shifts = D().prepare('SELECT re.*, r.name as room_name FROM roster_entries re LEFT JOIN rooms r ON r.id = re.room_id WHERE re.educator_id = ? AND re.tenant_id = ? ORDER BY re.date DESC LIMIT 30').all(ed.id, req.tenantId);
+  const availability = D().prepare('SELECT * FROM educator_availability WHERE educator_id = ? ORDER BY day_of_week').all(ed.id);
+  const absences = D().prepare('SELECT * FROM educator_absences WHERE educator_id = ? ORDER BY date DESC LIMIT 20').all(ed.id);
+  const shifts = D().prepare('SELECT re.*, r.name as room_name FROM roster_entries re LEFT JOIN rooms r ON r.id = re.room_id WHERE re.educator_id = ? ORDER BY re.date DESC LIMIT 30').all(ed.id);
   res.json({ educator: ed, availability, absences, shifts });
 });
 
@@ -72,7 +72,7 @@ r.put('/educators/:id', (req, res) => {
       b.notes,b.status,b.start_date,req.params.id,req.tenantId);
   // Update availability if provided
   if (b.availability) {
-    D().prepare('DELETE FROM educator_availability WHERE educator_id = ? AND tenant_id = ?').run(req.params.id, req.tenantId);
+    D().prepare('DELETE FROM educator_availability WHERE educator_id = ?').run(req.params.id);
     const stmt = D().prepare('INSERT INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,preferred) VALUES(?,?,?,?,?,?,?)');
     b.availability.forEach(a => stmt.run(uuid(), req.params.id, a.day, a.available?1:0, a.start_time||'06:00', a.end_time||'18:30', a.preferred?1:0));
   }
@@ -83,7 +83,7 @@ r.put('/educators/:id', (req, res) => {
 // ═══ EDUCATOR AVAILABILITY ═════════════════════════════════════════════════
 
 r.get('/educators/:id/availability', (req, res) => {
-  const avail = D().prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ? ORDER BY day_of_week').all(req.params.id, req.tenantId);
+  const avail = D().prepare('SELECT * FROM educator_availability WHERE educator_id = ? ORDER BY day_of_week').all(req.params.id);
   res.json({ availability: avail });
 });
 
@@ -138,9 +138,9 @@ r.get('/periods/:id', (req, res) => {
 });
 
 r.put('/periods/:id/approve', (req, res) => {
-  D().prepare("UPDATE roster_periods SET status='approved', approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+  D().prepare("UPDATE roster_periods SET status='approved', approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=?")
     .run(req.userName || 'system', req.params.id);
-  D().prepare("UPDATE roster_entries SET status='confirmed' WHERE period_id=? AND tenant_id=?").run(req.params.id, req.tenantId);
+  D().prepare("UPDATE roster_entries SET status='confirmed' WHERE period_id=?").run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -199,7 +199,7 @@ r.post('/generate', (req, res) => {
   const educators = db.prepare(`SELECT * FROM educators WHERE tenant_id = ? AND status = 'active' AND (termination_date IS NULL OR termination_date > date('now')) ORDER BY reliability_score DESC`).all(req.tenantId);
   const availability = {};
   educators.forEach(e => {
-    availability[e.id] = db.prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ?').all(e.id, tenantId);
+    availability[e.id] = db.prepare('SELECT * FROM educator_availability WHERE educator_id = ?').all(e.id);
   });
 
   // NQF ratio requirements — map age_group strings to ratio config
@@ -454,7 +454,7 @@ r.get('/fill-requests/:id/attempts', (req, res) => {
 r.post('/fill-requests/:id/accept', (req, res) => {
   const { educator_id } = req.body;
   const db = D();
-  db.prepare("UPDATE shift_fill_requests SET status='filled', filled_by=?, filled_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+  db.prepare("UPDATE shift_fill_requests SET status='filled', filled_by=?, filled_at=datetime('now'), updated_at=datetime('now') WHERE id=?")
     .run(educator_id, req.params.id);
   db.prepare("UPDATE shift_fill_attempts SET status='accepted', accepted=1, responded_at=datetime('now') WHERE request_id=? AND educator_id=?")
     .run(req.params.id, educator_id);
@@ -520,7 +520,7 @@ r.get('/change-proposals', (req, res) => {
 
 r.post('/change-proposals/:id/resolve', (req, res) => {
   const { selected_option } = req.body;
-  D().prepare("UPDATE roster_change_proposals SET status='resolved', selected_option=?, resolved_by=?, resolved_at=datetime('now') WHERE id=? AND tenant_id=?")
+  D().prepare("UPDATE roster_change_proposals SET status='resolved', selected_option=?, resolved_by=?, resolved_at=datetime('now') WHERE id=?")
     .run(selected_option, req.userName || 'system', req.params.id);
   res.json({ ok: true });
 });

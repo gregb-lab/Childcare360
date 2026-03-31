@@ -129,6 +129,6 @@ router.post('/waitlist/:id/convert', requireAuth, requireTenant, (req, res) => {
   if (!entry) return res.status(404).json({ error: 'Not found' });
   const appId = uuid();
   D().prepare('INSERT INTO enrolment_applications (id,tenant_id,status,child_first_name,preferred_room,preferred_days,preferred_start_date,parent1_name,parent1_email,parent1_phone,additional_notes,submitted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))').run(appId, req.tenantId, 'submitted', entry.child_name, entry.preferred_room, entry.preferred_days, entry.preferred_start, entry.parent_name, entry.parent_email, entry.parent_phone, entry.notes);
-  D().prepare("UPDATE waitlist SET status='converted',updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(req.params.id, req.tenantId);
+  D().prepare("UPDATE waitlist SET status='converted',updated_at=datetime('now') WHERE id=?").run(req.params.id);
   res.json({ id: appId, ok: true });
 });

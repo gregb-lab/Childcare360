@@ -174,7 +174,7 @@ r.post('/menus/:weekStarting', (req, res) => {
 
     const planId = existing?.id || uuid();
     if (existing) {
-      D().prepare('UPDATE menu_plans SET plan_name=COALESCE(?,plan_name), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
+      D().prepare(`UPDATE menu_plans SET plan_name=COALESCE(?,plan_name), updated_at=datetime('now') WHERE id=?`)
         .run(plan_name||null, planId);
     } else {
       D().prepare(`
@@ -184,7 +184,7 @@ r.post('/menus/:weekStarting', (req, res) => {
     }
 
     // Replace all items for this plan
-    D().prepare('DELETE FROM menu_items WHERE menu_plan_id=? AND tenant_id=?').run(planId, req.tenantId);
+    D().prepare('DELETE FROM menu_items WHERE menu_plan_id=?').run(planId);
 
     const insertItem = D().prepare(`
       INSERT INTO menu_items

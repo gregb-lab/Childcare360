@@ -212,7 +212,7 @@ router.post('/absence', (req, res) => {
       ).all(req.tenantId, educator_id, date);
 
       for (const shift of shifts) {
-        D().prepare("UPDATE roster_entries SET status='unfilled', notes=? WHERE id=? AND tenant_id=?")
+        D().prepare("UPDATE roster_entries SET status='unfilled', notes=? WHERE id=?")
           .run(`Absence: ${type || 'sick'} — ${reason || 'no reason given'}`, shift.id);
 
         // Auto-create shift_fill_request
@@ -228,13 +228,13 @@ router.post('/absence', (req, res) => {
     }
 
     // Update educator stats
-    D().prepare("UPDATE educators SET total_sick_days=total_sick_days+?, reliability_score=MAX(0,reliability_score-?), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+    D().prepare("UPDATE educators SET total_sick_days=total_sick_days+?, reliability_score=MAX(0,reliability_score-?), updated_at=datetime('now') WHERE id=?")
       .run(dates.length, dates.length * 2, educator_id);
 
     // Deduct sick leave balance
     if ((type || 'sick') === 'sick') {
       const hoursPerDay = 7.6;
-      D().prepare("UPDATE educators SET sick_leave_balance_hours=MAX(0,sick_leave_balance_hours-?) WHERE id=? AND tenant_id=?")
+      D().prepare("UPDATE educators SET sick_leave_balance_hours=MAX(0,sick_leave_balance_hours-?) WHERE id=?")
         .run(dates.length * hoursPerDay, educator_id);
     }
 
@@ -429,7 +429,7 @@ router.post('/non-contact', (req, res) => {
           return res.status(400).json({
             error: 'Ratio breach warning',
             detail: (()=>{
-              const _eRow=D().prepare('SELECT first_name FROM educators WHERE id=? AND tenant_id=?').get(educator_id, req.tenantId);
+              const _eRow=D().prepare('SELECT first_name FROM educators WHERE id=?').get(educator_id);
               const _fn=(_eRow&&_eRow.first_name)?_eRow.first_name:'this educator';
               return 'Removing '+_fn+' from floor would leave '+educatorsAfter+' educators for ~'+expectedKids+' children (need '+minRequired+' at 1:'+ratio+')';
             })(),
@@ -509,7 +509,7 @@ router.get('/qualification-check', (req, res) => {
     for (const { room_id } of rooms) {
       const count = D().prepare('SELECT COUNT(*) as cnt FROM roster_entries WHERE tenant_id=? AND room_id=? AND date=? AND status NOT IN ("cancelled","unfilled")').get(req.tenantId, room_id, date)?.cnt || 0;
       if (count < 1) {
-        const roomName = D().prepare('SELECT name FROM rooms WHERE id=? AND tenant_id=?').get(room_id, req.tenantId)?.name || room_id;
+        const roomName = D().prepare('SELECT name FROM rooms WHERE id=?').get(room_id)?.name || room_id;
         violations.push({ rule: 'min_one_educator', regulation: 'Regulation 132', required: '≥1 educator', actual: `0 in ${roomName}`, severity: 'critical' });
       }
     }
@@ -577,16 +577,16 @@ router.post('/shift-swaps', (req, res) => {
     if (!reqEntry || !tgtEntry || !reqEd || !tgtEd) return res.status(404).json({ error: 'Entry or educator not found' });
 
     // Check qualification: swapped educator must meet room's minimum qual
-    const reqRoom = D().prepare('SELECT * FROM rooms WHERE id=? AND tenant_id=?').get(reqEntry.room_id, req.tenantId);
-    const tgtRoom = D().prepare('SELECT * FROM rooms WHERE id=? AND tenant_id=?').get(tgtEntry.room_id, req.tenantId);
+    const reqRoom = D().prepare('SELECT * FROM rooms WHERE id=?').get(reqEntry.room_id);
+    const tgtRoom = D().prepare('SELECT * FROM rooms WHERE id=?').get(tgtEntry.room_id);
     const complianceNotes = [];
     let compliancePassed = true;
 
     // Check availability
     const reqDow = dayOfWeek(tgtEntry.date); // Requester needs to be available on target's day
     const tgtDow = dayOfWeek(reqEntry.date); // Target needs to be available on requester's day
-    const reqAvail = D().prepare('SELECT * FROM educator_availability WHERE educator_id=? AND day_of_week=? AND tenant_id=?').get(requester_id, reqDow, req.tenantId);
-    const tgtAvail = D().prepare('SELECT * FROM educator_availability WHERE educator_id=? AND day_of_week=? AND tenant_id=?').get(target_id, tgtDow, req.tenantId);
+    const reqAvail = D().prepare('SELECT * FROM educator_availability WHERE educator_id=? AND day_of_week=?').get(requester_id, reqDow);
+    const tgtAvail = D().prepare('SELECT * FROM educator_availability WHERE educator_id=? AND day_of_week=?').get(target_id, tgtDow);
     if (reqAvail && !reqAvail.available) { compliancePassed = false; complianceNotes.push(`${reqEd.first_name} not available on ${tgtEntry.date}`); }
     if (tgtAvail && !tgtAvail.available) { compliancePassed = false; complianceNotes.push(`${tgtEd.first_name} not available on ${reqEntry.date}`); }
 
@@ -609,15 +609,15 @@ router.put('/shift-swaps/:id/approve', (req, res) => {
     if (swap.status !== 'pending') return res.status(400).json({ error: `Swap already ${swap.status}` });
 
     // Execute the swap — update roster_entries
-    const reqEntry = D().prepare('SELECT * FROM roster_entries WHERE id=? AND tenant_id=?').get(swap.requester_entry_id, req.tenantId);
-    const tgtEntry = D().prepare('SELECT * FROM roster_entries WHERE id=? AND tenant_id=?').get(swap.target_entry_id, req.tenantId);
+    const reqEntry = D().prepare('SELECT * FROM roster_entries WHERE id=?').get(swap.requester_entry_id);
+    const tgtEntry = D().prepare('SELECT * FROM roster_entries WHERE id=?').get(swap.target_entry_id);
 
-    D().prepare('UPDATE roster_entries SET educator_id=?, notes=? WHERE id=? AND tenant_id=?')
+    D().prepare('UPDATE roster_entries SET educator_id=?, notes=? WHERE id=?')
       .run(swap.target_id, `Swapped with ${swap.requester_id} — swap #${swap.id.slice(0,8)}`, swap.requester_entry_id);
-    D().prepare('UPDATE roster_entries SET educator_id=?, notes=? WHERE id=? AND tenant_id=?')
+    D().prepare('UPDATE roster_entries SET educator_id=?, notes=? WHERE id=?')
       .run(swap.requester_id, `Swapped with ${swap.target_id} — swap #${swap.id.slice(0,8)}`, swap.target_entry_id);
 
-    D().prepare("UPDATE shift_swaps SET status='approved', approved_by=?, approved_at=datetime('now') WHERE id=? AND tenant_id=?")
+    D().prepare("UPDATE shift_swaps SET status='approved', approved_by=?, approved_at=datetime('now') WHERE id=?")
       .run(req.userId, req.params.id);
 
     res.json({ ok: true, message: 'Swap executed' });
@@ -811,7 +811,7 @@ router.get('/cost-calculate', (req, res) => {
 // GET /api/roster-enhanced/award-classifications
 router.get('/award-classifications', (req, res) => {
   try {
-    const levels = D().prepare('SELECT * FROM award_classifications WHERE tenant_id=? ORDER BY CAST(level AS INTEGER), CAST(sub_level AS INTEGER)').all(req.tenantId);
+    const levels = D().prepare('SELECT * FROM award_classifications ORDER BY CAST(level AS INTEGER), CAST(sub_level AS INTEGER)').all();
     res.json({ levels });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -822,7 +822,7 @@ router.put('/educators/:id/classification', (req, res) => {
     const { award_classification, award_level } = req.body;
     // Look up the base rate from the classification table
     const parts = award_level?.split('.') || [];
-    const classification = D().prepare('SELECT * FROM award_classifications WHERE level=? AND sub_level=? AND tenant_id=?')
+    const classification = D().prepare('SELECT * FROM award_classifications WHERE level=? AND sub_level=?')
       .get(parts[0] || award_classification, parts[1] || '1');
 
     const updates = ['award_classification=?', 'award_level=?'];
@@ -893,12 +893,12 @@ router.post('/agency-booking', (req, res) => {
 
     // Mark shift_fill_request as escalated
     if (shift_fill_request_id) {
-      D().prepare("UPDATE shift_fill_requests SET escalated_to_agency=1, agency_booking_id=?, escalation_time=datetime('now') WHERE id=? AND tenant_id=?")
+      D().prepare("UPDATE shift_fill_requests SET escalated_to_agency=1, agency_booking_id=?, escalation_time=datetime('now') WHERE id=?")
         .run(id, shift_fill_request_id);
     }
 
     // Update agency stats
-    D().prepare("UPDATE staffing_agencies SET total_bookings=total_bookings+1, updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(agency_id, req.tenantId);
+    D().prepare("UPDATE staffing_agencies SET total_bookings=total_bookings+1, updated_at=datetime('now') WHERE id=?").run(agency_id);
 
     res.json({
       ok: true, id,
@@ -1431,7 +1431,7 @@ router.get('/room-groups', (req, res) => {
         WHERE rgm.room_group_id=?
         ORDER BY r.age_group
       `).all(g.id);
-      const schedules = D().prepare('SELECT * FROM room_group_schedules WHERE room_group_id=? AND active=1 AND tenant_id=? ORDER BY day_of_week, start_time').all(g.id, req.tenantId);
+      const schedules = D().prepare('SELECT * FROM room_group_schedules WHERE room_group_id=? AND active=1 ORDER BY day_of_week, start_time').all(g.id);
       const youngestAgeGroup = members.reduce((youngest, m) => {
         const order = { '0-2': 0, '2-3': 1, '3-4': 2, '3-5': 2, '4-5': 3 };
         return (order[m.age_group] || 99) < (order[youngest] || 99) ? m.age_group : youngest;
@@ -1511,7 +1511,7 @@ router.post('/room-groups/:id/schedules', (req, res) => {
 // DELETE /api/roster-enhanced/room-groups/:groupId/schedules/:scheduleId
 router.delete('/room-groups/:groupId/schedules/:scheduleId', (req, res) => {
   try {
-    D().prepare('DELETE FROM room_group_schedules WHERE id=? AND room_group_id=? AND tenant_id=?').run(req.params.scheduleId, req.params.groupId, req.tenantId);
+    D().prepare('DELETE FROM room_group_schedules WHERE id=? AND room_group_id=?').run(req.params.scheduleId, req.params.groupId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1603,7 +1603,7 @@ router.get('/room-groups/:id/ratio-calc', (req, res) => {
     const combinedRatio = NQF_RATIOS[youngestAgeGroup] || 4;
     const combinedRequired = Math.max(1, Math.ceil(expectedChildren / combinedRatio));
 
-    const schedules = D().prepare('SELECT * FROM room_group_schedules WHERE room_group_id=? AND active=1 AND tenant_id=? AND (day_of_week=? OR specific_date=?) ORDER BY start_time').all(req.params.id, req.tenantId, dow, date);
+    const schedules = D().prepare('SELECT * FROM room_group_schedules WHERE room_group_id=? AND active=1 AND (day_of_week=? OR specific_date=?) ORDER BY start_time').all(req.params.id, dow, date);
 
     res.json({
       group: { id: group.id, name: group.name, location: group.location },

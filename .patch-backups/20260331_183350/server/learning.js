@@ -509,13 +509,13 @@ function autoAlbum(db, tenantId, storyId, eventName, tags, childIds) {
       const aid = uuid();
       db.prepare('INSERT INTO learning_albums (id,tenant_id,name,event_name,tags,child_ids,ai_generated_name) VALUES(?,?,?,?,?,?,1)')
         .run(aid, tenantId, key, eventName || null, S(tags), S(childIds));
-      db.prepare("UPDATE learning_stories SET album_id=? WHERE id=? AND tenant_id=?").run(aid, storyId, tenantId);
+      db.prepare("UPDATE learning_stories SET album_id=? WHERE id=?").run(aid, storyId);
     } else {
       // Merge child IDs
       const existing = J(album.child_ids);
       const merged = [...new Set([...existing, ...childIds])];
-      db.prepare("UPDATE learning_albums SET child_ids=?, story_count=story_count+1, updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(S(merged), album.id, tenantId);
-      db.prepare("UPDATE learning_stories SET album_id=? WHERE id=? AND tenant_id=?").run(album.id, storyId, tenantId);
+      db.prepare("UPDATE learning_albums SET child_ids=?, story_count=story_count+1, updated_at=datetime('now') WHERE id=?").run(S(merged), album.id);
+      db.prepare("UPDATE learning_stories SET album_id=? WHERE id=?").run(album.id, storyId);
     }
   } catch (e) {}
 }
