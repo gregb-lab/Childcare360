@@ -1,5 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  Childcare360 — Parent Portal API  (v2.8.2)
+//  FIXES: sql-injection-risk (sinceDate interpolation) + sql-missing-tenant-id
+//         on child_documents, daily_updates, learning_stories (×2),
+//         weekly_reports, child_eylf_progress, child_absences
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router } from 'express';
 import { D, uuid } from './db.js';
@@ -37,6 +40,7 @@ function childTenantId(childId) {
   return D().prepare('SELECT tenant_id FROM children WHERE id=?').get(childId)?.tenant_id || null;
 }
 
+// FIX (sql-injection-risk): date computed in JS, bound via ? — never interpolated
 function sinceDate(period) {
   if (period === 'all') return '1970-01-01';
   const days = { today: 0, week: 7, month: 30, year: 365 }[period] ?? 30;
