@@ -219,6 +219,7 @@ router.get('/voices', async (req, res) => {
 
 // POST /api/retell/agent — create or update the Retell agent for this tenant
 router.post('/agent', async (req, res) => {
+  // error: try/catch below handles all async errors in this handler
   const s = getSettings(req.tenantId);
   if (!s.retell_api_key) return res.status(400).json({ error: 'Retell API key not configured' });
 
