@@ -1,12 +1,12 @@
 {
   "name": "childcare360",
-  "version": "2.8.2",
+  "version": "2.6.0",
   "description": "Childcare360 Australian childcare management platform",
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
     "build": "vite build",
-    "check": "node scripts/release-agent.js --skip-ai",
+    "check":          "node scripts/release-agent.js --skip-ai",
     "release:static": "node scripts/release-agent.js --skip-ai --fix --package"
   },
   "dependencies": {
