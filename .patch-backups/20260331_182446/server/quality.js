@@ -385,7 +385,7 @@ r.post('/surveys/:id/respond', (req, res) => {
            respondent_user_id||null, respondent_child_id||null,
            JSON.stringify(answers), nps);
 
-    D().prepare('UPDATE surveys SET response_count=response_count+1 WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
+    D().prepare('UPDATE surveys SET response_count=response_count+1 WHERE id=?').run(req.params.id);
     res.json({ ok: true, id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

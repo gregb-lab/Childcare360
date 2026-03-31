@@ -42,17 +42,17 @@ router.get('/:id', (req, res) => {
     const child = D().prepare('SELECT c.*, r.name as room_name FROM children c LEFT JOIN rooms r ON c.room_id = r.id WHERE c.id = ? AND c.tenant_id = ?').get(req.params.id, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Not found' });
 
-    const parents = D().prepare('SELECT * FROM parent_contacts WHERE child_id = ? AND tenant_id = ? ORDER BY is_primary DESC').all(req.params.id, req.tenantId);
-    const medPlans = D().prepare('SELECT * FROM medical_plans WHERE child_id = ? AND tenant_id = ? ORDER BY created_at DESC').all(req.params.id, req.tenantId);
-    const immunisations = D().prepare('SELECT * FROM immunisation_records WHERE child_id = ? AND tenant_id = ? ORDER BY date_given DESC').all(req.params.id, req.tenantId);
-    const medications = D().prepare('SELECT * FROM medications WHERE child_id = ? AND status = \'active\' AND tenant_id = ?').all(req.params.id, req.tenantId);
-    const dietary = tryQuery(() => D().prepare('SELECT * FROM child_dietary WHERE child_id = ? AND tenant_id = ? ORDER BY severity DESC').all(req.params.id, req.tenantId));
-    const permissions = tryQuery(() => D().prepare('SELECT * FROM child_permissions WHERE child_id = ? AND tenant_id = ?').all(req.params.id, req.tenantId));
-    const pickups = tryQuery(() => D().prepare('SELECT * FROM authorised_pickups WHERE child_id = ? AND active = 1 AND tenant_id = ?').all(req.params.id, req.tenantId));
-    const requests = tryQuery(() => D().prepare('SELECT * FROM parental_requests WHERE child_id = ? AND status = \'active\' AND tenant_id = ?').all(req.params.id, req.tenantId));
-    const documents = D().prepare('SELECT * FROM child_documents WHERE child_id = ? AND tenant_id = ? ORDER BY created_at DESC').all(req.params.id, req.tenantId);
-    const invoices = D().prepare('SELECT * FROM invoices WHERE child_id = ? AND tenant_id = ? ORDER BY period_start DESC LIMIT 12').all(req.params.id, req.tenantId);
-    const recentUpdates = tryQuery(() => D().prepare('SELECT * FROM daily_updates WHERE child_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 50').all(req.params.id, req.tenantId));
+    const parents = D().prepare('SELECT * FROM parent_contacts WHERE child_id = ? ORDER BY is_primary DESC').all(req.params.id);
+    const medPlans = D().prepare('SELECT * FROM medical_plans WHERE child_id = ? ORDER BY created_at DESC').all(req.params.id);
+    const immunisations = D().prepare('SELECT * FROM immunisation_records WHERE child_id = ? ORDER BY date_given DESC').all(req.params.id);
+    const medications = D().prepare('SELECT * FROM medications WHERE child_id = ? AND status = \'active\'').all(req.params.id);
+    const dietary = D().prepare('SELECT * FROM child_dietary WHERE child_id = ? ORDER BY severity DESC').all(req.params.id).catch?.() || tryQuery(() => D().prepare('SELECT * FROM child_dietary WHERE child_id = ? ORDER BY severity DESC').all(req.params.id));
+    const permissions = tryQuery(() => D().prepare('SELECT * FROM child_permissions WHERE child_id = ?').all(req.params.id));
+    const pickups = tryQuery(() => D().prepare('SELECT * FROM authorised_pickups WHERE child_id = ? AND active = 1').all(req.params.id));
+    const requests = tryQuery(() => D().prepare('SELECT * FROM parental_requests WHERE child_id = ? AND status = \'active\'').all(req.params.id));
+    const documents = D().prepare('SELECT * FROM child_documents WHERE child_id = ? ORDER BY created_at DESC').all(req.params.id);
+    const invoices = D().prepare('SELECT * FROM invoices WHERE child_id = ? ORDER BY period_start DESC LIMIT 12').all(req.params.id);
+    const recentUpdates = tryQuery(() => D().prepare('SELECT * FROM daily_updates WHERE child_id = ? ORDER BY created_at DESC LIMIT 50').all(req.params.id));
     
     res.json({ ...child, parents, medPlans, immunisations, medications, dietary, permissions, pickups, requests, documents, invoices, recentUpdates });
   } catch (err) {
@@ -63,7 +63,7 @@ router.get('/:id', (req, res) => {
 // GET child AI insights (rule-based EYLF mapping)
 router.get('/:id/ai-insights', (req, res) => {
   try {
-    const observations = D().prepare('SELECT * FROM observations WHERE child_id = ? AND tenant_id = ? AND timestamp >= datetime(\'now\',\'-30 days\') ORDER BY timestamp DESC').all(req.params.id, req.tenantId);
+    const observations = D().prepare(`SELECT * FROM observations WHERE child_id = ? AND timestamp >= datetime('now','-30 days') ORDER BY timestamp DESC`).all(req.params.id);
     if (observations.length === 0) return res.json({ focusAreas: [], observationCount: 0 });
 
     const outcomeKeywords = {
@@ -109,7 +109,7 @@ router.get('/:id/ai-insights', (req, res) => {
 // GET child attendance stats
 router.get('/:id/attendance-stats', (req, res) => {
   try {
-    const sessions = D().prepare('SELECT * FROM attendance_sessions WHERE child_id = ? AND tenant_id = ? AND date >= date(\'now\',\'-90 days\') ORDER BY date DESC').all(req.params.id, req.tenantId);
+    const sessions = D().prepare(`SELECT * FROM attendance_sessions WHERE child_id = ? AND date >= date('now','-90 days') ORDER BY date DESC`).all(req.params.id);
     const present = sessions.filter(s => !s.absent).length;
     const absent = sessions.filter(s => s.absent).length;
     const lateArrivals = sessions.filter(s => {
@@ -126,7 +126,7 @@ router.get('/:id/attendance-stats', (req, res) => {
 // GET child event log
 router.get('/:id/event-log', (req, res) => {
   try {
-    const events = tryQuery(() => D().prepare('SELECT el.*, u.name as creator_name FROM child_event_log el LEFT JOIN users u ON el.created_by = u.id WHERE el.child_id = ? AND el.tenant_id = ? ORDER BY el.created_at DESC LIMIT 100').all(req.params.id, req.tenantId));
+    const events = tryQuery(() => D().prepare(`SELECT el.*, u.name as creator_name FROM child_event_log el LEFT JOIN users u ON el.created_by = u.id WHERE el.child_id = ? ORDER BY el.created_at DESC LIMIT 100`).all(req.params.id));
     res.json(events || []);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -138,7 +138,7 @@ router.post('/:id/permissions', (req, res) => {
   try {
     const { permission_type, granted, granted_by, notes, expiry_date } = req.body;
     // Upsert
-    const existing = tryQuery(() => D().prepare('SELECT id FROM child_permissions WHERE child_id = ? AND permission_type = ? AND tenant_id = ?').get(req.params.id, permission_type, req.tenantId));
+    const existing = tryQuery(() => D().prepare('SELECT id FROM child_permissions WHERE child_id = ? AND permission_type = ?').get(req.params.id, permission_type));
     if (existing) {
       D().prepare('UPDATE child_permissions SET granted = ?, granted_by = ?, granted_at = datetime(\'now\'), notes = ?, expiry_date = ? WHERE id = ?')
         .run(granted ? 1 : 0, granted_by||null, notes||null, expiry_date||null, existing.id);
@@ -186,7 +186,7 @@ router.post('/:id/dietary', (req, res) => {
 // DELETE dietary
 router.delete('/:id/dietary/:dietId', (req, res) => {
   try {
-    D().prepare('DELETE FROM child_dietary WHERE id = ? AND child_id = ? AND tenant_id = ?').run(req.params.dietId, req.params.id, req.tenantId);
+    D().prepare('DELETE FROM child_dietary WHERE id = ? AND child_id = ?').run(req.params.dietId, req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -209,7 +209,7 @@ router.post('/:id/pickup', (req, res) => {
 // DELETE authorised pickup
 router.delete('/:id/pickup/:pickupId', (req, res) => {
   try {
-    D().prepare('UPDATE authorised_pickups SET active = 0 WHERE id = ? AND child_id = ? AND tenant_id = ?').run(req.params.pickupId, req.params.id, req.tenantId);
+    D().prepare('UPDATE authorised_pickups SET active = 0 WHERE id = ? AND child_id = ?').run(req.params.pickupId, req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -476,7 +476,7 @@ router.get('/:id/attendance-summary', (req, res) => {
 router.get('/:id/attendance', (req, res) => {
   try {
     const limit = parseInt(req.query.limit)||20;
-    const rows = D().prepare('SELECT * FROM attendance_sessions WHERE child_id=? AND tenant_id=? ORDER BY date DESC LIMIT ?').all(req.params.id, req.tenantId, limit);
+    const rows = D().prepare(`SELECT * FROM attendance_sessions WHERE child_id=? ORDER BY date DESC LIMIT ?`).all(req.params.id, limit);
     res.json(rows);
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -517,7 +517,7 @@ router.post('/:id/educator-notes', requireAuth, requireTenant, (req, res) => {
 router.get('/:id/collection-persons', (req, res) => {
   try {
     D().prepare(`CREATE TABLE IF NOT EXISTS authorised_pickups (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, name TEXT, relationship TEXT, phone TEXT, photo_id_type TEXT, active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')))`).run();
-    const rows = D().prepare('SELECT * FROM authorised_pickups WHERE child_id=? AND active=1 AND tenant_id=? ORDER BY name').all(req.params.id, req.tenantId);
+    const rows = D().prepare(`SELECT * FROM authorised_pickups WHERE child_id=? AND active=1 ORDER BY name`).all(req.params.id);
     res.json(rows);
   } catch(err) { res.json([]); }
 });
@@ -532,7 +532,7 @@ router.post('/:id/collection-persons', requireAuth, requireTenant, (req, res) =>
 });
 router.delete('/:id/collection-persons/:pid', requireAuth, requireTenant, (req, res) => {
   try {
-    D().prepare('UPDATE authorised_pickups SET active=0 WHERE id=? AND child_id=? AND tenant_id=?').run(req.params.pid, req.params.id, req.tenantId);
+    D().prepare(`UPDATE authorised_pickups SET active=0 WHERE id=? AND child_id=?`).run(req.params.pid, req.params.id);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -541,7 +541,7 @@ router.delete('/:id/collection-persons/:pid', requireAuth, requireTenant, (req, 
 router.get('/:id/focus', (req, res) => {
   try {
     D().prepare(`CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)`).run();
-    const row = D().prepare('SELECT * FROM child_focus_profiles WHERE child_id=?').get(req.params.id);
+    const row = D().prepare(`SELECT * FROM child_focus_profiles WHERE child_id=?`).get(req.params.id);
     if (!row) return res.json(null);
     res.json({ focus: JSON.parse(row.focus_data||'{}'), generated_at: row.generated_at });
   } catch(err) { res.json(null); }
@@ -554,7 +554,7 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
     if (!child) return res.status(404).json({ error: 'Not found' });
     const _cl='%'+req.params.id+'%';
     const stories=D().prepare('SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10').all(req.tenantId,_cl);
-    const updates = D().prepare('SELECT category, notes, summary FROM daily_updates WHERE child_id=? AND tenant_id=? ORDER BY created_at DESC LIMIT 30').all(req.params.id, req.tenantId);
+    const updates = D().prepare(`SELECT category, notes, summary FROM daily_updates WHERE child_id=? ORDER BY created_at DESC LIMIT 30`).all(req.params.id);
     const contextText = [
       `Child: ${child.first_name} ${child.last_name}, DOB: ${child.dob}`,
       stories.length ? `Recent stories: ${stories.slice(0,3).map(s=>s.content?.slice(0,80)).join('; ')}` : '',
@@ -590,7 +590,7 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
 // GET /:id/ccs
 router.get('/:id/ccs', (req, res) => {
   try {
-    const row = D().prepare('SELECT * FROM ccs_details WHERE child_id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    const row = D().prepare('SELECT * FROM ccs_details WHERE child_id=?').get(req.params.id);
     res.json(row || {});
   } catch { res.json({}); }
 });
@@ -605,35 +605,35 @@ router.get('/:id/equipment', (req, res) => {
 
 // GET /:id/medical-plans (standalone route)
 router.get('/:id/medical-plans', (req, res) => {
-  try { res.json(D().prepare('SELECT * FROM medical_plans WHERE child_id=? AND tenant_id=? ORDER BY created_at DESC').all(req.params.id, req.tenantId)); }
+  try { res.json(D().prepare('SELECT * FROM medical_plans WHERE child_id=? ORDER BY created_at DESC').all(req.params.id)); }
   catch { res.json([]); }
 });
 // GET /:id/medications (standalone)
 router.get('/:id/medications', (req, res) => {
-  try { res.json(D().prepare("SELECT * FROM medications WHERE child_id=? AND status='active' AND tenant_id=?").all(req.params.id, req.tenantId)); }
+  try { res.json(D().prepare("SELECT * FROM medications WHERE child_id=? AND status='active'").all(req.params.id)); }
   catch { res.json([]); }
 });
 // GET /:id/immunisations (standalone)
 router.get('/:id/immunisations', (req, res) => {
-  try { res.json(D().prepare('SELECT * FROM immunisation_records WHERE child_id=? AND tenant_id=? ORDER BY date_given DESC').all(req.params.id, req.tenantId)); }
+  try { res.json(D().prepare('SELECT * FROM immunisation_records WHERE child_id=? ORDER BY date_given DESC').all(req.params.id)); }
   catch { res.json([]); }
 });
 // GET /:id/parental-requests (standalone)
 router.get('/:id/parental-requests', (req, res) => {
-  try { res.json(D().prepare("SELECT * FROM parental_requests WHERE child_id=? AND status='active' AND tenant_id=?").all(req.params.id, req.tenantId)); }
+  try { res.json(D().prepare("SELECT * FROM parental_requests WHERE child_id=? AND status='active'").all(req.params.id)); }
   catch { res.json([]); }
 });
 // GET /:id/invoices (standalone)
 router.get('/:id/invoices', (req, res) => {
   try {
-    const rows = D().prepare('SELECT * FROM invoices WHERE child_id=? AND tenant_id=? ORDER BY period_start DESC LIMIT 24').all(req.params.id, req.tenantId);
+    const rows = D().prepare('SELECT * FROM invoices WHERE child_id=? ORDER BY period_start DESC LIMIT 24').all(req.params.id);
     res.json(rows.map(r=>({...r, sessions: tryQuery(()=>JSON.parse(r.sessions||'[]'))})));
   } catch { res.json([]); }
 });
 // DELETE /:id/permissions/:pid
 router.delete('/:id/permissions/:pid', requireAuth, requireTenant, (req, res) => {
   try {
-    D().prepare('UPDATE child_permissions SET granted=0 WHERE id=? AND child_id=? AND tenant_id=?').run(req.params.pid, req.params.id, req.tenantId);
+    D().prepare('UPDATE child_permissions SET granted=0 WHERE id=? AND child_id=?').run(req.params.pid, req.params.id);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -642,13 +642,13 @@ router.delete('/:id/permissions/:pid', requireAuth, requireTenant, (req, res) =>
 
 // GET /:id/dietary
 router.get('/:id/dietary', (req, res) => {
-  const rows = tryQuery(() => D().prepare('SELECT * FROM child_dietary WHERE child_id=? AND tenant_id=? ORDER BY severity DESC').all(req.params.id, req.tenantId));
+  const rows = tryQuery(() => D().prepare('SELECT * FROM child_dietary WHERE child_id=? ORDER BY severity DESC').all(req.params.id));
   res.json(rows);
 });
 
 // GET /:id/permissions
 router.get('/:id/permissions', (req, res) => {
-  const rows = tryQuery(() => D().prepare('SELECT * FROM child_permissions WHERE child_id=? AND tenant_id=?').all(req.params.id, req.tenantId));
+  const rows = tryQuery(() => D().prepare('SELECT * FROM child_permissions WHERE child_id=?').all(req.params.id));
   res.json(rows);
 });
 
@@ -658,7 +658,7 @@ router.put('/:id/permissions/:pid', requireAuth, requireTenant, (req, res) => {
     const { granted } = req.body;
     D().prepare('UPDATE child_permissions SET granted=?, updated_at=datetime("now") WHERE id=? AND child_id=?')
       .run(granted ? 1 : 0, req.params.pid, req.params.id);
-    const row = D().prepare('SELECT * FROM child_permissions WHERE id=? AND tenant_id=?').get(req.params.pid, req.tenantId);
+    const row = D().prepare('SELECT * FROM child_permissions WHERE id=?').get(req.params.pid);
     res.json(row || { success: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });

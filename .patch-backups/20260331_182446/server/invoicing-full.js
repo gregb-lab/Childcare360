@@ -273,7 +273,7 @@ r.put('/invoices/:id', (req, res) => {
         });
       })();
 
-      D().prepare('UPDATE invoices SET total_fee=?, amount_due=? WHERE id=? AND tenant_id=?')
+      D().prepare('UPDATE invoices SET total_fee=?, amount_due=? WHERE id=?')
         .run(gross/100, gross/100, req.params.id);
     }
 
@@ -336,7 +336,7 @@ r.post('/invoices/:id/pay', (req, res) => {
     `).run(newPaid, fullyPaid ? 1 : 0, fullyPaid ? 1 : 0, req.params.id);
 
     // Mark payment request as paid
-    D().prepare("UPDATE payment_requests SET status='paid', paid_at=datetime('now'), payment_method=? WHERE invoice_id=? AND tenant_id=?")
+    D().prepare("UPDATE payment_requests SET status='paid', paid_at=datetime('now'), payment_method=? WHERE invoice_id=?")
       .run(method, req.params.id);
 
     res.json({ ok: true, fully_paid: fullyPaid, amount_paid: newPaid });

@@ -27,10 +27,10 @@ router.get('/:id', (req, res) => {
     const edu = D().prepare('SELECT * FROM educators WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
     if (!edu) return res.status(404).json({ error: 'Not found' });
 
-    const availability = D().prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ? ORDER BY day_of_week').all(req.params.id, req.tenantId);
-    const absences = D().prepare('SELECT * FROM educator_absences WHERE educator_id = ? AND tenant_id = ? ORDER BY date DESC LIMIT 20').all(req.params.id, req.tenantId);
-    const documents = D().prepare('SELECT * FROM educator_documents WHERE educator_id = ? AND tenant_id = ? ORDER BY created_at DESC').all(req.params.id, req.tenantId);
-    const leaveRequests = D().prepare('SELECT * FROM leave_requests WHERE educator_id = ? AND tenant_id = ? ORDER BY created_at DESC').all(req.params.id, req.tenantId);
+    const availability = D().prepare('SELECT * FROM educator_availability WHERE educator_id = ? ORDER BY day_of_week').all(req.params.id);
+    const absences = D().prepare('SELECT * FROM educator_absences WHERE educator_id = ? ORDER BY date DESC LIMIT 20').all(req.params.id);
+    const documents = D().prepare('SELECT * FROM educator_documents WHERE educator_id = ? ORDER BY created_at DESC').all(req.params.id);
+    const leaveRequests = D().prepare('SELECT * FROM leave_requests WHERE educator_id = ? ORDER BY created_at DESC').all(req.params.id);
     const rosterHistory = D().prepare(`
       SELECT re.*, r.name as room_name FROM roster_entries re
       LEFT JOIN rooms r ON re.room_id = r.id
@@ -115,7 +115,7 @@ router.get('/:id/ytd-earnings', (req, res) => {
       GROUP BY month ORDER BY month
     `).all(req.params.id, fyStart);
     const total = rows.reduce((s, r) => s + (r.total_cents || 0), 0);
-    const edu = D().prepare('SELECT super_rate, hourly_rate_cents, annual_salary_cents, employment_type, contracted_hours FROM educators WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
+    const edu = D().prepare('SELECT super_rate, hourly_rate_cents, annual_salary_cents, employment_type, contracted_hours FROM educators WHERE id = ?').get(req.params.id);
     const superRate = edu?.super_rate || 11.5;
     const ytdSuper = Math.round(total * superRate / 100);
     res.json({ monthlyBreakdown: rows, ytdTotal: total, ytdSuper, superRate });
@@ -167,7 +167,7 @@ router.put('/:id/documents/:docId', (req, res) => {
 // DELETE educator document
 router.delete('/:id/documents/:docId', (req, res) => {
   try {
-    D().prepare('DELETE FROM educator_documents WHERE id = ? AND educator_id = ? AND tenant_id = ?').run(req.params.docId, req.params.id, req.tenantId);
+    D().prepare('DELETE FROM educator_documents WHERE id = ? AND educator_id = ?').run(req.params.docId, req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -227,7 +227,7 @@ router.put('/:id/leave/:leaveId', (req, res) => {
 // GET leave balance (calculated)
 router.get('/:id/leave-balance', (req, res) => {
   try {
-    const edu = D().prepare('SELECT start_date, contracted_hours, max_hours_per_week FROM educators WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
+    const edu = D().prepare('SELECT start_date, contracted_hours, max_hours_per_week FROM educators WHERE id = ?').get(req.params.id);
     if (!edu) return res.status(404).json({ error: 'Not found' });
     const startDate = new Date(edu.start_date || '2023-01-01');
     const yearsService = (Date.now() - startDate.getTime()) / (365.25 * 24 * 3600 * 1000);
@@ -441,7 +441,7 @@ router.put('/leave/:id/decide', requireAuth, requireTenant, (req, res) => {
   try {
     const { status } = req.body;
     if (!['approved','rejected'].includes(status)) return res.status(400).json({ error: 'status must be approved or rejected' });
-    const existing = D().prepare('SELECT id FROM leave_requests WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    const existing = D().prepare('SELECT id FROM leave_requests WHERE id=?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Leave request not found' });
     D().prepare(`UPDATE leave_requests SET status=?, approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=?`)
       .run(status, req.userName || 'manager', req.params.id);

@@ -25,9 +25,9 @@ r.get('/me', (req, res) => {
     }
     if (!e) e = getMyEdu(req.userId, req.tenantId);
     if (!e) return res.status(404).json({ error: 'No educator record linked. Contact your centre manager.' });
-    const avail    = D().prepare('SELECT * FROM educator_availability WHERE educator_id=? AND tenant_id=? ORDER BY day_of_week').all(e.id, req.tenantId);
-    const docs     = D().prepare('SELECT id,label,category,file_name,expiry_date FROM educator_documents WHERE educator_id=? AND tenant_id=? ORDER BY created_at DESC').all(e.id, req.tenantId);
-    const leaves   = D().prepare('SELECT * FROM leave_requests WHERE educator_id=? AND tenant_id=? ORDER BY created_at DESC LIMIT 30').all(e.id, req.tenantId);
+    const avail    = D().prepare('SELECT * FROM educator_availability WHERE educator_id=? ORDER BY day_of_week').all(e.id);
+    const docs     = D().prepare('SELECT id,label,category,file_name,expiry_date FROM educator_documents WHERE educator_id=? ORDER BY created_at DESC').all(e.id);
+    const leaves   = D().prepare('SELECT * FROM leave_requests WHERE educator_id=? ORDER BY created_at DESC LIMIT 30').all(e.id);
     const specials = D().prepare('SELECT * FROM educator_special_availability WHERE educator_id=? ORDER BY start_date').all(e.id);
     res.json({ ...e, availability: avail, documents: docs, leaveRequests: leaves,
       specialAvailability: specials.map(s => ({ ...s, available_days: JSON.parse(s.available_days||'[]') })) });
@@ -71,7 +71,7 @@ r.put('/my-availability', (req, res) => {
     const { availability } = req.body;
     if (!Array.isArray(availability)) return res.status(400).json({ error: 'Array required' });
     for (const a of availability) {
-      const ex = D().prepare('SELECT id FROM educator_availability WHERE educator_id=? AND day_of_week=? AND tenant_id=?').get(e.id, a.day_of_week, req.tenantId);
+      const ex = D().prepare('SELECT id FROM educator_availability WHERE educator_id=? AND day_of_week=?').get(e.id, a.day_of_week);
       if (ex) {
         D().prepare('UPDATE educator_availability SET available=?,start_time=?,end_time=?,can_start_earlier_mins=?,can_finish_later_mins=? WHERE id=?')
           .run(a.available?1:0, a.start_time||'07:00', a.end_time||'18:00', a.can_start_earlier_mins||0, a.can_finish_later_mins||0, ex.id);

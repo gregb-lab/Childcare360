@@ -172,7 +172,7 @@ r.post('/requests/:id/send', (req, res) => {
       ? `https://pay.childcare360.com.au/pay/${pr.id}`
       : `#payment-link-${pr.id}-configure-stripe-first`;
 
-    D().prepare("UPDATE payment_requests SET status='sent', stripe_checkout_url=? WHERE id=? AND tenant_id=?")
+    D().prepare("UPDATE payment_requests SET status='sent', stripe_checkout_url=? WHERE id=?")
       .run(paymentUrl, req.params.id);
 
     // Log the send action

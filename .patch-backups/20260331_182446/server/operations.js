@@ -619,7 +619,7 @@ r.post('/shift-bids', (req, res) => {
     if (!shift) return res.status(404).json({ error: 'Shift not found or already filled' });
 
     // Check no existing bid
-    const existing = D().prepare('SELECT id FROM shift_bids WHERE roster_entry_id=? AND educator_id=? AND status=? AND tenant_id=?')
+    const existing = D().prepare('SELECT id FROM shift_bids WHERE roster_entry_id=? AND educator_id=? AND status=?')
       .get(roster_entry_id, educator_id, 'pending');
     if (existing) return res.status(409).json({ error: 'Already bid on this shift' });
 

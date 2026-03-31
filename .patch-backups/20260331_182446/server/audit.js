@@ -144,7 +144,7 @@ router.get('/sessions', (req, res) => {
 // ── DELETE /api/audit/sessions/:id — revoke a session ────────────────────
 router.delete('/sessions/:id', (req, res) => {
   try {
-    D().prepare("DELETE FROM sessions WHERE id = ? AND tenant_id = ?").run(req.params.id, req.tenantId);
+    D().prepare("DELETE FROM sessions WHERE id = ?").run(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

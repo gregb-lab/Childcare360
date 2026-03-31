@@ -73,7 +73,7 @@ r.post('/messages', (req, res) => {
     // thread_id: use reply_to's thread or new
     let thread_id = null;
     if (reply_to_id) {
-      const orig = D().prepare('SELECT thread_id, id FROM staff_messages WHERE id=? AND tenant_id=?').get(reply_to_id, req.tenantId);
+      const orig = D().prepare('SELECT thread_id, id FROM staff_messages WHERE id=?').get(reply_to_id);
       thread_id = orig?.thread_id || orig?.id;
     }
     const id = uuid();

@@ -155,7 +155,7 @@ r.get('/stories/:id', (req, res) => {
   const row = D().prepare('SELECT ls.*, u.name as educator_name_u FROM learning_stories ls LEFT JOIN users u ON u.id=ls.educator_id WHERE ls.id=? AND ls.tenant_id=?').get(req.params.id, req.tenantId);
   if (!row) return res.status(404).json({ error: 'Not found' });
   const story = hydrateStory(row);
-  story.photo_rows = D().prepare('SELECT * FROM story_photos WHERE story_id=? AND tenant_id=? ORDER BY sort_order').all(row.id, row.tenant_id).map(p => ({ ...p, tagged_child_ids: J(p.tagged_child_ids), tagged_labels: J(p.tagged_labels), ai_suggested_tags: J(p.ai_suggested_tags) }));
+  story.photo_rows = D().prepare('SELECT * FROM story_photos WHERE story_id=? ORDER BY sort_order').all(row.id).map(p => ({ ...p, tagged_child_ids: J(p.tagged_child_ids), tagged_labels: J(p.tagged_labels), ai_suggested_tags: J(p.ai_suggested_tags) }));
   res.json(story);
 });
 
@@ -232,7 +232,7 @@ r.post('/stories/:id/publish', (req, res) => {
 // ─── STORY PHOTOS ────────────────────────────────────────────────────────────
 
 r.get('/stories/:id/photos', (req, res) => {
-  const photos = D().prepare('SELECT * FROM story_photos WHERE story_id=? AND tenant_id=? ORDER BY sort_order').all(req.params.id, req.tenantId);
+  const photos = D().prepare('SELECT * FROM story_photos WHERE story_id=? ORDER BY sort_order').all(req.params.id);
   res.json(photos.map(p => ({ ...p, tagged_child_ids: J(p.tagged_child_ids), tagged_labels: J(p.tagged_labels), ai_suggested_tags: J(p.ai_suggested_tags) })));
 });
 
@@ -476,7 +476,7 @@ r.post('/ai/suggest-progression', (req, res) => {
   }));
 
   // Update story with suggestions
-  D().prepare('UPDATE learning_stories SET ai_progression_suggestions=? WHERE id=? AND tenant_id=?').run(S(suggestions), story_id, tenantId);
+  D().prepare('UPDATE learning_stories SET ai_progression_suggestions=? WHERE id=?').run(S(suggestions), story_id);
 
   res.json({ suggestions });
 });

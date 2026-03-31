@@ -187,7 +187,7 @@ r.post('/accept/:id', (req, res) => {
            'waitlist');
 
     // Update waitlist status
-    D().prepare("UPDATE waitlist SET status='accepted', updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+    D().prepare("UPDATE waitlist SET status='accepted', updated_at=datetime('now') WHERE id=?")
       .run(req.params.id);
 
     res.json({ ok: true, enrolment_id: enrolId,

@@ -82,7 +82,7 @@ r.get('/threads/:id', (req, res) => {
     `).all(req.params.id);
 
     // Mark admin-unread as read
-    D().prepare('UPDATE message_threads SET unread_admin=0 WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
+    D().prepare('UPDATE message_threads SET unread_admin=0 WHERE id=?').run(req.params.id);
 
     res.json({ thread, messages });
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -119,7 +119,7 @@ r.post('/run', (req, res) => {
         entity_type: 'debt', entity_id: d.id,
       });
       // Mark reminder 1 as triggered
-      D().prepare("UPDATE debt_records SET reminder_1_sent=datetime('now') WHERE id=? AND tenant_id=?").run(d.id, d.tenant_id);
+      D().prepare("UPDATE debt_records SET reminder_1_sent=datetime('now') WHERE id=?").run(d.id);
       generated.push({ type: 'debt_reminder', name: `${d.first_name} ${d.last_name}` });
     });
 
