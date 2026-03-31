@@ -283,7 +283,7 @@ function CommunityTab() {
   };
 
   const pin=async(id,pinned)=>{
-    await API(`/api/engagement/posts/${id}/pin`,{method:"PUT",body:{pinned:!pinned}});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/posts/${id}/pin`,{method:"PUT",body:{pinned:!pinned}}).catch(e=>console.error('API error:',e));load();
   };
 
   const loadComments=async(id)=>{
@@ -444,7 +444,7 @@ function PoliciesTab() {
   };
 
   const archive=async(id)=>{
-    await API(`/api/engagement/policies/${id}`,{method:"PUT",body:{status:"archived"}});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/policies/${id}`,{method:"PUT",body:{status:"archived"}}).catch(e=>console.error('API error:',e));load();
   };
 
   const byCategory={};
@@ -628,7 +628,7 @@ function ChecklistsTab() {
   };
 
   const del=async(id)=>{
-    await API(`/api/engagement/checklists/${id}`,{method:"DELETE"});load(.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/checklists/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));load();
   };
 
   const CATEGORIES=["daily","opening","closing","safety","cleaning","admin","other"];
