@@ -229,13 +229,13 @@ function ProfileTab({ child, rooms, onSaved }) {
     <div>
       <label style={lbl}>{label}</label>
       {opts ? (
-        <select key={k} style={inp} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}>
+        <select style={inp} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}>
           {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       ) : type === "date" ? (
-        <DatePicker key={k} value={f[k] || ""} onChange={v => u(k, v)} disabled={!ed} />
+        <DatePicker value={f[k] || ""} onChange={v => u(k, v)} disabled={!ed} />
       ) : (
-        <input key={k} type={type} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}
+        <input type={type} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}
           style={{ ...inp, background: ed ? "#fff" : "#FAFAFA" }} />
       )}
     </div>
@@ -647,7 +647,7 @@ function MedicalTab({ child, onSaved }) {
               {medications.map(m => (
                 <tr key={m.id} style={{ borderBottom: "1px solid #F5F0FB", background: isExpiringSoon(m.expiry_date) ? "#FFF8E1" : "transparent" }}>
                   <td style={{ padding: "8px 10px", fontWeight: 700, color: "#3D3248" }}>{m.name}</td>
-                  <td style={{ padding: "8px 10px" }}>{m.dose || m.dosage || "—"}</td>
+                  <td style={{ padding: "8px 10px" }}>{m.dose || "—"}</td>
                   <td style={{ padding: "8px 10px" }}>{m.frequency || "—"}</td>
                   <td style={{ padding: "8px 10px" }}>{m.location || "—"}</td>
                   <td style={{ padding: "8px 10px", color: isExpiringSoon(m.expiry_date) ? "#E65100" : "#3D3248", fontWeight: isExpiringSoon(m.expiry_date) ? 700 : 400 }}>
@@ -1125,7 +1125,7 @@ function ImmunisationTab({ child }) {
               {records.map(r => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #F5F0FB" }}>
                   <td style={{ padding: "7px 10px", fontWeight: 700, color: "#3D3248" }}>{r.vaccine_name}</td>
-                  <td style={{ padding: "7px 10px" }}>{fmtDate(r.given_date || r.date_given)}</td>
+                  <td style={{ padding: "7px 10px" }}>{fmtDate(r.given_date)}</td>
                   <td style={{ padding: "7px 10px", color: r.due_date && new Date(r.due_date) < new Date() && !r.given ? "#B71C1C" : "#3D3248" }}>{fmtDate(r.due_date)}</td>
                   <td style={{ padding: "7px 10px" }}>{r.batch_number || "—"}</td>
                   <td style={{ padding: "7px 10px" }}>{r.provider || "—"}</td>

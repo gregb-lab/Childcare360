@@ -53,7 +53,7 @@ router.get('/:id', (req, res) => {
 // PUT update educator
 router.put('/:id', (req, res) => {
   try {
-    const fields = ['first_name','last_name','email','phone','address','suburb','postcode','qualification','dob','start_date',
+    const fields = ['first_name','last_name','email','phone','address','suburb','state','postcode','qualification','dob','start_date',
       'employment_type','hourly_rate_cents','annual_salary_cents','super_rate','contracted_hours',
       'max_hours_per_week','wwcc_number','wwcc_expiry','first_aid','first_aid_expiry','cpr_expiry',
       'anaphylaxis_expiry','asthma_expiry','photo_url','tax_file_number','bank_bsb','bank_account',

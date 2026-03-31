@@ -199,7 +199,7 @@ r.post('/generate', (req, res) => {
   const educators = db.prepare(`SELECT * FROM educators WHERE tenant_id = ? AND status = 'active' AND (termination_date IS NULL OR termination_date > date('now')) ORDER BY reliability_score DESC`).all(req.tenantId);
   const availability = {};
   educators.forEach(e => {
-    availability[e.id] = db.prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ?').all(e.id, req.tenantId);
+    availability[e.id] = db.prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ?').all(e.id, tenantId);
   });
 
   // NQF ratio requirements — map age_group strings to ratio config

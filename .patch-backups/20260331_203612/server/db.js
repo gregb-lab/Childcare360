@@ -2657,10 +2657,6 @@ export function initDatabase() {
     'ALTER TABLE educators ADD COLUMN agency_id TEXT',
     'ALTER TABLE educators ADD COLUMN is_agency_staff INTEGER DEFAULT 0',
     'ALTER TABLE educators ADD COLUMN non_contact_hours_per_week REAL DEFAULT 0',
-    'ALTER TABLE educators ADD COLUMN state TEXT',
-    'ALTER TABLE immunisation_records ADD COLUMN given INTEGER DEFAULT 0',
-    'ALTER TABLE immunisation_records ADD COLUMN given_date TEXT',
-    'ALTER TABLE medications ADD COLUMN dose TEXT',
     'ALTER TABLE educators ADD COLUMN fatigue_consecutive_days INTEGER DEFAULT 0',
   ];
   educatorV241Cols.forEach(sql => { try { db.exec(sql); } catch(e) {} });

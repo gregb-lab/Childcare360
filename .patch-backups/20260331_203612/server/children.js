@@ -666,25 +666,24 @@ router.put('/:id/permissions/:pid', requireAuth, requireTenant, (req, res) => {
 // POST /:id/medications
 router.post('/:id/medications', requireAuth, requireTenant, (req, res) => {
   try {
-    const { name, dose: _df, dosage: _dag, frequency, location, expiry_date, instructions, active } = req.body; const dose = _df || _dag || null;
+    const { name, dose, frequency, location, expiry_date, instructions, active } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO medications (id,child_id,tenant_id,name,dosage,dose,frequency,location,expiry_date,instructions,status,active) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(id, req.params.id, req.tenantId, name, dose, dose, frequency||null, location||null, expiry_date||null, instructions||null, 'active', active===false?0:1);
-    res.json({ id, name, dose, dosage: dose, frequency, location, expiry_date, instructions, active: 1 });
+    tryQuery(() => D().prepare('CREATE TABLE IF NOT EXISTS medications (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, name TEXT, dose TEXT, frequency TEXT, location TEXT, expiry_date TEXT, instructions TEXT, status TEXT DEFAULT "active", active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime("now")))').run());
+    D().prepare('INSERT INTO medications (id,child_id,tenant_id,name,dose,frequency,location,expiry_date,instructions,status,active) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, req.params.id, req.tenantId, name, dose||null, frequency||null, location||null, expiry_date||null, instructions||null, 'active', active===false?0:1);
+    res.json({ id, name, dose, frequency, location, expiry_date, instructions, active: 1 });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /:id/immunisations
 router.post('/:id/immunisations', requireAuth, requireTenant, (req, res) => {
   try {
-    const { vaccine_name, given, given_date, dateGiven, date_given, due_date, dueDate, batch_number, batchNumber, provider, notes } = req.body;
-    const _gd = given_date || dateGiven || date_given || null;
-    const _dd = due_date || dueDate || null;
-    const _bn = batch_number || batchNumber || null;
+    const { vaccine_name, given, given_date, due_date, batch_number, provider, notes } = req.body;
     const id = uuid();
-    D().prepare('INSERT INTO immunisation_records (id,child_id,tenant_id,vaccine_name,date_given,given_date,due_date,batch_number,provider,notes,status) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
-      .run(id, req.params.id, req.tenantId, vaccine_name, _gd, _gd, _dd, _bn, provider||null, notes||null, 'current');
-    res.json({ id, vaccine_name, date_given: _gd, given_date: _gd, due_date: _dd, batch_number: _bn, provider });
+    tryQuery(() => D().prepare('CREATE TABLE IF NOT EXISTS immunisation_records (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, vaccine_name TEXT, given INTEGER DEFAULT 0, given_date TEXT, due_date TEXT, batch_number TEXT, provider TEXT, notes TEXT, status TEXT DEFAULT "current", date_given TEXT, created_at TEXT DEFAULT (datetime("now")))').run());
+    D().prepare('INSERT INTO immunisation_records (id,child_id,tenant_id,vaccine_name,given,given_date,date_given,due_date,batch_number,provider,notes,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, req.params.id, req.tenantId, vaccine_name, given?1:0, given_date||null, given_date||null, due_date||null, batch_number||null, provider||null, notes||null, 'current');
+    res.json({ id, vaccine_name, given: given?1:0, given_date, due_date, batch_number, provider });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 

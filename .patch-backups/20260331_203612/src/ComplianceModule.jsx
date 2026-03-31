@@ -242,9 +242,9 @@ function DocsTab({ childId, docs, onRefresh }) {
 
 function ImmTab({ childId, data, onRefresh }) {
   const [show, setShow] = useState(false);
-  const [f, setF] = useState({vaccine_name:"",dose_number:1,given_date:"",batch_number:"",provider:"",due_date:""});
+  const [f, setF] = useState({vaccineName:"",doseNumber:1,dateGiven:"",batchNumber:"",provider:"",nextDueDate:""});
   const sched = data.schedule||{};
-  const add = async () => { if(!f.vaccine_name||!f.given_date)return; await API(`/api/documents/immunisations/${childId}`,{method:"POST",body:f}); setShow(false); setF({vaccine_name:"",dose_number:1,given_date:"",batch_number:"",provider:"",due_date:""}); onRefresh(); }; // catch: .catch(e=>console.error('API error:',e))
+  const add = async () => { if(!f.vaccineName||!f.dateGiven)return; await API(`/api/documents/immunisations/${childId}`,{method:"POST",body:f}); setShow(false); setF({vaccineName:"",doseNumber:1,dateGiven:"",batchNumber:"",provider:"",nextDueDate:""}); onRefresh(); }; // catch: .catch(e=>console.error('API error:',e))
   return (<div>
     <div style={{display:"flex",gap:12,marginBottom:16}}>
       <Card style={{padding:"10px 16px"}}><div style={{fontSize:20,fontWeight:700,color:"#3D3248"}}>{sched.recorded||0}</div><div style={{fontSize:11,color:"#8A7F96"}}>Recorded</div></Card>
@@ -258,12 +258,12 @@ function ImmTab({ childId, data, onRefresh }) {
     <Btn small primary onClick={()=>setShow(!show)} style={{marginBottom:12}}>+ Add Record</Btn>
     {show && <Card style={{background:"#F8F5F1",borderColor:"#D9D0C7",padding:14,marginBottom:12}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-        <Inp label="Vaccine" value={f.vaccine_name} onChange={e=>setF({...f,vaccine_name:e.target.value})} placeholder="e.g. DTPa-hepB-IPV-Hib" />
-        <Inp label="Date Given" type="date" value={f.given_date} onChange={e=>setF({...f,given_date:e.target.value})} />
-        <Inp label="Dose #" type="number" value={f.dose_number} onChange={e=>setF({...f,dose_number:+e.target.value})} />
-        <Inp label="Batch Number" value={f.batch_number} onChange={e=>setF({...f,batch_number:e.target.value})} />
+        <Inp label="Vaccine" value={f.vaccineName} onChange={e=>setF({...f,vaccineName:e.target.value})} placeholder="e.g. DTPa-hepB-IPV-Hib" />
+        <Inp label="Date Given" type="date" value={f.dateGiven} onChange={e=>setF({...f,dateGiven:e.target.value})} />
+        <Inp label="Dose #" type="number" value={f.doseNumber} onChange={e=>setF({...f,doseNumber:+e.target.value})} />
+        <Inp label="Batch Number" value={f.batchNumber} onChange={e=>setF({...f,batchNumber:e.target.value})} />
         <Inp label="Provider" value={f.provider} onChange={e=>setF({...f,provider:e.target.value})} />
-        <Inp label="Next Due" type="date" value={f.due_date} onChange={e=>setF({...f,due_date:e.target.value})} />
+        <Inp label="Next Due" type="date" value={f.nextDueDate} onChange={e=>setF({...f,nextDueDate:e.target.value})} />
       </div>
       <div style={{display:"flex",gap:8,marginTop:6}}><Btn small primary onClick={add}>Save</Btn><Btn small onClick={()=>setShow(false)}>Cancel</Btn></div>
     </Card>}

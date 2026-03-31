@@ -2224,7 +2224,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload 
 }
 
 /* ═══ SICK COVER ═══ */
-function SickCoverTab({ educators = [], fills = [], reload }) {
+function SickCoverTab({ educators, fills, reload }) {
   const [selectedFill, setSelectedFill] = React.useState(null);
   const [attempts, setAttempts] = React.useState([]);
   const [showOptimise, setShowOptimise] = React.useState(false);
@@ -2282,7 +2282,7 @@ function SickCoverTab({ educators = [], fills = [], reload }) {
     {icon:"📋",title:"Recorded & Transcribed",detail:"Full transcript + recording stored",st:"complete",t:"7:03 AM"},
     {icon:"📱",title:"Manager Notified",detail:"SMS + push sent to centre manager",st:"complete",t:"7:03 AM"},
     {icon:"🔍",title:"Finding Replacement",detail:"AI searches by reliability, distance, qualification",st:selectedFill?.status==="filled"?"complete":"active",t:"7:04 AM"},
-    {icon:"💬",title:"SMS to Candidates",detail:((attempts||[]).length||0)+" educators contacted",st:selectedFill?.status==="filled"?"complete":"active",t:"7:04 AM"},
+    {icon:"💬",title:"SMS to Candidates",detail:(attempts.length||0)+" educators contacted",st:selectedFill?.status==="filled"?"complete":"active",t:"7:04 AM"},
     {icon:"✅",title:"Shift Filled",detail:selectedFill?.filled_by_name?"Covered by "+selectedFill.filled_by_name:"Awaiting acceptance",st:selectedFill?.status==="filled"?"complete":"pending",t:"7:18 AM"},
   ];
 
@@ -2312,7 +2312,7 @@ function SickCoverTab({ educators = [], fills = [], reload }) {
             <div><label style={lbl}>Absent Educator</label>
               <select style={{...sel,width:200}} value={optForm.absent_educator_id} onChange={e=>setOptForm({...optForm,absent_educator_id:e.target.value})}>
                 <option value="">Select educator…</option>
-                {(educators||[]).filter(e=>e.status==="active").map(e=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+                {educators.filter(e=>e.status==="active").map(e=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
               </select>
             </div>
             <button onClick={runOptimise} disabled={optLoading} style={{...btnP,opacity:optLoading?0.6:1}}>{optLoading?"⏳ Analysing…":"🔍 Find Cover Options"}</button>
@@ -2347,7 +2347,7 @@ function SickCoverTab({ educators = [], fills = [], reload }) {
       {showReport&&<div style={card}>
         <h4 style={{margin:"0 0 10px",fontSize:13,fontWeight:700}}>Report Absence (Manual)</h4>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"end"}}>
-          <div><label style={lbl}>Educator</label><select style={sel} value={form.educator_id} onChange={e=>setForm({...form,educator_id:e.target.value})}><option value="">Select…</option>{(educators||[]).filter(e=>e.status==="active").map(e=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
+          <div><label style={lbl}>Educator</label><select style={sel} value={form.educator_id} onChange={e=>setForm({...form,educator_id:e.target.value})}><option value="">Select…</option>{educators.filter(e=>e.status==="active").map(e=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}</select></div>
           <div><label style={lbl}>Date</label><DatePicker value={form.date||""} onChange={v=>setForm({...form,date:v})} /></div>
           <div><label style={lbl}>Start</label><input type="time" style={inp} value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/></div>
           <div><label style={lbl}>End</label><input type="time" style={inp} value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/></div>
@@ -2360,8 +2360,8 @@ function SickCoverTab({ educators = [], fills = [], reload }) {
       <div style={{display:"grid",gridTemplateColumns:selectedFill?"1fr 1fr":"1fr",gap:12}}>
         <div>
           <div style={{fontSize:10,fontWeight:700,color:"#5C4E6A",marginBottom:6}}>FILL REQUESTS</div>
-          {(!fills||fills.length===0)&&<div style={{...card,padding:24,textAlign:"center",color:"#A89DB5"}}>No sick cover requests yet.</div>}
-          {(fills||[]).map(f=>(
+          {fills.length===0&&<div style={{...card,padding:24,textAlign:"center",color:"#A89DB5"}}>No sick cover requests yet.</div>}
+          {fills.map(f=>(
             <div key={f.id} onClick={()=>viewAttempts(f.id)} style={{...card,padding:10,marginBottom:4,cursor:"pointer",borderLeft:"3px solid "+(f.status==="filled"?"#2E8B57":f.status==="open"?"#D4A26A":"#C06B73"),...(selectedFill?.id===f.id?{boxShadow:"0 0 0 2px rgba(139,109,175,0.3)"}:{})}}>
               <div style={{display:"flex",justifyContent:"space-between"}}><div><span style={{fontSize:12,fontWeight:700}}>{f.original_educator_name}</span> <span style={{fontSize:10,color:"#A89DB5"}}>{f.date} · {f.start_time}–{f.end_time}</span></div><Badge text={f.status} color={f.status==="filled"?"#2E8B57":f.status==="open"?"#D4A26A":"#C06B73"}/></div>
               <div style={{fontSize:10,color:"#5C4E6A",marginTop:2}}>{f.room_name} · {f.strategy} {f.filled_by_name&&<span style={{color:"#2E8B57"}}>→ {f.filled_by_name}</span>}</div>
@@ -2534,7 +2534,7 @@ function RosterReportsTab({ educators, periods }) {
     if (!selPeriod) return;
     setLoading(true);
     API("/api/rostering/periods/" + selPeriod)
-      .then(d => setPeriodData(d || null))
+      .then(d => setPeriodData(d))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selPeriod]);
