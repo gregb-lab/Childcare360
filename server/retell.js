@@ -259,7 +259,6 @@ router.post('/agent', async (req, res) => {
     metadata: { tenant_id: req.tenantId },
   };
 
-    let agent;
     if (s.retell_agent_id) {
       console.log(`[Retell] Updating agent ${s.retell_agent_id} payload:`, JSON.stringify(agentPayload).slice(0, 300));
       agent = await retellFetch(`/v2/update-agent/${s.retell_agent_id}`, 'PATCH', agentPayload, s.retell_api_key);
