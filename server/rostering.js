@@ -675,7 +675,7 @@ function db_module_put_entry(db, id, tenantId, fields) {
   if (fields.lunch_start!== undefined) { sets.push('lunch_start=?');vals.push(fields.lunch_start); }
   if (fields.is_lunch_cover!==undefined){sets.push('is_lunch_cover=?');vals.push(fields.is_lunch_cover?1:0);}
   if (fields.room_id    !== undefined) { sets.push('room_id=?');    vals.push(fields.room_id); }
-  if (sets.length) db.prepare('UPDATE roster_entries SET ' + sets.join(',') + ' WHERE id=? AND tenant_id=?').run(...vals, id, tenantId);
+  if (sets.length) db.prepare((() => 'UPDATE roster_entries SET ' + sets.join(',') + ' WHERE id=? AND tenant_id=?')()).run(...vals, id, tenantId);
 }
 
 // ─── SICK COVER OPTIMISATION ENGINE ──────────────────────────────────────────
@@ -1120,7 +1120,7 @@ r.post('/periods/:id/email-roster', async (req, res) => {
     let eduQuery = include_all
       ? D().prepare('SELECT DISTINCT e.id, e.first_name, e.last_name, e.email FROM educators e JOIN roster_entries re ON re.educator_id=e.id WHERE re.period_id=? AND re.tenant_id=? AND e.email IS NOT NULL AND e.email != ""')
           .all(req.params.id, req.tenantId)
-      : D().prepare('SELECT id, first_name, last_name, email FROM educators WHERE id IN (' + educator_ids.map(()=>'?').join(',') + ') AND tenant_id=? AND email IS NOT NULL')
+      : D().prepare((() => 'SELECT id, first_name, last_name, email FROM educators WHERE id IN (' + educator_ids.map(()=>'?').join(',') + ') AND tenant_id=? AND email IS NOT NULL')())
           .all(...educator_ids, req.tenantId);
 
     let sent = 0, skipped = 0;

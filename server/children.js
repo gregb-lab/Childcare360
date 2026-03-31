@@ -721,7 +721,7 @@ router.delete('/delete-demo', requireAuth, (req, res) => {
     const cnRoomIds = ['cn-sprouts-1','cn-sprouts-2','cn-buds-1','cn-buds-2','cn-blossoms-1','cn-blossoms-2','cn-oaks-1'];
     const placeholders = cnRoomIds.map(() => '?').join(',');
     const before = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
-    D().prepare('UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)')
+    D().prepare((() => 'UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)')())
       .run(tenantId, ...cnRoomIds);
     const after = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
     res.json({ ok: true, removed: before - after, remaining: after });
