@@ -206,6 +206,25 @@ function ChildAvatar({ child, size = 36 }) {
   );
 }
 
+// ─── FROW — defined outside ProfileTab to prevent remount on rerender ──────────
+function FRow({ label, k, type = "text", opts, f, u, ed, inp, lbl }) {
+  return (
+    <div>
+      <label style={lbl}>{label}</label>
+      {opts ? (
+        <select key={k} style={inp} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}>
+          {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      ) : type === "date" ? (
+        <DatePicker key={k} value={f[k] || ""} onChange={v => u(k, v)} disabled={!ed} />
+      ) : (
+        <input key={k} type={type} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}
+          style={{ ...inp, background: ed ? "#fff" : "#FAFAFA" }} />
+      )}
+    </div>
+  );
+}
+
 // ─── PROFILE TAB ─────────────────────────────────────────────────────────────
 function ProfileTab({ child, rooms, onSaved }) {
   const [ed, setEd] = useState(false);
@@ -225,21 +244,7 @@ function ProfileTab({ child, rooms, onSaved }) {
   };
 
   const u = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const FRow = ({ label, k, type = "text", opts }) => (
-    <div>
-      <label style={lbl}>{label}</label>
-      {opts ? (
-        <select key={k} style={inp} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}>
-          {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-      ) : type === "date" ? (
-        <DatePicker key={k} value={f[k] || ""} onChange={v => u(k, v)} disabled={!ed} />
-      ) : (
-        <input key={k} type={type} value={f[k] || ""} onChange={e => u(k, e.target.value)} disabled={!ed}
-          style={{ ...inp, background: ed ? "#fff" : "#FAFAFA" }} />
-      )}
-    </div>
-  );
+  // FRow defined above ProfileTab
 
   return (
     <div>
@@ -258,12 +263,12 @@ function ProfileTab({ child, rooms, onSaved }) {
         <div style={card}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>👤 Child Details</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <FRow label="First Name" k="first_name" />
-            <FRow label="Last Name" k="last_name" />
-            <FRow label="Date of Birth" k="dob" type="date" />
+            <FRow label="First Name" k="first_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Last Name" k="last_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Date of Birth" k="dob" type="date" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Gender" k="gender" opts={[["","Select"],["male","Male"],["female","Female"],["other","Other/Non-binary"]]} />
-            <FRow label="Room" k="room_id" opts={[["","Unassigned"], ...rooms.map(r => [r.id, r.name])]} />
-            <FRow label="Enrolled Date" k="enrolled_date" type="date" />
+            <FRow label="Room" k="room_id" opts={[["","Unassigned"], ...rooms.map(r => [r.id, r.name])]} f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Enrolled Date" k="enrolled_date" type="date" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
           </div>
         </div>
 
@@ -271,9 +276,9 @@ function ProfileTab({ child, rooms, onSaved }) {
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>📞 Primary Contact</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <FRow label="Parent / Guardian" k="parent1_name" />
-            <FRow label="Relationship" k="parent1_relationship" opts={[["mother","Mother"],["father","Father"],["guardian","Guardian"],["other","Other"]]} />
-            <FRow label="Email" k="parent1_email" type="email" />
-            <FRow label="Phone" k="parent1_phone" />
+            <FRow label="Relationship" k="parent1_relationship" opts={[["mother","Mother"],["father","Father"],["guardian","Guardian"],["other","Other"]]} f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Email" k="parent1_email" type="email" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Phone" k="parent1_phone" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
           </div>
         </div>
 
@@ -281,16 +286,16 @@ function ProfileTab({ child, rooms, onSaved }) {
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>📞 Secondary Contact</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <FRow label="Parent / Guardian 2" k="parent2_name" />
-            <FRow label="Email" k="parent2_email" type="email" />
-            <FRow label="Phone" k="parent2_phone" />
-            <FRow label="Centrelink CRN" k="centrelink_crn" />
+            <FRow label="Email" k="parent2_email" type="email" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Phone" k="parent2_phone" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Centrelink CRN" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
           </div>
         </div>
 
         <div style={card}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🏥 Medical Summary</h4>
           <div style={{ display: "grid", gap: 8 }}>
-            <FRow label="Known Allergies" k="allergies" />
+            <FRow label="Known Allergies" k="allergies" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <div>
               <label style={lbl}>Notes</label>
               <textarea value={f.medical_notes || ""} onChange={e => u("medical_notes", e.target.value)} disabled={!ed}
