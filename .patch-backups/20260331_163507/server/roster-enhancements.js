@@ -836,7 +836,7 @@ router.put('/educators/:id/classification', (req, res) => {
     }
 
     params.push(req.params.id, req.tenantId);
-    D().prepare('UPDATE educators SET ' + updates.join(',') + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(...params);
+    D().prepare(`UPDATE educators SET ${updates.join(',')}, updated_at=datetime('now') WHERE id=? AND tenant_id=?`).run(...params);
     res.json({ ok: true, base_hourly_cents: classification?.base_hourly_cents, classification });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

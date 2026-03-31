@@ -55,7 +55,7 @@ router.get('/my-invoices', requireAuth, (req, res) => {
   const childIds = D().prepare('SELECT child_id FROM parent_contacts WHERE email=?').all(email).map(r => r.child_id);
   if (!childIds.length) return res.json([]);
   const placeholders = childIds.map(() => '?').join(',');
-  const invoices = D().prepare('SELECT i.*, c.first_name, c.last_name FROM invoices i JOIN children c ON c.id=i.child_id WHERE i.child_id IN (' + placeholders + ") AND i.status != 'draft' ORDER BY i.created_at DESC").all(...childIds);
+  const invoices = D().prepare(`SELECT i.*, c.first_name, c.last_name FROM invoices i JOIN children c ON c.id=i.child_id WHERE i.child_id IN (${placeholders}) AND i.status != 'draft' ORDER BY i.created_at DESC`).all(...childIds);
   res.json(invoices.map(r => ({ ...r, sessions: JSON.parse(r.sessions||'[]') })));
 });
 

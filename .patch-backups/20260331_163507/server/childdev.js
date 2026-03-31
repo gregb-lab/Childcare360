@@ -537,7 +537,7 @@ r.put('/transitions/:id', (req, res) => {
       }
     }
 
-    D().prepare('UPDATE transition_reports SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
+    D().prepare(`UPDATE transition_reports SET ${updates.join(',')} WHERE id=? AND tenant_id=?`)
       .run(...vals, req.params.id, req.tenantId);
 
     res.json({ ok: true });

@@ -515,7 +515,7 @@ r.put('/debt/:id', (req, res) => {
     if (reminder_sent === 2) { updates.push('reminder_2_sent=datetime(\'now\')'); }
     if (reminder_sent === 3) { updates.push('reminder_3_sent=datetime(\'now\')'); }
 
-    D().prepare('UPDATE debt_records SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
+    D().prepare(`UPDATE debt_records SET ${updates.join(',')} WHERE id=? AND tenant_id=?`)
       .run(...vals, req.params.id, req.tenantId);
 
     res.json({ ok: true });
@@ -534,7 +534,7 @@ r.post('/debt/:id/reminder', (req, res) => {
     if (!debt) return res.status(404).json({ error: 'Not found' });
 
     const col = `reminder_${reminder_number}_sent`;
-    D().prepare('UPDATE debt_records SET ' + (col) + '=datetime(\'now\') WHERE id=?').run(req.params.id);
+    D().prepare(`UPDATE debt_records SET ${col}=datetime('now') WHERE id=?`).run(req.params.id);
 
     res.json({
       ok: true,

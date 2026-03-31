@@ -248,7 +248,7 @@ r.put('/invoices/:id', (req, res) => {
     if (status)                 { updates.push('status=?'); vals.push(status); }
 
     if (updates.length > 1) {
-      D().prepare('UPDATE invoices SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
+      D().prepare(`UPDATE invoices SET ${updates.join(',')} WHERE id=? AND tenant_id=?`)
         .run(...vals, req.params.id, req.tenantId);
     }
 

@@ -407,7 +407,7 @@ complianceTaskRouter.put('/:id', (req, res) => {
       updates.push("completed_at=datetime('now')");
       if (completed_by) { updates.push('completed_by=?'); vals.push(completed_by); }
     }
-    D().prepare('UPDATE compliance_tasks SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
+    D().prepare(`UPDATE compliance_tasks SET ${updates.join(',')} WHERE id=? AND tenant_id=?`)
       .run(...vals, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

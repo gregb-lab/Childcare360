@@ -248,9 +248,9 @@ router.put('/:id', (req, res) => {
     const fields = ['first_name','last_name','dob','room_id','allergies','notes','photo_url','doctor_name','doctor_phone','medicare_number','gender','language','indigenous','parent1_name','parent1_email','parent1_phone','parent1_relationship','parent2_name','parent2_email','parent2_phone','centrelink_crn','medical_notes','enrolled_date','room_override_comment','room_override_by'];
     const updates = { updated_at: new Date().toISOString() };
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
-    const setClause = fields.filter(f => f in updates).map(f => f + ' = ?').join(', ');
+    const setClause = Object.keys(updates).map(k => `${k} = ?`).join(', ');
     console.log(`[PUT /children/${req.params.id}] tenant=${req.tenantId} updates:`, JSON.stringify(updates));
-    const _childSql = 'UPDATE children SET ' + setClause + ' WHERE id = ? AND tenant_id = ?'; const result = D().prepare(_childSql).run(...fields.filter(f => f in updates).map(f => updates[f]), req.params.id, req.tenantId);
+    const result = D().prepare(`UPDATE children SET ${setClause} WHERE id = ? AND tenant_id = ?`).run(...Object.values(updates), req.params.id, req.tenantId);
     console.log(`[PUT /children/${req.params.id}] rows changed: ${result.changes}`);
     if (result.changes === 0) {
       return res.status(404).json({ error: `Child not found or not in your organisation (id=${req.params.id}, tenant=${req.tenantId})` });
@@ -720,7 +720,7 @@ router.delete('/delete-demo', requireAuth, (req, res) => {
     const cnRoomIds = ['cn-sprouts-1','cn-sprouts-2','cn-buds-1','cn-buds-2','cn-blossoms-1','cn-blossoms-2','cn-oaks-1'];
     const placeholders = cnRoomIds.map(() => '?').join(',');
     const before = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
-    D().prepare('UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)')
+    D().prepare(`UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (${placeholders}) OR room_id IS NULL)`)
       .run(tenantId, ...cnRoomIds);
     const after = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
     res.json({ ok: true, removed: before - after, remaining: after });

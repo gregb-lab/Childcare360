@@ -428,7 +428,7 @@ router.put('/:id', (req, res) => {
     if (status !== undefined) { updates.push('status=?'); params.push(status); }
     updates.push("updated_at=datetime('now')");
     params.push(req.params.id, req.tenantId);
-    D().prepare('UPDATE parent_stories SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?').run(...params);
+    D().prepare(`UPDATE parent_stories SET ${updates.join(',')} WHERE id=? AND tenant_id=?`).run(...params);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

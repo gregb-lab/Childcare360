@@ -64,7 +64,7 @@ function hydrateStory(row) {
 function attachPhotos(stories) {
   if (!stories.length) return stories;
   const ids = stories.map(s => s.id);
-  const ph  = D().prepare('SELECT * FROM story_photos WHERE story_id IN (' + ids.map(() => '?').join(',') + ') ORDER BY sort_order').all(...ids);
+  const ph  = D().prepare(`SELECT * FROM story_photos WHERE story_id IN (${ids.map(() => '?').join(',')}) ORDER BY sort_order`).all(...ids);
   const map = {};
   ph.forEach(p => {
     if (!map[p.story_id]) map[p.story_id] = [];
@@ -101,7 +101,7 @@ r.get('/families', (req, res) => {
   const ids = rows.map(f => f.id);
   let childMap = {};
   if (ids.length) {
-    D().prepare('SELECT fc.family_id, c.id, c.first_name, c.last_name, c.dob, c.room_id, c.photo_url FROM family_children fc JOIN children c ON c.id=fc.child_id WHERE fc.family_id IN (' + ids.map(() => '?').join(',') + ') AND c.active=1').all(...ids).forEach(r => {
+    D().prepare(`SELECT fc.family_id, c.id, c.first_name, c.last_name, c.dob, c.room_id, c.photo_url FROM family_children fc JOIN children c ON c.id=fc.child_id WHERE fc.family_id IN (${ids.map(() => '?').join(',')}) AND c.active=1`).all(...ids).forEach(r => {
       if (!childMap[r.family_id]) childMap[r.family_id] = [];
       childMap[r.family_id].push(r);
     });
@@ -485,7 +485,7 @@ r.post('/ai/suggest-progression', (req, res) => {
 
 r.get('/child/:childId/stories', (req, res) => {
   const { period = 'year' } = req.query;
-  const _lDays = { today:0, week:7, month:30, year:365 }[period] ?? 30; const _lSince = period === 'all' ? '1970-01-01' : new Date(Date.now() - _lDays * 86400000).toISOString().slice(0, 10); const rows = D().prepare('SELECT ls.*, u.name as educator_name_u FROM learning_stories ls LEFT JOIN users u ON u.id=ls.educator_id WHERE ls.tenant_id=? AND ls.published=1 AND ls.date >= ? ORDER BY ls.date DESC LIMIT 50').all(req.tenantId, _lSince);
+  const rows = D().prepare(`SELECT ls.*, u.name as educator_name_u FROM learning_stories ls LEFT JOIN users u ON u.id=ls.educator_id WHERE ls.tenant_id=? AND ls.published=1 AND ${periodWhere(period)} ORDER BY ls.date DESC LIMIT 50`).all(req.tenantId);
   const stories = attachPhotos(rows.map(hydrateStory).filter(s => s.child_ids.includes(req.params.childId)));
   res.json(stories);
 });
