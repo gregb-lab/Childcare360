@@ -85,13 +85,13 @@ function RecruitmentTab() {
 
   const saveJob=async()=>{
     if(!form.title)return;
-    await API("/api/admin/recruitment/jobs",{method:"POST",body:{...form,salary_min:form.salary_min?parseFloat(form.salary_min):null,salary_max:form.salary_max?parseFloat(form.salary_max):null}}.catch(e=>console.error('API error:',e)));
+    await API("/api/admin/recruitment/jobs",{method:"POST",body:{...form,salary_min:form.salary_min?parseFloat(form.salary_min):null,salary_max:form.salary_max?parseFloat(form.salary_max):null}}).catch(e=>console.error('API error:',e));
     setShowNewJob(false);setForm({title:"",employment_type:"permanent",description:"",requirements:"",salary_min:"",salary_max:"",closing_date:""});
     load();
   };
 
   const moveApp=async(id,status)=>{
-    await API(`/api/admin/recruitment/applications/${id}`,{method:"PUT",body:{status}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/admin/recruitment/applications/${id}`,{method:"PUT",body:{status}}).catch(e=>console.error('API error:',e));
     if(selJob)loadApps(selJob);
   };
 
@@ -238,7 +238,7 @@ function AppraisalsTab() {
 
   const createAppraisal=async()=>{
     if(!form.educator_id)return;
-    await API("/api/admin/appraisals",{method:"POST",body:{...form,template_id:template?.id}}.catch(e=>console.error('API error:',e)));
+    await API("/api/admin/appraisals",{method:"POST",body:{...form,template_id:template?.id}}).catch(e=>console.error('API error:',e));
     setShowNew(false);load();
   };
 
@@ -397,7 +397,7 @@ function OccupancyTab() {
 
   const takeSnapshot=async()=>{
     setSnapshotting(true);
-    await API("/api/admin/occupancy/snapshot",{method:"POST"}.catch(e=>console.error('API error:',e)));
+    await API("/api/admin/occupancy/snapshot",{method:"POST"}).catch(e=>console.error('API error:',e));
     load();setSnapshotting(false);
   };
 
@@ -496,12 +496,12 @@ function DebtTab() {
   useEffect(()=>{load();},[load]);
 
   const remind=async(id,n)=>{
-    await API(`/api/admin/debt/${id}/reminder`,{method:"POST",body:{reminder_number:n}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/admin/debt/${id}/reminder`,{method:"POST",body:{reminder_number:n}}).catch(e=>console.error('API error:',e));
     load();
   };
 
   const markPaid=async(id,amountCents)=>{
-    await API(`/api/admin/debt/${id}`,{method:"PUT",body:{amount_paid_cents:amountCents,status:"paid"}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/admin/debt/${id}`,{method:"PUT",body:{amount_paid_cents:amountCents,status:"paid"}}).catch(e=>console.error('API error:',e));
     load();
   };
 

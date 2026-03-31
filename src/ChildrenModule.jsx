@@ -1199,10 +1199,10 @@ function PermissionsTab({ child }) {
   const toggle = async (permType, currentVal) => {
     const existing = perms.find(p => p.permission_type === permType);
     if (existing) {
-      const r = await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: !currentVal } }.catch(e=>console.error('API error:',e)));
+      const r = await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: !currentVal } }).catch(e=>console.error('API error:',e));
       if (r.id) setPerms(prev => prev.map(p => p.id === r.id ? r : p));
     } else {
-      const r = await API(`/api/children/${child.id}/permissions`, { method: "POST", body: { permission_type: permType, granted: true } }.catch(e=>console.error('API error:',e)));
+      const r = await API(`/api/children/${child.id}/permissions`, { method: "POST", body: { permission_type: permType, granted: true } }).catch(e=>console.error('API error:',e));
       if (r.id) setPerms(p => [...p, r]);
     }
   };
@@ -1544,7 +1544,7 @@ function EducatorNotesTab({ child }) {
 
   const del = async (id) => {
     if (!confirm("Delete this note?")) return;
-    await API(`/api/register/educator-notes/${id}`, { method: "DELETE" }.catch(e=>console.error('API error:',e)));
+    await API(`/api/register/educator-notes/${id}`, { method: "DELETE" }).catch(e=>console.error('API error:',e));
     load();
   };
 

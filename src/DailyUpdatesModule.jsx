@@ -246,7 +246,7 @@ function SleepForm({ child, onSaved }) {
 
   const endSleep = async () => {
     const endTime = now();
-    if (sleepEntry) await API(`/api/daily-updates/${sleepEntry.id}/sleep`, { method: "PUT", body: { end_time: endTime, status: "awake" } }.catch(e=>console.error('API error:',e)));
+    if (sleepEntry) await API(`/api/daily-updates/${sleepEntry.id}/sleep`, { method: "PUT", body: { end_time: endTime, status: "awake" } }).catch(e=>console.error('API error:',e));
     setSleeping(false);
     onSaved(child.id);
   };

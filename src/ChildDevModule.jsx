@@ -121,7 +121,7 @@ function MenusTab() {
       const mealType=key.substring(key.indexOf("_")+1);
       items.push({day_of_week:parseInt(day),meal_type:mealType,...val});
     });
-    await API(`/api/childdev/menus/${weekStart}`,{method:"POST",body:{plan_name:"Weekly Menu",items}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/menus/${weekStart}`,{method:"POST",body:{plan_name:"Weekly Menu",items}}).catch(e=>console.error('API error:',e));
     setSaving(false);setEditing(false);
     API(`/api/childdev/menus/${weekStart}/allergen-check`).then(r=>setAllergenAlerts(r.alerts||[]));
     load();
@@ -130,19 +130,19 @@ function MenusTab() {
   const copyLastWeek=async()=>{
     const prev=new Date(weekStart);prev.setDate(prev.getDate()-7);
     const prevStr=prev.toISOString().split("T")[0];
-    await API(`/api/childdev/menus/${weekStart}/copy-from/${prevStr}`,{method:"POST"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/menus/${weekStart}/copy-from/${prevStr}`,{method:"POST"}).catch(e=>console.error('API error:',e));
     load();
   };
 
   const addDietary=async()=>{
     if(!dietForm.child_id||!dietForm.requirement_type)return;
-    await API("/api/childdev/dietary",{method:"POST",body:dietForm}.catch(e=>console.error('API error:',e)));
+    await API("/api/childdev/dietary",{method:"POST",body:dietForm}).catch(e=>console.error('API error:',e));
     setDietForm({child_id:"",requirement_type:"",description:"",severity:"intolerance",allergens:[]});
     load();
   };
 
   const removeDietary=async(id)=>{
-    await API(`/api/childdev/dietary/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/dietary/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
     load();
   };
 
@@ -510,7 +510,7 @@ function TransitionsTab() {
   };
 
   const createReport=async(childId)=>{
-    const r=await API("/api/childdev/transitions",{method:"POST",body:{child_id:childId,prepared_by:"Educator"}}.catch(e=>console.error('API error:',e)));
+    const r=await API("/api/childdev/transitions",{method:"POST",body:{child_id:childId,prepared_by:"Educator"}}).catch(e=>console.error('API error:',e));
     load();
     loadReport(r.id);
   };
@@ -518,7 +518,7 @@ function TransitionsTab() {
   const autoDraft=async()=>{
     if(!active)return;
     setDrafting(true);
-    const r=await API(`/api/childdev/transitions/${active.id}/auto-draft`,{method:"POST"}.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/childdev/transitions/${active.id}/auto-draft`,{method:"POST"}).catch(e=>console.error('API error:',e));
     await loadReport(active.id);
     setDrafting(false);
     alert(`✓ Auto-drafted ${r.drafted_sections} sections from ${r.milestone_count} milestone records`);
@@ -527,7 +527,7 @@ function TransitionsTab() {
   const save=async()=>{
     if(!active)return;
     setSaving(true);
-    await API(`/api/childdev/transitions/${active.id}`,{method:"PUT",body:active}.catch(e=>console.error('API error:',e)));
+    await API(`/api/childdev/transitions/${active.id}`,{method:"PUT",body:active}).catch(e=>console.error('API error:',e));
     setSaving(false);load();
   };
 

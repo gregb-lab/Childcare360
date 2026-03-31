@@ -58,9 +58,7 @@ export default function PayrollModule() {
 
   const doExport = async () => {
     setExporting(true);
-    const r = await API("/api/payroll/export", { method:"POST".catch(e=>console.error('API error:',e)),
-      body: { from, to, export_type: expType, generated_by: "Director" }
-    });
+    const r = await API("/api/payroll/export", { method:"POST", body: { from, to, export_type: expType, generated_by: "Director" } }).catch(e=>console.error('API error:',e));
     if (r.csv) {
       const blob = new Blob([r.csv], { type: "text/csv" });
       const a = document.createElement("a");

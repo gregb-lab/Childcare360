@@ -97,14 +97,14 @@ function MessagesTab({onUnreadChange}) {
 
   const sendReply=async()=>{
     if(!reply.trim()||!active)return;
-    await API(`/api/comms/threads/${active.id}/reply`,{method:"POST",body:{body:reply,sender_type:"admin",sender_name:"Centre"}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/comms/threads/${active.id}/reply`,{method:"POST",body:{body:reply,sender_type:"admin",sender_name:"Centre"}}).catch(e=>console.error('API error:',e));
     setReply("");
     openThread(active.id);
   };
 
   const createThread=async()=>{
     if(!newForm.subject||!newForm.body)return;
-    const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}}.catch(e=>console.error('API error:',e)));
+    const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}}).catch(e=>console.error('API error:',e));
     setShowNew(false);setNewForm({child_id:"",subject:"",body:""});
     load();
     if(r.id)openThread(r.id);
@@ -249,7 +249,7 @@ function HealthTab() {
 
   const save=async()=>{
     if(!form.child_id||!form.event_type)return;
-    await API("/api/comms/health",{method:"POST",body:{...form,symptoms:selSymptoms,temperature:form.temperature?parseFloat(form.temperature):null}}.catch(e=>console.error('API error:',e)));
+    await API("/api/comms/health",{method:"POST",body:{...form,symptoms:selSymptoms,temperature:form.temperature?parseFloat(form.temperature):null}}).catch(e=>console.error('API error:',e));
     setShowNew(false);
     setForm({child_id:"",event_type:"illness",event_date:new Date().toISOString().split("T")[0],description:"",temperature:"",action_taken:"",parent_notified:false,follow_up_required:false});
     setSelSymptoms([]);load();
@@ -390,7 +390,7 @@ function ImmunisationTab() {
 
   const saveRecord=async()=>{
     if(!recForm.vaccine_name||!selChild)return;
-    await API(`/api/comms/immunisation/${selChild}`,{method:"POST",body:recForm}.catch(e=>console.error('API error:',e)));
+    await API(`/api/comms/immunisation/${selChild}`,{method:"POST",body:recForm}).catch(e=>console.error('API error:',e));
     setShowRecord(null);setRecForm({vaccine_name:"",date_given:"",provider:"",batch_number:""});
     loadChild(selChild);
   };

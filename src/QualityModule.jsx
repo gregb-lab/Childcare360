@@ -89,24 +89,24 @@ function QIPTab() {
   useEffect(()=>{load();},[load]);
 
   const updateRating=async(qa,standard,rating)=>{
-    await API("/api/quality/qip/assessment",{method:"POST",body:{quality_area:qa,standard,current_rating:rating,assessed_by:"Director"}}.catch(e=>console.error('API error:',e)));
+    await API("/api/quality/qip/assessment",{method:"POST",body:{quality_area:qa,standard,current_rating:rating,assessed_by:"Director"}}).catch(e=>console.error('API error:',e));
     load();
   };
 
   const addGoal=async()=>{
     if(!goalForm.goal)return;
-    await API("/api/quality/qip/goals",{method:"POST",body:{quality_area:selQA,...goalForm}}.catch(e=>console.error('API error:',e)));
+    await API("/api/quality/qip/goals",{method:"POST",body:{quality_area:selQA,...goalForm}}).catch(e=>console.error('API error:',e));
     setGoalForm({goal:"",actions:"",responsible:"",timeline:""});
     setShowGoalForm(false);load();
   };
 
   const updateGoal=async(id,status,progress)=>{
-    await API(`/api/quality/qip/goals/${id}`,{method:"PUT",body:{status,progress}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/quality/qip/goals/${id}`,{method:"PUT",body:{status,progress}}).catch(e=>console.error('API error:',e));
     load();
   };
 
   const deleteGoal=async(id)=>{
-    await API(`/api/quality/qip/goals/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/quality/qip/goals/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
     load();
   };
 
@@ -297,14 +297,14 @@ function PortfolioTab() {
 
   const saveEntry=async()=>{
     if(!form.title||!selEdu)return;
-    await API("/api/quality/portfolio",{method:"POST",body:{educator_id:selEdu,...form}}.catch(e=>console.error('API error:',e)));
+    await API("/api/quality/portfolio",{method:"POST",body:{educator_id:selEdu,...form}}).catch(e=>console.error('API error:',e));
     setShowNew(false);
     setForm({entry_type:"reflection",title:"",body:"",nqs_links:[],visibility:"private"});
     loadPortfolio(selEdu);
   };
 
   const deleteEntry=async(id)=>{
-    await API(`/api/quality/portfolio/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/quality/portfolio/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
     loadPortfolio(selEdu);
   };
 
@@ -443,7 +443,7 @@ function SurveysTab() {
 
   const createSurvey=async()=>{
     if(!form.title)return;
-    await API("/api/quality/surveys",{method:"POST",body:{...form,open_date:new Date().toISOString().split("T")[0]}}.catch(e=>console.error('API error:',e)));
+    await API("/api/quality/surveys",{method:"POST",body:{...form,open_date:new Date().toISOString().split("T")[0]}}).catch(e=>console.error('API error:',e));
     setShowNew(false);load();
   };
 
@@ -647,12 +647,12 @@ function AlertsTab({onCountChange}) {
 
   const scan=async()=>{
     setScanning(true);
-    await API("/api/quality/alerts/scan",{method:"POST"}.catch(e=>console.error('API error:',e)));
+    await API("/api/quality/alerts/scan",{method:"POST"}).catch(e=>console.error('API error:',e));
     load();setScanning(false);
   };
 
   const dismiss=async(id)=>{
-    await API(`/api/quality/alerts/${id}/dismiss`,{method:"PUT"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/quality/alerts/${id}/dismiss`,{method:"PUT"}).catch(e=>console.error('API error:',e));
     load();
   };
 

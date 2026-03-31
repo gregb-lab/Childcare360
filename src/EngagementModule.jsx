@@ -84,7 +84,7 @@ function EventsTab() {
 
   const save=async()=>{
     if(!form.title||!form.event_date)return;
-    await API("/api/engagement/events",{method:"POST",body:{...form,rsvp_required:form.rsvp_required?1:0,max_attendees:form.max_attendees?parseInt(form.max_attendees):null}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/events",{method:"POST",body:{...form,rsvp_required:form.rsvp_required?1:0,max_attendees:form.max_attendees?parseInt(form.max_attendees):null}}).catch(e=>console.error('API error:',e));
     setShowForm(false);
     setForm({title:"",description:"",event_type:"general",event_date:"",start_time:"",end_time:"",location:"",rsvp_required:false,rsvp_deadline:"",max_attendees:""});
     load();
@@ -92,7 +92,7 @@ function EventsTab() {
 
   const del=async(id)=>{
     if(!confirm("Delete this event?"))return;
-    await API(`/api/engagement/events/${id}`,{method:"DELETE"}.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/events/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
     setSelected(null);load();
   };
 
@@ -273,7 +273,7 @@ function CommunityTab() {
 
   const submit=async()=>{
     if(!form.body)return;
-    await API("/api/engagement/posts",{method:"POST",body:{...form,author_user_id:"admin"}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/posts",{method:"POST",body:{...form,author_user_id:"admin"}}).catch(e=>console.error('API error:',e));
     setForm({title:"",body:"",author_name:"",author_type:"educator",visibility:"centre"});
     setShowForm(false);load();
   };
@@ -294,14 +294,14 @@ function CommunityTab() {
   const addComment=async(postId)=>{
     const body=commentInput[postId];
     if(!body)return;
-    await API("/api/engagement/comments",{method:"POST",body:{story_id:postId,story_type:"community",body,author_name:"Admin",author_type:"educator",author_user_id:"admin"}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/comments",{method:"POST",body:{story_id:postId,story_type:"community",body,author_name:"Admin",author_type:"educator",author_user_id:"admin"}}).catch(e=>console.error('API error:',e));
     setCommentInput(p=>({...p,[postId]:""}));
     loadComments(postId);
     load();
   };
 
   const react=async(postId)=>{
-    const r=await API("/api/engagement/reactions",{method:"POST",body:{story_id:postId,story_type:"community",user_id:"admin",reaction:"heart"}}.catch(e=>console.error('API error:',e)));
+    const r=await API("/api/engagement/reactions",{method:"POST",body:{story_id:postId,story_type:"community",user_id:"admin",reaction:"heart"}}).catch(e=>console.error('API error:',e));
     setReactions(p=>({...p,[postId]:r.counts||[]}));
     load();
   };
@@ -437,7 +437,7 @@ function PoliciesTab() {
 
   const save=async()=>{
     if(!form.title)return;
-    await API("/api/engagement/policies",{method:"POST",body:{...form,requires_acknowledgement:form.requires_acknowledgement?1:0,visible_to_parents:form.visible_to_parents?1:0}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/policies",{method:"POST",body:{...form,requires_acknowledgement:form.requires_acknowledgement?1:0,visible_to_parents:form.visible_to_parents?1:0}}).catch(e=>console.error('API error:',e));
     setShowForm(false);
     setForm({title:"",category:"policy",description:"",file_url:"",version:"1.0",requires_acknowledgement:true,visible_to_parents:false});
     load();
@@ -608,7 +608,7 @@ function ChecklistsTab() {
 
   const saveTemplate=async()=>{
     if(!form.title||!form.items.length)return;
-    await API("/api/engagement/checklists",{method:"POST",body:{...form,created_by:"Admin"}}.catch(e=>console.error('API error:',e)));
+    await API("/api/engagement/checklists",{method:"POST",body:{...form,created_by:"Admin"}}).catch(e=>console.error('API error:',e));
     setShowBuilder(false);
     setForm({title:"",category:"daily",frequency:"daily",description:"",assign_to_role:"educator",items:[]});
     load();
@@ -623,7 +623,7 @@ function ChecklistsTab() {
 
   const submitComplete=async()=>{
     const r=active.items.map(i=>({item_id:i.id,label:i.label,checked:!!responses[i.id]}));
-    await API(`/api/engagement/checklists/${active.id}/complete`,{method:"POST",body:{responses:r,completed_by:"Admin",date:today()}}.catch(e=>console.error('API error:',e)));
+    await API(`/api/engagement/checklists/${active.id}/complete`,{method:"POST",body:{responses:r,completed_by:"Admin",date:today()}}).catch(e=>console.error('API error:',e));
     setActive(null);setResponses({});load();
   };
 

@@ -55,17 +55,17 @@ export function NotificationBell({ onOpenInbox }) {
   }, []);
 
   const markAllRead = async () => {
-    await API("/api/notifications/read-all", { method: "PUT" }.catch(e=>console.error('API error:',e)));
+    await API("/api/notifications/read-all", { method: "PUT" }).catch(e=>console.error('API error:',e));
     load();
   };
 
   const markRead = async (id) => {
-    await API(`/api/notifications/${id}/read`, { method: "PUT" }.catch(e=>console.error('API error:',e)));
+    await API(`/api/notifications/${id}/read`, { method: "PUT" }).catch(e=>console.error('API error:',e));
     load();
   };
 
   const runScan = async () => {
-    await API("/api/notifications/run", { method: "POST" }.catch(e=>console.error('API error:',e)));
+    await API("/api/notifications/run", { method: "POST" }).catch(e=>console.error('API error:',e));
     load();
   };
 
@@ -181,7 +181,7 @@ export function NotificationsInbox() {
 
   const scan = async () => {
     setScanning(true);
-    const r = await API("/api/notifications/run", { method: "POST" }.catch(e=>console.error('API error:',e)));
+    const r = await API("/api/notifications/run", { method: "POST" }).catch(e=>console.error('API error:',e));
     await load();
     setScanning(false);
     if (r.generated > 0) {
@@ -192,7 +192,7 @@ export function NotificationsInbox() {
   };
 
   const markAllRead = async () => {
-    await API("/api/notifications/read-all", { method: "PUT" }.catch(e=>console.error('API error:',e)));
+    await API("/api/notifications/read-all", { method: "PUT" }).catch(e=>console.error('API error:',e));
     load();
   };
 
