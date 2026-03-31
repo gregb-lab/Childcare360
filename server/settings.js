@@ -8,7 +8,7 @@ const r = Router();
 function initSettings() {
   // Add SMTP columns if missing
   ['smtp_host TEXT','smtp_port INTEGER DEFAULT 587','smtp_user TEXT','smtp_password TEXT','smtp_from TEXT','smtp_secure TEXT DEFAULT \'false\''].forEach(col => {
-    try { D().prepare(`ALTER TABLE tenant_settings ADD COLUMN ${col}`).run(); } catch(e) {}
+    try{const _sSql='ALTER TABLE tenant_settings ADD COLUMN '+col;D().prepare(_sSql).run();}catch(e){}
   });
   D().prepare(`CREATE TABLE IF NOT EXISTS tenant_settings (
     id TEXT PRIMARY KEY,

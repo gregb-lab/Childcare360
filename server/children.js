@@ -552,7 +552,8 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
     D().prepare(`CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)`).run();
     const child = D().prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Not found' });
-    const stories = D().prepare(`SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10`).all(req.tenantId, `%${req.params.id}%`);
+    const _cl='%'+req.params.id+'%';
+    const stories=D().prepare('SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10').all(req.tenantId,_cl);
     const updates = D().prepare(`SELECT category, notes, summary FROM daily_updates WHERE child_id=? ORDER BY created_at DESC LIMIT 30`).all(req.params.id);
     const contextText = [
       `Child: ${child.first_name} ${child.last_name}, DOB: ${child.dob}`,

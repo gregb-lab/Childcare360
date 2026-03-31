@@ -428,7 +428,11 @@ router.post('/non-contact', (req, res) => {
         if (educatorsAfter < minRequired) {
           return res.status(400).json({
             error: 'Ratio breach warning',
-            detail: `Removing ${D().prepare('SELECT first_name FROM educators WHERE id=?').get(educator_id)?.first_name || 'this educator'} from floor would leave ${educatorsAfter} educators for ~${expectedKids} children (need ${minRequired} at 1:${ratio})`,
+            detail: (()=>{
+              const _eRow=D().prepare('SELECT first_name FROM educators WHERE id=?').get(educator_id);
+              const _fn=(_eRow&&_eRow.first_name)?_eRow.first_name:'this educator';
+              return 'Removing '+_fn+' from floor would leave '+educatorsAfter+' educators for ~'+expectedKids+' children (need '+minRequired+' at 1:'+ratio+')';
+            })(),
             can_override: true,
           });
         }

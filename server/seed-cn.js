@@ -6,10 +6,8 @@
 //  ⚠️  Change TENANT below to match your actual tenant ID
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const Database = require('better-sqlite3');
-const { randomUUID } = require('crypto');
+import Database from 'better-sqlite3';
+import { randomUUID } from 'crypto';
 import path from 'path';
 
 // Match db.js path exactly — use Railway volume mount or local data dir
