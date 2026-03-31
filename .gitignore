@@ -11,3 +11,12 @@ logs/
 # Release agent
 *.bak
 RELEASE_BUG_REPORT.md
+*.bak*
+*.patch
+*.log
+*.tar.gz
+.env~
+railway.json
+railway.toml
+nixpacks.toml
+childcare360-app/
