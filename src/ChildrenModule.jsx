@@ -266,7 +266,7 @@ function ProfileTab({ child, rooms, onSaved }) {
             <FRow label="First Name" k="first_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Last Name" k="last_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Date of Birth" k="dob" type="date" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
-            <FRow label="Gender" k="gender" opts={[["","Select"],["male","Male"],["female","Female"],["other","Other/Non-binary"]]} />
+            <FRow label="Gender" k="gender" opts={[["","Select"],["male","Male"],["female","Female"],["other","Other/Non-binary"]]} f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Room" k="room_id" opts={[["","Unassigned"], ...rooms.map(r => [r.id, r.name])]} f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Enrolled Date" k="enrolled_date" type="date" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
           </div>
@@ -275,7 +275,7 @@ function ProfileTab({ child, rooms, onSaved }) {
         <div style={card}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>📞 Primary Contact</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <FRow label="Parent / Guardian" k="parent1_name" />
+            <FRow label="Parent / Guardian" k="parent1_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Relationship" k="parent1_relationship" opts={[["mother","Mother"],["father","Father"],["guardian","Guardian"],["other","Other"]]} f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Email" k="parent1_email" type="email" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Phone" k="parent1_phone" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
@@ -285,7 +285,7 @@ function ProfileTab({ child, rooms, onSaved }) {
         <div style={card}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>📞 Secondary Contact</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <FRow label="Parent / Guardian 2" k="parent2_name" />
+            <FRow label="Parent / Guardian 2" k="parent2_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Email" k="parent2_email" type="email" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Phone" k="parent2_phone" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Centrelink CRN" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
