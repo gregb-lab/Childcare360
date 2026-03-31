@@ -217,7 +217,7 @@ function setStatus(callId, status, extra = {}) {
   if (['completed','failed','no-answer','busy','canceled'].includes(status))
     sets.push("ended_at=datetime('now')");
   vals.push(callId);
-  try { const _vSql = 'UPDATE voice_calls SET ' + sets.join(',') + ' WHERE id=?'; D().prepare(_vSql).run(...vals); } catch(e) {}
+  try { D().prepare('UPDATE voice_calls SET ' + sets.join(',') + ' WHERE id=?').run(...vals); } catch(e) {}
 }
 
 async function askClaude(transcript, systemPrompt, context) {

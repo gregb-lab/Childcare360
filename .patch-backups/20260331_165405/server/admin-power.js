@@ -515,7 +515,7 @@ r.put('/debt/:id', (req, res) => {
     if (reminder_sent === 2) { updates.push('reminder_2_sent=datetime(\'now\')'); }
     if (reminder_sent === 3) { updates.push('reminder_3_sent=datetime(\'now\')'); }
 
-    D().prepare((() => { const _s = 'UPDATE debt_records SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?'; return _s; })())
+    D().prepare('UPDATE debt_records SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
       .run(...vals, req.params.id, req.tenantId);
 
     res.json({ ok: true });

@@ -63,7 +63,7 @@ router.put('/:id', (req, res) => {
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     updates['updated_at'] = new Date().toISOString();
     const setClause = fields.filter(f => f in updates).map(f => f + ' = ?').join(', ');
-    D().prepare((() => { const _s = 'UPDATE educators SET ' + setClause + ' WHERE id = ? AND tenant_id = ?'; return _s; })())
+    D().prepare('UPDATE educators SET ' + setClause + ' WHERE id = ? AND tenant_id = ?')
       .run(...Object.values(updates), req.params.id, req.tenantId);
     res.json({ success: true });
   } catch (err) {

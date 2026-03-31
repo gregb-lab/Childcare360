@@ -336,7 +336,7 @@ rb.put('/schedules/:id', (req, res) => {
     if (time) { updates.push('time=?'); vals.push(time); }
     if (recipients) { updates.push('recipients=?'); vals.push(JSON.stringify(recipients)); }
     if (!updates.length) return res.json({ ok: true });
-    D().prepare((() => { const _s = 'UPDATE report_schedules SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?'; return _s; })())
+    D().prepare('UPDATE report_schedules SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
       .run(...vals, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -469,7 +469,7 @@ ra.put('/:id', (req, res) => {
     if (reviewed_by) { updates.push('reviewed_by=?','reviewed_at=datetime(\'now\')'); vals.push(reviewed_by); }
     if (notes !== undefined) { updates.push('notes=?'); vals.push(notes); }
 
-    D().prepare((() => { const _s = 'UPDATE risk_assessments SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?'; return _s; })())
+    D().prepare('UPDATE risk_assessments SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
       .run(...vals, req.params.id, req.tenantId);
 
     res.json({ ok: true });

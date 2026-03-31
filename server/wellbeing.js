@@ -54,7 +54,7 @@ r.post('/checkin', requireAuth, (req, res) => {
 r.get('/my', requireAuth, (req, res) => {
   initWellbeing();
   const days = parseInt(req.query.days) || 30;
-  const rows = D().prepare(`SELECT * FROM staff_wellbeing WHERE user_id=? AND date >= date('now',?,'localtime') ORDER BY date DESC`).all(req.userId, `-${days} days`);
+  const rows = D().prepare('SELECT * FROM staff_wellbeing WHERE user_id=? AND date >= date(\'now\',?,\'localtime\') ORDER BY date DESC').all(req.userId, `-${days} days`);
   res.json(rows);
 });
 
@@ -79,7 +79,7 @@ r.get('/team-pulse', requireAuth, requireTenant, (req, res) => {
 r.get('/history', requireAuth, requireTenant, requireRole('admin', 'director'), (req, res) => {
   initWellbeing();
   const days = parseInt(req.query.days) || 30;
-  const rows = D().prepare(`SELECT sw.*, u.name FROM staff_wellbeing sw LEFT JOIN users u ON u.id=sw.user_id WHERE sw.tenant_id=? AND sw.date >= date('now',?,'localtime') ORDER BY sw.date DESC`).all(req.tenantId, `-${days} days`);
+  const rows = D().prepare('SELECT sw.*, u.name FROM staff_wellbeing sw LEFT JOIN users u ON u.id=sw.user_id WHERE sw.tenant_id=? AND sw.date >= date(\'now\',?,\'localtime\') ORDER BY sw.date DESC').all(req.tenantId, `-${days} days`);
   // Mask anonymous
   res.json(rows.map(r => ({ ...r, name: r.anonymous ? 'Anonymous' : r.name, user_id: r.anonymous ? null : r.user_id, notes: r.anonymous ? null : r.notes })));
 });

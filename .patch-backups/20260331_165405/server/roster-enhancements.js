@@ -428,7 +428,7 @@ router.post('/non-contact', (req, res) => {
         if (educatorsAfter < minRequired) {
           return res.status(400).json({
             error: 'Ratio breach warning',
-            detail: (() => { const _fn = D().prepare('SELECT first_name FROM educators WHERE id=?').get(educator_id)?.first_name || 'this educator'; return 'Removing ' + _fn + ' from floor would leave ' + educatorsAfter + ' educators for ~' + expectedKids + ' children (need ' + minRequired + ' at 1:' + ratio + ')'; })(),
+            detail: `Removing ${D().prepare('SELECT first_name FROM educators WHERE id=?').get(educator_id)?.first_name || 'this educator'} from floor would leave ${educatorsAfter} educators for ~${expectedKids} children (need ${minRequired} at 1:${ratio})`,
             can_override: true,
           });
         }
@@ -836,8 +836,7 @@ router.put('/educators/:id/classification', (req, res) => {
     }
 
     params.push(req.params.id, req.tenantId);
-    const _reSql = 'UPDATE educators SET ' + updates.join(',') + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?";
-    D().prepare(_reSql).run(...params);
+    D().prepare('UPDATE educators SET ' + updates.join(',') + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(...params);
     res.json({ ok: true, base_hourly_cents: classification?.base_hourly_cents, classification });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -552,7 +552,7 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
     D().prepare(`CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)`).run();
     const child = D().prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Not found' });
-    const stories = D().prepare('SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10').all(req.tenantId, '%' + req.params.id + '%');
+    const stories = D().prepare(`SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10`).all(req.tenantId, `%${req.params.id}%`);
     const updates = D().prepare(`SELECT category, notes, summary FROM daily_updates WHERE child_id=? ORDER BY created_at DESC LIMIT 30`).all(req.params.id);
     const contextText = [
       `Child: ${child.first_name} ${child.last_name}, DOB: ${child.dob}`,
@@ -720,7 +720,7 @@ router.delete('/delete-demo', requireAuth, (req, res) => {
     const cnRoomIds = ['cn-sprouts-1','cn-sprouts-2','cn-buds-1','cn-buds-2','cn-blossoms-1','cn-blossoms-2','cn-oaks-1'];
     const placeholders = cnRoomIds.map(() => '?').join(',');
     const before = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
-    D().prepare((() => { const _s = 'UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)'; return _s; })())
+    D().prepare('UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)')
       .run(tenantId, ...cnRoomIds);
     const after = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
     res.json({ ok: true, removed: before - after, remaining: after });

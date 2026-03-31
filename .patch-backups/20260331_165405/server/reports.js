@@ -39,8 +39,7 @@ r.put('/schedules/:id', (req, res) => {
     if (day_of_week !== undefined) { fields.push('day_of_week=?'); vals.push(day_of_week); }
     if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
     vals.push(req.params.id, req.tenantId);
-    const _repSql = 'UPDATE report_schedules SET ' + fields.join(',') + ' WHERE id=? AND tenant_id=?';
-    D().prepare(_repSql).run(...vals);
+    D().prepare('UPDATE report_schedules SET ' + fields.join(',') + ' WHERE id=? AND tenant_id=?').run(...vals);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

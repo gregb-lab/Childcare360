@@ -93,8 +93,7 @@ router.put('/:id', (req, res) => {
     const updates = {};
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     const setClause = fields.filter(f => f in updates).map(f => f + ' = ?').join(', ');
-    const _excSql = 'UPDATE excursions SET ' + setClause + ' WHERE id = ? AND tenant_id = ?';
-    D().prepare(_excSql).run(...fields.filter(f => f in updates).map(f => updates[f]), req.params.id, req.tenantId);
+    D().prepare('UPDATE excursions SET ' + setClause + ' WHERE id = ? AND tenant_id = ?').run(...fields.filter(f => f in updates).map(f => updates[f]), req.params.id, req.tenantId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

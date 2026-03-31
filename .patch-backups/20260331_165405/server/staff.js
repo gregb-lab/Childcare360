@@ -43,7 +43,7 @@ r.put('/me', (req, res) => {
     allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     if (!Object.keys(updates).length) return res.json({ ok: true });
     const sets = Object.keys(updates).map(k => `${k}=?`).join(',');
-    D().prepare((() => { const _s = 'UPDATE educators SET ' + sets + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?"; return _s; })())
+    D().prepare('UPDATE educators SET ' + sets + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?")
       .run(...Object.values(updates), e.id, req.tenantId);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }

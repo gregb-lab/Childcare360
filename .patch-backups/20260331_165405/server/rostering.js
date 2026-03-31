@@ -675,7 +675,7 @@ function db_module_put_entry(db, id, tenantId, fields) {
   if (fields.lunch_start!== undefined) { sets.push('lunch_start=?');vals.push(fields.lunch_start); }
   if (fields.is_lunch_cover!==undefined){sets.push('is_lunch_cover=?');vals.push(fields.is_lunch_cover?1:0);}
   if (fields.room_id    !== undefined) { sets.push('room_id=?');    vals.push(fields.room_id); }
-  if (sets.length) { const _rsSql = 'UPDATE roster_entries SET ' + sets.join(',') + ' WHERE id=? AND tenant_id=?'; db.prepare(_rsSql).run(...vals, id, tenantId); }
+  if (sets.length) db.prepare('UPDATE roster_entries SET ' + sets.join(',') + ' WHERE id=? AND tenant_id=?').run(...vals, id, tenantId);
 }
 
 // ─── SICK COVER OPTIMISATION ENGINE ──────────────────────────────────────────

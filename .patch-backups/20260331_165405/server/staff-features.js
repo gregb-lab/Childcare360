@@ -224,7 +224,7 @@ r.put('/pd-requests/:id', (req, res) => {
     if (status === 'completed') { updates.push('completed_at=datetime(\'now\')'); }
     updates.push('updated_at=datetime(\'now\')');
 
-    D().prepare((() => { const _s = 'UPDATE pd_requests SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?'; return _s; })())
+    D().prepare('UPDATE pd_requests SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')
       .run(...vals, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

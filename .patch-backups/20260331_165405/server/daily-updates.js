@@ -90,8 +90,7 @@ router.put('/:id/sleep', (req, res) => {
     if (sleep_end) updates.sleep_end = sleep_end;
     if (sleep_checks) updates.sleep_checks = JSON.stringify(sleep_checks);
     const setClause = Object.keys(updates).map(k => k + ' = ?').join(', ');
-    const _duSql = 'UPDATE daily_updates SET ' + setClause + ' WHERE id = ?';
-    D().prepare(_duSql).run(...Object.values(updates), req.params.id);
+    D().prepare('UPDATE daily_updates SET ' + setClause + ' WHERE id = ?').run(...Object.values(updates), req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

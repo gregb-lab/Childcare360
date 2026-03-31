@@ -87,7 +87,7 @@ function gatherChildData(tid, child_id, from, to, maxItems = 30) {
 
   const photos = [
     ...D().prepare(`SELECT photo_url as url, update_date as date FROM daily_updates WHERE tenant_id=? AND child_id=? AND update_date BETWEEN ? AND ? AND photo_url IS NOT NULL ORDER BY update_date ASC LIMIT 15`).all(tid, child_id, from, to),
-    ...D().prepare(`SELECT sp.url, ls.date FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.date BETWEEN ? AND ? AND instr(ls.child_ids, ?) > 0 LIMIT 15`).all(tid, from, to, `%${child_id}%`),
+    ...D().prepare('SELECT sp.url, ls.date FROM story_photos sp JOIN learning_stories ls ON ls.id=sp.story_id WHERE sp.tenant_id=? AND ls.date BETWEEN ? AND ? AND instr(ls.child_ids, ?) > 0 LIMIT 15').all(tid, from, to, `%${child_id}%`),
   ].filter(p => p.url).slice(0, 16);
 
   return { stories, activities, observations, eylf, photos };
