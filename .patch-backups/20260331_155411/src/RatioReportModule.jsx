@@ -482,7 +482,5 @@ export default function RatioReportModule() {
         </div>
       )}
     </div>
-      )}
-  </div>
-);
+  );
 }

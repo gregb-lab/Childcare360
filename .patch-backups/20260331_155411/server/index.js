@@ -60,7 +60,7 @@ import { xeroRouter, educatorSelfRouter, leaveAdminRouter } from './xero.js';
 import schedulePublisherRoutes from './schedule-publisher.js';
 import aiAssistantRoutes, { feeOverrideRouter, complianceTaskRouter } from './ai-assistant.js';
 import v2Routes from './v2-features.js';
-import { globalAuditMiddleware, requireAuth, requireTenant, requireRole} from './middleware.js';
+import { globalAuditMiddleware, requireAuth} from './middleware.js';
 import weeklyStoriesRouter from './weekly-stories.js';
 import ratioReportRouter from './ratio-report.js';
 
