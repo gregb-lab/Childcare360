@@ -719,6 +719,12 @@ function MedicalPlansSection({ child }) {
     if (r.id) { await load(); setShowAdd(false); }
   };
   const update = async (id, f) => {
+    if (f._delete) {
+      if (!confirm("Delete this medical plan? This cannot be undone.")) return;
+      try { await API("/api/children/" + child.id + "/medical-plans/" + id, { method: "DELETE" }); }
+      catch(e) { toast("Failed to delete.", "error"); return; }
+      await load(); setEditPlan(null); setViewPlan(null); return;
+    }
     let r;
     try { r = await API("/api/children/" + child.id + "/medical-plans/" + id, { method: "PUT", body: f }); if (r.error) { alert(r.error); return; } }
     catch(e) { toast("Failed to update.", "error"); return; }
@@ -885,9 +891,17 @@ function MedicalPlanForm({ planTypes, initialData, childId, onSave, onClose }) {
           {f.document_url && <span style={{ fontSize: 11, color: "#2E7D32" }}>Attached <a href={f.document_url} target="_blank" rel="noopener noreferrer" style={{ color: "#7C3AED" }}>Preview</a></span>}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button onClick={onClose} style={btnS}>Cancel</button>
-        <button onClick={() => { if (!f.condition_name) { alert("Condition Name is required"); return; } onSave(f); }} style={btnP}>{initialData ? "Update Plan" : "Save Plan"}</button>
+      <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+        {initialData && (
+          <button onClick={() => { if(confirm("Delete this medical plan?")) onSave({ ...f, _delete: true }); }}
+            style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            🗑 Delete Plan
+          </button>
+        )}
+        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+          <button onClick={onClose} style={btnS}>Cancel</button>
+          <button onClick={() => { if (!f.condition_name) { alert("Condition Name is required"); return; } onSave(f); }} style={btnP}>{initialData ? "Update Plan" : "Save Plan"}</button>
+        </div>
       </div>
     </div>
   );
@@ -1348,7 +1362,7 @@ function PermissionsTab({ child }) {
                   </div>
                 </div>
                 <label style={{ cursor: "pointer", position: "relative", flexShrink: 0 }}>
-                  <input type="checkbox" checked={granted} onChange={() => toggle(op.id, granted)} style={{ display: "none" }} />
+                  <input type="checkbox" checked={!!granted} onChange={() => toggle(op.id, granted)} style={{ display: "none" }} />
                   <div style={{ width: 40, height: 22, borderRadius: 11, background: granted ? "#2E7D32" : "#CCC", position: "relative", transition: "background 0.2s" }}>
                     <div style={{ position: "absolute", top: 3, left: granted ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                   </div>
