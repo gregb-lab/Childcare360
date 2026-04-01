@@ -288,7 +288,14 @@ function ProfileTab({ child, rooms, onSaved }) {
             <FRow label="Parent / Guardian 2" k="parent2_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Email" k="parent2_email" type="email" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Phone" k="parent2_phone" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
-            <FRow label="Centrelink CRN" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+          </div>
+        </div>
+
+        <div style={card}>
+          <h4 style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700 }}>🏛️ CCS / Centrelink</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <FRow label="Child CRN" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Parent CRN" k="parent_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
           </div>
         </div>
 
@@ -1296,17 +1303,25 @@ function PermissionsTab({ child }) {
     { id: "sharing_info", label: "Information Sharing", icon: "📤", description: "Share relevant child information with allied health providers" },
   ];
 
-  const toggle = async (permType, currentVal) => {
+  const toggle = async (permType, currentGranted) => {
+    // currentGranted may be 0, 1, true, false, or undefined
+    const isGranted = currentGranted === 1 || currentGranted === true;
+    const newVal = isGranted ? 0 : 1;
     try {
       const existing = perms.find(p => p.permission_type === permType);
-      const newVal = currentVal ? 0 : 1;
       if (existing) {
-        await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: newVal } });
+        // Optimistic update first
         setPerms(prev => prev.map(p => p.permission_type === permType ? { ...p, granted: newVal } : p));
+        const r = await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: newVal } });
+        if (r && r.error) {
+          // Revert on error
+          setPerms(prev => prev.map(p => p.permission_type === permType ? { ...p, granted: isGranted ? 1 : 0 } : p));
+          toast(r.error, "error");
+        }
       } else {
         const r = await API(`/api/children/${child.id}/permissions`, { method: "POST", body: { permission_type: permType, granted: 1 } });
-        if (r && r.id) setPerms(prev => [...prev, { ...r, granted: 1 }]);
-        else setPerms(prev => [...prev, { permission_type: permType, granted: 1 }]);
+        if (r && r.id) setPerms(prev => [...prev, { permission_type: permType, granted: 1, id: r.id }]);
+        else toast("Failed to add permission", "error");
       }
     } catch(e) { toast("Failed to update permission", "error"); }
   };
@@ -1362,8 +1377,13 @@ function PermissionsTab({ child }) {
   );
 }
 
-function PermissionsList({ perms }) {
-  if (!perms.length) return <div style={{ textAlign: "center", padding: 20, color: "#B0AAB9", fontSize: 12 }}>No custom permissions</div>;
+function PermissionsList({ childId, perms, onRefresh }) {
+  const del = async (id) => {
+    if (!confirm("Remove this permission?")) return;
+    await API(`/api/children/${childId}/permissions/${id}`, { method: "DELETE" });
+    onRefresh();
+  };
+  if (!perms.length) return <div style={{ textAlign: "center", padding: 20, color: "#B0AAB9", fontSize: 12 }}>No custom permissions on file</div>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {perms.map(p => (

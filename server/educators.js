@@ -61,10 +61,10 @@ router.put('/:id', (req, res) => {
       'can_start_earlier_mins','can_finish_later_mins','is_lunch_cover','preferred_rooms'];
     const updates = {};
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
-    updates['updated_at'] = new Date().toISOString();
-    const setClause = fields.filter(f => f in updates).map(f => f + ' = ?').join(', ');
+    const setCols = fields.filter(f => f in updates);
+    const setClause = setCols.map(f => f + ' = ?').join(', ') + ", updated_at = ?";
     D().prepare((() => 'UPDATE educators SET ' + setClause + ' WHERE id = ? AND tenant_id = ?')())
-      .run(...Object.values(updates), req.params.id, req.tenantId);
+      .run(...setCols.map(f => updates[f]), new Date().toISOString(), req.params.id, req.tenantId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
