@@ -1,6 +1,6 @@
 {
   "name": "childcare360",
-  "version": "2.9.1",
+  "version": "2.9.2",
   "description": "Childcare360 Australian childcare management platform",
   "type": "module",
   "scripts": {
