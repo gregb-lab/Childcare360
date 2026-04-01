@@ -216,12 +216,11 @@ router.delete('/:id/pickup/:pickupId', (req, res) => {
   }
 });
 
-// POST /:id/parental-requests (also handles /parental-requests path)
+// POST parental request
 router.post('/:id/requests', (req, res) => {
   try {
     const { category, request } = req.body;
     const id = uuid();
-    const _prReq = req.body.description || req.body.title || req.body.request || '';
     D().prepare('INSERT INTO parental_requests (id,tenant_id,child_id,category,request,status) VALUES(?,?,?,?,?,\'active\')')
       .run(id, req.tenantId, req.params.id, category||'other', request);
     res.json({ id });
