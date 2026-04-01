@@ -210,8 +210,8 @@ function DashboardTab({ d }) {
       })()}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div style={card}><h4 style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700 }}>Reliability Distribution</h4><ResponsiveContainer width="100%" height={140}><PieChart><Pie data={relData} dataKey="v" cx="50%" cy="50%" outerRadius={50} label={x=>x.name+": "+x.v} labelLine={false} style={{fontSize:9}}>{relData.map((x,i)=><Cell key={i} fill={x.fill}/>)}</Pie></PieChart></ResponsiveContainer></div>
-        <div style={card}><h4 style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700 }}>Qualification Mix</h4><ResponsiveContainer width="100%" height={140}><BarChart data={qualData}><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}} allowDecimals={false}/><Tooltip/><Bar dataKey="v" radius={[4,4,0,0]}>{qualData.map((x,i)=><Cell key={i} fill={x.fill}/>)}</Bar></BarChart></ResponsiveContainer></div>
+        <div style={card}><h4 style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700 }}>Reliability Distribution</h4><ResponsiveContainer width="100%" height={160}><BarChart data={relData} layout="vertical" margin={{left:40,right:20,top:4,bottom:4}}><XAxis type="number" tick={{fontSize:10}} allowDecimals={false} label={{value:"Educators",position:"insideBottom",offset:-2,fontSize:10}}/><YAxis type="category" dataKey="name" tick={{fontSize:10}} width={60}/><Tooltip formatter={(v)=>[v+" educators","Count"]}/><Bar dataKey="v" radius={[0,4,4,0]}>{relData.map((x,i)=><Cell key={i} fill={x.fill}/>)}</Bar></BarChart></ResponsiveContainer></div>
+        <div style={card}><h4 style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700 }}>Qualification Mix</h4><ResponsiveContainer width="100%" height={160}><BarChart data={qualData} margin={{left:10,right:10,top:4,bottom:30}}><XAxis dataKey="name" tick={{fontSize:9}} angle={-20} textAnchor="end" interval={0} label={{value:"Qualification",position:"insideBottom",offset:-20,fontSize:10}}/><YAxis tick={{fontSize:10}} allowDecimals={false} label={{value:"Educators",angle:-90,position:"insideLeft",offset:10,fontSize:10}}/><Tooltip formatter={(v,n,p)=>[v+" educators",p.payload.name]}/><Bar dataKey="v" radius={[4,4,0,0]}>{qualData.map((x,i)=><Cell key={i} fill={x.fill}/>)}</Bar></BarChart></ResponsiveContainer></div>
       </div>
       {d.fills.length > 0 && <div style={card}><h4 style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700 }}>Recent Sick Cover</h4>{d.fills.slice(0,5).map(f=>(<div key={f.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid #F0EBE6",fontSize:11}}><div><strong>{f.original_educator_name}</strong> <span style={{color:"#A89DB5"}}>{f.date} · {f.room_name}</span></div><div style={{display:"flex",gap:4}}><Badge text={f.status} color={f.status==="filled"?"#2E8B57":"#D4A26A"}/>{f.filled_by_name&&<span style={{color:"#2E8B57",fontSize:10}}>→ {f.filled_by_name}</span>}</div></div>))}</div>}
     </div>
@@ -1404,7 +1404,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload 
 
   const generate=async()=>{
     setGen(true);setGErr(null);setGRes(null);
-    try{const r=await API("/api/rostering/generate",{method:"POST",body:{...gf,lunch_cover_educator_id:lunchCoverEdId||null}});if(r.error)setGErr(r.error);else{setGRes(r);reload();if(r.period_id){loadP(r.period_id);}setGf({period_type:"weekly",start_date:nextMon(),end_date:addDays(nextMon(),4),weekly_budget_cents:0});}}catch(e){setGErr(e.message);}
+    try{const r=await API("/api/rostering/generate",{method:"POST",body:{...gf,lunch_cover_educator_id:lunchCoverEdId||null}});if(r.error)setGErr(r.error);else{setGRes(r);reload();if(r.period_id){loadP(r.period_id);setTimeout(()=>loadP(r.period_id),1000);}setGf({period_type:"weekly",start_date:nextMon(),end_date:addDays(nextMon(),4),weekly_budget_cents:0});}}catch(e){setGErr(e.message);}
     setGen(false);
   };
   const approve=async id=>{try{const r=await API("/api/rostering/periods/"+id+"/approve",{method:"PUT"});if(r.error){alert(r.error);return;}reload();loadP(id);}catch(e){alert("Approve failed: "+e.message);}};
@@ -2360,7 +2360,7 @@ function SickCoverTab({ educators = [], fills = [], reload }) {
       <div style={{display:"grid",gridTemplateColumns:selectedFill?"1fr 1fr":"1fr",gap:12}}>
         <div>
           <div style={{fontSize:10,fontWeight:700,color:"#5C4E6A",marginBottom:6}}>FILL REQUESTS</div>
-          {(!fills||fills.length===0)&&<div style={{...card,padding:24,textAlign:"center",color:"#A89DB5"}}>No sick cover requests yet.</div>}
+          {(!fills||fills.length===0)&&<div style={{...card,padding:24,textAlign:"center",color:"#A89DB5"}}><div style={{fontSize:24,marginBottom:8}}>📋</div><div style={{fontWeight:600,fontSize:13}}>No sick cover requests yet</div><div style={{fontSize:11,marginTop:4}}>Use "Report Absence" to create a fill request, or educators can call the absence hotline.</div></div>}
           {(fills||[]).map(f=>(
             <div key={f.id} onClick={()=>viewAttempts(f.id)} style={{...card,padding:10,marginBottom:4,cursor:"pointer",borderLeft:"3px solid "+(f.status==="filled"?"#2E8B57":f.status==="open"?"#D4A26A":"#C06B73"),...(selectedFill?.id===f.id?{boxShadow:"0 0 0 2px rgba(139,109,175,0.3)"}:{})}}>
               <div style={{display:"flex",justifyContent:"space-between"}}><div><span style={{fontSize:12,fontWeight:700}}>{f.original_educator_name}</span> <span style={{fontSize:10,color:"#A89DB5"}}>{f.date} · {f.start_time}–{f.end_time}</span></div><Badge text={f.status} color={f.status==="filled"?"#2E8B57":f.status==="open"?"#D4A26A":"#C06B73"}/></div>
