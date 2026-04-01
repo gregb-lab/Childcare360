@@ -606,7 +606,16 @@ router.post('/:id/upload', requireAuth, requireTenant, async (req, res) => {
     const { default: fsMod } = await import('fs');
     const bb = busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
     let savedUrl = null;
+    let pending = 0;
+    let bbDone = false;
+    const tryRespond = () => {
+      if (bbDone && pending === 0) {
+        if (savedUrl) res.json({ url: savedUrl, ok: true });
+        else res.status(400).json({ error: 'No file received' });
+      }
+    };
     bb.on('file', (name, file, info) => {
+      pending++;
       const ext = pathMod.extname(info.filename || '.pdf').toLowerCase() || '.pdf';
       const fname = 'child_' + req.params.id + '_' + randomUUID() + ext;
       const uploadsDir = process.env.DATA_DIR
@@ -615,12 +624,10 @@ router.post('/:id/upload', requireAuth, requireTenant, async (req, res) => {
       fsMod.mkdirSync(uploadsDir, { recursive: true });
       const stream = fsMod.createWriteStream(pathMod.join(uploadsDir, fname));
       file.pipe(stream);
-      stream.on('finish', () => { savedUrl = '/uploads/' + fname; });
+      stream.on('finish', () => { savedUrl = '/uploads/' + fname; pending--; tryRespond(); });
+      stream.on('error', () => { pending--; tryRespond(); });
     });
-    bb.on('finish', () => {
-      if (savedUrl) res.json({ url: savedUrl, ok: true });
-      else res.status(400).json({ error: 'No file received' });
-    });
+    bb.on('finish', () => { bbDone = true; tryRespond(); });
     bb.on('error', (e) => res.status(500).json({ error: e.message }));
     req.pipe(bb);
   } catch(e) { res.status(500).json({ error: e.message }); }
