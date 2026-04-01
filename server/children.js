@@ -729,8 +729,8 @@ router.get('/:id/permissions', (req, res) => {
 router.put('/:id/permissions/:pid', requireAuth, requireTenant, (req, res) => {
   try {
     const { granted } = req.body;
-    D().prepare('UPDATE child_permissions SET granted=?, updated_at=datetime("now") WHERE id=? AND child_id=?')
-      .run(granted ? 1 : 0, req.params.pid, req.params.id);
+    D().prepare('UPDATE child_permissions SET granted=?, granted_by=?, granted_at=datetime('now') WHERE id=? AND child_id=? AND tenant_id=?')
+      .run(granted ? 1 : 0, req.userId, req.params.pid, req.params.id, req.tenantId);
     const row = D().prepare('SELECT * FROM child_permissions WHERE id=? AND tenant_id=?').get(req.params.pid, req.tenantId);
     res.json(row || { success: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
