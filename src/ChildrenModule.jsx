@@ -1410,6 +1410,9 @@ function PermissionsList({ childId, perms, onRefresh }) {
           </div>
           {p.notes && <div style={{ fontSize: 11, color: "#5C4E6A", marginTop: 3 }}>{p.notes}</div>}
           <div style={{ fontSize: 10, color: "#B0AAB9", marginTop: 2 }}>{fmtDate(p.created_at)} · {p.granted_by || "Centre"}</div>
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <button onClick={() => del(p.id)} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer" }}>Delete</button>
+          </div>
         </div>
       ))}
     </div>
