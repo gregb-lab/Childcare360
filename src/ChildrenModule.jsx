@@ -288,6 +288,7 @@ function ProfileTab({ child, rooms, onSaved }) {
             <FRow label="Parent / Guardian 2" k="parent2_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Email" k="parent2_email" type="email" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
             <FRow label="Phone" k="parent2_phone" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+            <FRow label="Centrelink CRN" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
           </div>
         </div>
 
@@ -295,14 +296,7 @@ function ProfileTab({ child, rooms, onSaved }) {
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🏥 Medical Summary</h4>
           <div style={{ display: "grid", gap: 8 }}>
             <FRow label="Known Allergies" k="allergies" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
-          </div>
-          {/* CCS / Centrelink */}
-          <div style={{ gridColumn: "1/-1", fontWeight: 700, fontSize: 11, color: "#8A7F96", marginTop: 4, marginBottom: 2, letterSpacing: 1 }}>CCS / CENTRELINK</div>
-          <div style={{ gridColumn: "1/-1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <FRow label="Centrelink CRN (Child)" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
-            <FRow label="Parent CRN" k="parent_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
-          </div>
-          <div  <div>
+            <div>
               <label style={lbl}>Notes</label>
               <textarea value={f.medical_notes || ""} onChange={e => u("medical_notes", e.target.value)} disabled={!ed}
                 style={{ ...inp, height: 60, resize: "vertical" }} />
@@ -607,7 +601,6 @@ function MedicalTab({ child, onSaved }) {
   const [equipment, setEquipment] = useState([]);
   const [showAddMed, setShowAddMed] = useState(false);
   const [showAddEq, setShowAddEq] = useState(false);
-  const [editEq, setEditEq] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -691,13 +684,7 @@ function MedicalTab({ child, onSaved }) {
             <div style={{ width: "100%", textAlign: "center", padding: 20, color: "#B0AAB9", fontSize: 12 }}>No equipment registered (e.g. EpiPen, inhaler)</div>
           ) : equipment.map(eq => (
             <div key={eq.id} style={{ background: "#FDFBF9", borderRadius: 8, padding: "10px 14px", border: `1px solid ${isExpiringSoon(eq.expiry_date) ? "#FFCC80" : "#EDE8F4"}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                <div style={{ fontWeight: 700, fontSize: 12, color: "#3D3248" }}>{eq.name}</div>
-                <div style={{ display:"flex", gap:4 }}>
-                  <button onClick={() => setEditEq(eq)} style={{ fontSize:10, padding:"2px 8px", borderRadius:6, border:"1px solid #DDD6EE", background:"#F8F5FF", color:"#7C3AED", cursor:"pointer" }}>Edit</button>
-                  <button onClick={async() => { if(!confirm("Remove this equipment?"))return; await API(`/api/children/${child.id}/equipment/${eq.id}`,{method:"DELETE"}); load(); }} style={{ fontSize:10, padding:"2px 8px", borderRadius:6, border:"1px solid #FCA5A5", background:"#FEF2F2", color:"#DC2626", cursor:"pointer" }}>✕</button>
-                </div>
-              </div>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#3D3248" }}>{eq.name}</div>
               <div style={{ fontSize: 10, color: "#8A7F96" }}>Location: {eq.location || "—"}</div>
               {eq.expiry_date && <div style={{ fontSize: 10, color: isExpiringSoon(eq.expiry_date) ? "#E65100" : "#8A7F96", fontWeight: isExpiringSoon(eq.expiry_date) ? 700 : 400 }}>
                 Expires: {fmtDate(eq.expiry_date)} {isExpiringSoon(eq.expiry_date) && "⚠"}
@@ -706,7 +693,6 @@ function MedicalTab({ child, onSaved }) {
           ))}
         </div>
         {showAddEq && <EquipmentForm childId={child.id} onSaved={() => { setShowAddEq(false); load(); }} onClose={() => setShowAddEq(false)} />}
-        {editEq && <EquipmentForm childId={child.id} existing={editEq} onSaved={() => { setEditEq(null); load(); }} onClose={() => setEditEq(null)} />}
       </div>
     </div>
   );
@@ -715,18 +701,22 @@ function MedicalTab({ child, onSaved }) {
 function MedicalPlansSection({ child }) {
   const [plans, setPlans] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
-
-  useEffect(() => {
-    API(`/api/children/${child.id}/medical-plans`).then(r => { if (Array.isArray(r)) setPlans(r); }).catch(() => {});
-  }, [child.id]);
-
+  const [viewPlan, setViewPlan] = useState(null);
+  const [editPlan, setEditPlan] = useState(null);
+  const load = () => API("/api/children/" + child.id + "/medical-plans").then(r => { if (Array.isArray(r)) setPlans(r); }).catch(() => {});
+  useEffect(() => { load(); }, [child.id]);
   const add = async (f) => {
     let r;
-    try { r = await API(`/api/children/${child.id}/medical-plans`, { method: "POST", body: f }); if(r.error){alert(r.error);return;} }
-    catch(e) { toast("Failed to save medical plan.", "error"); return; }
-    if (r.id) { setPlans(p => [...p, r]); setShowAdd(false); }
+    try { r = await API("/api/children/" + child.id + "/medical-plans", { method: "POST", body: f }); if (r.error) { alert(r.error); return; } }
+    catch(e) { toast("Failed to save.", "error"); return; }
+    if (r.id) { await load(); setShowAdd(false); }
   };
-
+  const update = async (id, f) => {
+    let r;
+    try { r = await API("/api/children/" + child.id + "/medical-plans/" + id, { method: "PUT", body: f }); if (r.error) { alert(r.error); return; } }
+    catch(e) { toast("Failed to update.", "error"); return; }
+    await load(); setEditPlan(null); setViewPlan(null);
+  };
   const PLAN_TYPES = [
     { id: "anaphylaxis", label: "Anaphylaxis Action Plan", icon: "⚠️", color: "#B71C1C" },
     { id: "asthma", label: "Asthma Action Plan", icon: "🫁", color: "#1565C0" },
@@ -735,71 +725,162 @@ function MedicalPlansSection({ child }) {
     { id: "risk_minimisation", label: "Risk Minimisation Plan", icon: "🛡️", color: "#E65100" },
     { id: "communication", label: "Medical Communication Plan", icon: "📢", color: "#7E5BA3" },
   ];
-
+  const getPt = (id) => PLAN_TYPES.find(p => p.id === id) || { label: id, icon: "📋", color: "#7C3AED" };
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 12 }}>
-        {PLAN_TYPES.map(pt => {
-          const plan = plans.find(p => p.plan_type === pt.id);
-          const expiring = plan?.expiry_date && (new Date(plan.expiry_date) - new Date()) / (1000*60*60*24) <= 30;
-          return (
-            <div key={pt.id} style={{ background: plan ? "#fff" : "#FAFAFA", borderRadius: 10, padding: "10px 14px",
-              border: `1px solid ${plan ? pt.color + "40" : "#EDE8F4"}`,
-              borderLeft: `4px solid ${plan ? pt.color : "#EDE8F4"}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ fontSize: 18 }}>{pt.icon}</div>
-                {plan ? (
-                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: expiring ? "#FFF3E0" : "#E8F5E9",
-                    color: expiring ? "#E65100" : "#2E7D32", fontWeight: 700 }}>{expiring ? "EXPIRING" : "✓ ACTIVE"}</span>
+      {viewPlan && !editPlan && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 900, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #EDE8F4", display: "flex", justifyContent: "space-between", alignItems: "center", background: getPt(viewPlan.plan_type).color + "10", borderRadius: "16px 16px 0 0", borderLeft: "6px solid " + getPt(viewPlan.plan_type).color }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 24 }}>{getPt(viewPlan.plan_type).icon}</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "#3D3248" }}>{getPt(viewPlan.plan_type).label}</div>
+                  <div style={{ fontSize: 12, color: "#8A7F96" }}>{viewPlan.condition_name}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setEditPlan(viewPlan)} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #DDD6EE", background: "#F8F5FF", color: "#7C3AED", cursor: "pointer", fontWeight: 600, fontSize: 12 }}>Edit</button>
+                <button onClick={() => setViewPlan(null)} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer", fontSize: 12 }}>Close</button>
+              </div>
+            </div>
+            <div style={{ display: "flex" }}>
+              <div style={{ flex: 1, padding: 20, borderRight: "1px solid #EDE8F4", minHeight: 400 }}>
+                {viewPlan.document_url ? (
+                  viewPlan.document_url.toLowerCase().endsWith(".pdf") ? (
+                    <iframe src={viewPlan.document_url} style={{ width: "100%", height: 500, border: "none", borderRadius: 8 }} title="Medical Plan" />
+                  ) : (
+                    <img src={viewPlan.document_url} alt="Medical Plan" style={{ maxWidth: "100%", borderRadius: 8 }} />
+                  )
                 ) : (
-                  <span style={{ fontSize: 9, color: "#B0AAB9" }}>NOT ON FILE</span>
+                  <div style={{ height: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#B0AAB9", gap: 8 }}>
+                    <div style={{ fontSize: 48 }}>📄</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>No document attached</div>
+                    <div style={{ fontSize: 11 }}>Edit this plan to upload a PDF or image</div>
+                  </div>
+                )}
+                {viewPlan.extended_notes && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#5C4E6A", marginBottom: 6 }}>EXTENDED NOTES</div>
+                    <div style={{ fontSize: 12, color: "#3D3248", whiteSpace: "pre-wrap", background: "#FAFAFA", padding: 12, borderRadius: 8, maxHeight: 200, overflowY: "auto" }}>{viewPlan.extended_notes}</div>
+                  </div>
                 )}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#3D3248", marginTop: 4 }}>{pt.label}</div>
+              <div style={{ width: 260, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+                {[["Severity",viewPlan.severity],["Triggers",viewPlan.triggers],["Symptoms",viewPlan.symptoms],["Action Steps",viewPlan.action_steps],["Doctor",viewPlan.doctor_name],["Doctor Phone",viewPlan.doctor_phone],["Review Date",viewPlan.review_date ? fmtDate(viewPlan.review_date) : null],["Expiry Date",viewPlan.expiry_date ? fmtDate(viewPlan.expiry_date) : null],["Notes",viewPlan.notes]].filter(function(x){return x[1];}).map(function(x){return (
+                  <div key={x[0]}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#8A7F96", textTransform: "uppercase", marginBottom: 3 }}>{x[0]}</div>
+                    <div style={{ fontSize: 12, color: "#3D3248", lineHeight: 1.5 }}>{x[1]}</div>
+                  </div>
+                );}) }
+                {viewPlan.document_url && <a href={viewPlan.document_url} target="_blank" rel="noopener noreferrer" style={{ padding: "8px 12px", borderRadius: 8, background: "#F0EBF8", color: "#7C3AED", textDecoration: "none", fontSize: 12, fontWeight: 600, textAlign: "center" }}>Download</a>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {editPlan && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 700, padding: 24, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>Edit: {getPt(editPlan.plan_type).label}</h4>
+              <button onClick={() => setEditPlan(null)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer" }}>X</button>
+            </div>
+            <MedicalPlanForm planTypes={PLAN_TYPES} initialData={editPlan} childId={child.id} onSave={(f) => update(editPlan.id, f)} onClose={() => setEditPlan(null)} />
+          </div>
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 12 }}>
+        {PLAN_TYPES.map(function(p) {
+          const plan = plans.find(function(pl) { return pl.plan_type === p.id; });
+          const daysLeft = plan && plan.expiry_date ? (new Date(plan.expiry_date) - new Date()) / (1000*60*60*24) : 999;
+          const expiring = daysLeft <= 30;
+          return (
+            <div key={p.id} onClick={() => plan && setViewPlan(plan)}
+              style={{ background: plan ? "#fff" : "#FAFAFA", borderRadius: 10, padding: "10px 14px", border: "1px solid " + (plan ? p.color + "40" : "#EDE8F4"), borderLeft: "4px solid " + (plan ? p.color : "#EDE8F4"), cursor: plan ? "pointer" : "default" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <span style={{ fontSize: 18 }}>{p.icon}</span>
+                {plan ? <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: expiring ? "#FFF3E0" : "#E8F5E9", color: expiring ? "#E65100" : "#2E7D32", fontWeight: 700 }}>{expiring ? "EXPIRING" : "ACTIVE"}</span>
+                      : <span style={{ fontSize: 9, color: "#B0AAB9" }}>NOT ON FILE</span>}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#3D3248", marginTop: 4 }}>{p.label}</div>
               {plan && (
-                <div style={{ fontSize: 10, color: "#8A7F96", marginTop: 2 }}>
-                  Expires: {fmtDate(plan.expiry_date)}
-                  {plan.document_url && <a href={plan.document_url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6, color: purple }}>View</a>}
+                <div style={{ fontSize: 10, color: "#8A7F96", marginTop: 4 }}>
+                  {plan.condition_name && <div style={{ fontWeight: 600, color: "#5C4E6A", marginBottom: 2 }}>{plan.condition_name}</div>}
+                  {plan.expiry_date && <div>Expires: {fmtDate(plan.expiry_date)}</div>}
+                  <div style={{ marginTop: 4, fontSize: 9, color: "#7C3AED", fontWeight: 600 }}>Click to view</div>
                 </div>
-              )}
-              {!plan && pt.id === "anaphylaxis" && (child.allergies?.toLowerCase().includes("anaphyl") || child.allergies?.toLowerCase().includes("peanut") || child.allergies?.toLowerCase().includes("nut")) && (
-                <div style={{ fontSize: 9, color: "#B71C1C", fontWeight: 700, marginTop: 4 }}>⚠ Allergy on file — plan required!</div>
               )}
             </div>
           );
         })}
       </div>
-      <button onClick={() => setShowAdd(true)} style={btnS}>+ Upload / Add Medical Plan</button>
-      {showAdd && (
-        <div style={{ marginTop: 12, background: lp, borderRadius: 10, padding: 14 }}>
-          <MedicalPlanForm planTypes={PLAN_TYPES} onSave={add} onClose={() => setShowAdd(false)} />
-        </div>
-      )}
+      <button onClick={() => setShowAdd(!showAdd)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #DDD6EE", background: "#F8F5FF", color: "#7C3AED", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{showAdd ? "Cancel" : "+ Add Medical Plan"}</button>
+      {showAdd && <div style={{ marginTop: 12 }}><MedicalPlanForm planTypes={PLAN_TYPES} childId={child.id} onSave={add} onClose={() => setShowAdd(false)} /></div>}
     </div>
   );
 }
 
-function MedicalPlanForm({ planTypes, onSave, onClose }) {
-  const [f, setF] = useState({ plan_type: "general", expiry_date: "", notes: "" });
+function MedicalPlanForm({ planTypes, initialData, childId, onSave, onClose }) {
+  const blank = { plan_type: "general", condition_name: "", severity: "moderate", triggers: "", symptoms: "", action_steps: "", doctor_name: "", doctor_phone: "", review_date: "", expiry_date: "", notes: "", extended_notes: "", document_url: "" };
+  const [f, setF] = useState(initialData ? Object.assign({}, blank, initialData) : blank);
+  const [uploading, setUploading] = useState(false);
+  const u = (k, v) => setF(function(p) { return Object.assign({}, p, { [k]: v }); });
+  const uploadFile = async (file) => {
+    if (!childId) { alert("Save the child first before uploading"); return; }
+    setUploading(true);
+    const fd = new FormData(); fd.append("file", file);
+    try {
+      const resp = await fetch("/api/children/" + childId + "/upload", { method: "POST", headers: { "Authorization": "Bearer " + localStorage.getItem("c360_token"), "x-tenant-id": localStorage.getItem("c360_tenant") }, body: fd });
+      const d = await resp.json();
+      if (d.url) { u("document_url", d.url); toast("Document uploaded"); }
+      else alert(d.error || "Upload failed");
+    } catch(e) { alert("Upload failed"); }
+    setUploading(false);
+  };
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
-      <div>
-        <label style={lbl}>Plan Type</label>
-        <select style={inp} value={f.plan_type} onChange={e => setF(p => ({ ...p, plan_type: e.target.value }))}>
-          {planTypes.map(pt => <option key={pt.id} value={pt.id}>{pt.label}</option>)}
-        </select>
+    <div style={{ background: "#F8F5FF", borderRadius: 10, padding: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <div><label style={lbl}>Plan Type</label>
+          <select style={inp} value={f.plan_type} onChange={e => u("plan_type", e.target.value)}>
+            {planTypes.map(pt => <option key={pt.id} value={pt.id}>{pt.label}</option>)}
+          </select>
+        </div>
+        <div><label style={lbl}>Condition Name *</label>
+          <input style={inp} value={f.condition_name} onChange={e => u("condition_name", e.target.value)} placeholder="e.g. Peanut Allergy, Asthma" />
+        </div>
+        <div><label style={lbl}>Severity</label>
+          <select style={inp} value={f.severity} onChange={e => u("severity", e.target.value)}>
+            <option value="mild">Mild</option><option value="moderate">Moderate</option><option value="severe">Severe</option><option value="life-threatening">Life-Threatening</option>
+          </select>
+        </div>
+        <div><label style={lbl}>Triggers</label><input style={inp} value={f.triggers} onChange={e => u("triggers", e.target.value)} placeholder="e.g. Peanuts" /></div>
+        <div><label style={lbl}>Symptoms</label><input style={inp} value={f.symptoms} onChange={e => u("symptoms", e.target.value)} placeholder="e.g. Hives" /></div>
+        <div><label style={lbl}>Action Steps</label><input style={inp} value={f.action_steps} onChange={e => u("action_steps", e.target.value)} placeholder="e.g. EpiPen, call 000" /></div>
+        <div><label style={lbl}>Doctor Name</label><input style={inp} value={f.doctor_name} onChange={e => u("doctor_name", e.target.value)} /></div>
+        <div><label style={lbl}>Doctor Phone</label><input style={inp} value={f.doctor_phone} onChange={e => u("doctor_phone", e.target.value)} /></div>
+        <div><label style={lbl}>Review Date</label><DatePicker value={f.review_date} onChange={v => u("review_date", v)} /></div>
+        <div><label style={lbl}>Expiry Date</label><DatePicker value={f.expiry_date} onChange={v => u("expiry_date", v)} /></div>
       </div>
-      <div>
-        <label style={lbl}>Expiry Date</label>
-        <DatePicker value={f.expiry_date} onChange={v => setF(p => ({ ...p, expiry_date: v }))}/>
+      <div style={{ marginBottom: 8 }}><label style={lbl}>Extended Notes</label>
+        <textarea style={{ ...inp, height: 140, resize: "vertical", width: "100%", boxSizing: "border-box" }} value={f.extended_notes} onChange={e => u("extended_notes", e.target.value)} placeholder="Paste full medical plan details here..." />
       </div>
-      <div>
-        <label style={lbl}>Notes</label>
-        <input style={inp} value={f.notes} onChange={e => setF(p => ({ ...p, notes: e.target.value }))} placeholder="Optional" />
+      <div style={{ marginBottom: 8 }}><label style={lbl}>Notes</label>
+        <input style={inp} value={f.notes} onChange={e => u("notes", e.target.value)} placeholder="Optional summary" />
       </div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={() => onSave(f)} style={btnP}>Save</button>
-        <button onClick={onClose} style={btnS}>✕</button>
+      <div style={{ marginBottom: 12 }}>
+        <label style={lbl}>Attach Document (PDF or image)</label>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
+          <label style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #DDD6EE", background: "#F8F5FF", color: "#7C3AED", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            {uploading ? "Uploading..." : "Choose File"}
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={e => e.target.files[0] && uploadFile(e.target.files[0])} disabled={uploading} />
+          </label>
+          {f.document_url && <span style={{ fontSize: 11, color: "#2E7D32" }}>Attached <a href={f.document_url} target="_blank" rel="noopener noreferrer" style={{ color: "#7C3AED" }}>Preview</a></span>}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button onClick={onClose} style={btnS}>Cancel</button>
+        <button onClick={() => { if (!f.condition_name) { alert("Condition Name is required"); return; } onSave(f); }} style={btnP}>{initialData ? "Update Plan" : "Save Plan"}</button>
       </div>
     </div>
   );
@@ -1084,7 +1165,7 @@ function ImmunisationTab({ child }) {
   ];
 
   const given = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && r.given);
-  const upcoming = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && (r.due_date || r.next_due_date));
+  const upcoming = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && !r.given && r.due_date);
 
   const addRecord = async (f) => {
     let r;
@@ -1216,18 +1297,14 @@ function PermissionsTab({ child }) {
   ];
 
   const toggle = async (permType, currentVal) => {
-    try {
-      const existing = perms.find(p => p.permission_type === permType);
-      const newVal = currentVal ? 0 : 1;
-      if (existing) {
-        await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: newVal } });
-        setPerms(prev => prev.map(p => p.permission_type === permType ? { ...p, granted: newVal } : p));
-      } else {
-        const r = await API(`/api/children/${child.id}/permissions`, { method: "POST", body: { permission_type: permType, granted: 1 } });
-        if (r && r.id) setPerms(prev => [...prev, { ...r, granted: 1 }]);
-        else setPerms(prev => [...prev, { permission_type: permType, granted: 1 }]);
-      }
-    } catch(e) { toast("Failed to update permission", "error"); }
+    const existing = perms.find(p => p.permission_type === permType);
+    if (existing) {
+      const r = await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: { granted: !currentVal } }).catch(e=>console.error('API error:',e));
+      if (r.id) setPerms(prev => prev.map(p => p.id === r.id ? r : p));
+    } else {
+      const r = await API(`/api/children/${child.id}/permissions`, { method: "POST", body: { permission_type: permType, granted: true } }).catch(e=>console.error('API error:',e));
+      if (r.id) setPerms(p => [...p, r]);
+    }
   };
 
   return (
