@@ -6,9 +6,9 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Railway mounts persistent volume at /app/data, fallback to local data dir
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? process.env.RAILWAY_VOLUME_MOUNT_PATH
+// AWS mounts persistent volume at /app/data, fallback to local data dir
+const DATA_DIR = process.env.DATA_DIR
+  ? process.env.DATA_DIR
   : path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'childcare360.db');
 let db;
@@ -3462,7 +3462,7 @@ function seedDemoData(db) {
     { fn:'Sarah', ln:'Mitchell', email:'sarah.m@sunshinelc.com.au', phone:'0412 345 678', addr:'12 Beach Rd, Cronulla', suburb:'Cronulla', post:'2230', qual:'ect', emp:'permanent', rate:4200, salary:87360, hrs:38, dist:1.2, rel:95, sick:2, late:0, noshow:0, offered:45, accepted:43, fa:1, faExp:'2027-06-15', cpr:'2026-12-01', wwcc:'WWC0012345', wwccExp:'2026-06-15', rooms:'["room-joeys","room-koalas"]', start:'2023-01-15' },
     { fn:'James', ln:'Chen', email:'james.c@sunshinelc.com.au', phone:'0423 456 789', addr:'5 Kingsway, Miranda', suburb:'Miranda', post:'2228', qual:'diploma', emp:'permanent', rate:3800, salary:79040, hrs:38, dist:4.5, rel:88, sick:5, late:2, noshow:0, offered:40, accepted:35, fa:1, faExp:'2026-08-20', cpr:'2026-08-20', wwcc:'WWC0012346', wwccExp:'2026-03-20', rooms:'["room-joeys","room-possums"]', start:'2023-06-01' },
     { fn:'Emily', ln:'Watson', email:'emily.w@sunshinelc.com.au', phone:'0434 567 890', addr:'88 The Esplanade, Cronulla', suburb:'Cronulla', post:'2230', qual:'diploma', emp:'permanent', rate:3800, salary:79040, hrs:38, dist:0.8, rel:92, sick:3, late:1, noshow:0, offered:38, accepted:35, fa:1, faExp:'2026-03-01', cpr:'2026-03-01', wwcc:'WWC0012347', wwccExp:'2025-12-01', rooms:'["room-possums","room-koalas"]', start:'2022-02-01' },
-    { fn:'Priya', ln:'Sharma', email:'priya.s@sunshinelc.com.au', phone:'0445 678 901', addr:'22 Railway Pde, Sutherland', suburb:'Sutherland', post:'2232', qual:'cert3', emp:'permanent', rate:3200, salary:66560, hrs:38, dist:6.0, rel:85, sick:4, late:3, noshow:1, offered:50, accepted:40, fa:1, faExp:'2027-01-10', cpr:'2027-01-10', wwcc:'WWC0012348', wwccExp:'2026-08-10', rooms:'["room-joeys","room-possums"]', start:'2024-01-10' },
+    { fn:'Priya', ln:'Sharma', email:'priya.s@sunshinelc.com.au', phone:'0445 678 901', addr:'22 AWS Pde, Sutherland', suburb:'Sutherland', post:'2232', qual:'cert3', emp:'permanent', rate:3200, salary:66560, hrs:38, dist:6.0, rel:85, sick:4, late:3, noshow:1, offered:50, accepted:40, fa:1, faExp:'2027-01-10', cpr:'2027-01-10', wwcc:'WWC0012348', wwccExp:'2026-08-10', rooms:'["room-joeys","room-possums"]', start:'2024-01-10' },
     { fn:'Tom', ln:'Bradley', email:'tom.b@sunshinelc.com.au', phone:'0456 789 012', addr:'14 Oak St, Engadine', suburb:'Engadine', post:'2233', qual:'cert3', emp:'casual', rate:3500, salary:null, hrs:25, dist:9.5, rel:72, sick:6, late:4, noshow:2, offered:60, accepted:38, fa:0, faExp:null, cpr:null, wwcc:'WWC0012349', wwccExp:'2026-01-30', rooms:'["room-possums","room-koalas","room-kookas"]', start:'2024-06-01' },
     { fn:'Mei', ln:'Lin', email:'mei.l@sunshinelc.com.au', phone:'0467 890 123', addr:'7 Surf Lane, Woolooware', suburb:'Woolooware', post:'2230', qual:'ect', emp:'permanent', rate:4200, salary:87360, hrs:38, dist:1.8, rel:97, sick:1, late:0, noshow:0, offered:30, accepted:30, fa:1, faExp:'2027-08-28', cpr:'2027-02-28', wwcc:'WWC0012350', wwccExp:'2027-02-28', rooms:'["room-koalas"]', start:'2022-08-15' },
     { fn:'Alex', ln:'Nguyen', email:'alex.n@sunshinelc.com.au', phone:'0478 901 234', addr:'3 School Pde, Gymea', suburb:'Gymea', post:'2227', qual:'working_towards', emp:'casual', rate:2900, salary:null, hrs:20, dist:5.2, rel:65, sick:8, late:5, noshow:3, offered:35, accepted:18, fa:1, faExp:'2026-11-15', cpr:'2026-11-15', wwcc:'WWC0012351', wwccExp:'2026-05-15', rooms:'["room-kookas"]', start:'2025-01-20', u18:1 },

@@ -40,7 +40,7 @@ function getCentreName(tenantId) {
 }
 
 function getBase() {
-  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
   return process.env.PUBLIC_URL || '';
 }
 
@@ -65,7 +65,7 @@ async function getTwilioClient(settings) {
 import { mkdirSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
+const DATA_DIR = process.env.DATA_DIR || '/data';
 const TTS_DIR  = DATA_DIR + '/tts_cache';
 
 async function elevenLabsTTS(text, apiKey, voiceId) {

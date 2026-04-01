@@ -697,7 +697,7 @@ function TestCallTab() {
         {[
           ['Call not ringing?', 'Check your Twilio phone number has credit and is in the correct format (+61xxxxxxxxx)'],
           ['Auth error?', 'Verify your Account SID and Auth Token in Settings tab'],
-          ['Webhook error?', 'Make sure PUBLIC_URL env var is set to your Railway domain in Railway Variables'],
+          ['Webhook error?', 'Make sure PUBLIC_URL env var is set to your AWS domain in AWS Variables'],
           ['No speech recognition?', 'Twilio Speech Recognition works best in quiet environments'],
         ].map(([q,a]) => (
           <div key={q} style={{ marginBottom: 8 }}>
@@ -952,7 +952,7 @@ function SetupGuide() {
             <li>Set method to <strong>HTTP POST</strong></li>
             <li>Click <strong>Save</strong></li>
           </ol>
-          <Warn>Make sure your Railway app is deployed and PUBLIC_URL is set before doing this step.</Warn>
+          <Warn>Make sure your AWS app is deployed and PUBLIC_URL is set before doing this step.</Warn>
         </div>
       )
     },
@@ -973,17 +973,17 @@ function SetupGuide() {
       )
     },
     {
-      n: 5, title: 'Set PUBLIC_URL in Railway',
+      n: 5, title: 'Set PUBLIC_URL in AWS',
       content: (
         <div>
           <p>The voice agent needs to know its own URL so Twilio webhooks work correctly.</p>
           <ol style={{ paddingLeft: 20, lineHeight: 2 }}>
-            <li>In Railway → your service → <strong>Variables</strong> tab</li>
+            <li>In AWS → your service → <strong>Variables</strong> tab</li>
             <li>Add variable: <code style={{ background: '#F3EFF8', padding: '2px 6px', borderRadius: 4 }}>PUBLIC_URL</code></li>
-            <li>Value: your Railway URL e.g. <code style={{ background: '#F3EFF8', padding: '2px 6px', borderRadius: 4 }}>https://brave-playfulness.up.railway.app</code></li>
-            <li>Click <strong>Add</strong> — Railway will redeploy</li>
+            <li>Value: your AWS URL e.g. <code style={{ background: '#F3EFF8', padding: '2px 6px', borderRadius: 4 }}>https://brave-playfulness.up.yourapp.com</code></li>
+            <li>Click <strong>Add</strong> — AWS will redeploy</li>
           </ol>
-          <Tip>Find your URL in Railway → your service → Settings → Domains. It looks like brave-playfulness.up.railway.app</Tip>
+          <Tip>Find your URL in AWS → your service → Settings → Domains. It looks like brave-playfulness.up.yourapp.com</Tip>
         </div>
       )
     },
@@ -1025,7 +1025,7 @@ function SetupGuide() {
   return (
     <div style={{ padding: 24, maxWidth: 740 }}>
       <div style={{ background: '#F0EBF8', borderRadius: 12, padding: '14px 18px', marginBottom: 24, fontSize: 13, color: '#5C4E6A' }}>
-        <strong>⏱️ Setup time: ~20 minutes.</strong> You need a Twilio account (free trial works) and your app deployed on Railway.
+        <strong>⏱️ Setup time: ~20 minutes.</strong> You need a Twilio account (free trial works) and your app deployed on AWS.
       </div>
       {steps.map(s => (
         <div key={s.n} style={{ marginBottom: 12, border: `1px solid ${open === s.n ? '#8B6DAF' : '#E8E0F0'}`, borderRadius: 14, overflow: 'hidden' }}>

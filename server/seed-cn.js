@@ -10,9 +10,9 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import path from 'path';
 
-// Match db.js path exactly — use Railway volume mount or local data dir
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? process.env.RAILWAY_VOLUME_MOUNT_PATH
+// Match db.js path exactly — use AWS volume mount or local data dir
+const DATA_DIR = process.env.DATA_DIR
+  ? process.env.DATA_DIR
   : path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'childcare360.db');
 console.log('  DB path:', DB_PATH);

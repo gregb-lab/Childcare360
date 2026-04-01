@@ -45,7 +45,7 @@ function getSettings(tenantId) {
 }
 
 function getBase() {
-  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
   if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
   // Fallback for local development — avoids generating ws:///... (invalid URL)
   const port = process.env.PORT || 3003;

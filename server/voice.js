@@ -12,7 +12,7 @@ import { requireAuth, requireTenant, requireRole } from './middleware.js';
 const router   = Router();
 const webhooks = Router();
 
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
+const DATA_DIR = process.env.DATA_DIR || '/data';
 const TTS_CACHE_DIR = DATA_DIR + '/tts_cache';
 
 // ── DEVELOPMENT SAFETY OVERRIDE ──────────────────────────────────────────────
@@ -31,10 +31,10 @@ function safeNumber(intended) {
 // ─── Core helpers ─────────────────────────────────────────────────────────────
 
 function getBase() {
-  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
   if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
-  // Auto-detect from Railway internal domain
-  if (process.env.RAILWAY_STATIC_URL) return process.env.RAILWAY_STATIC_URL.replace(/\/+$/, '');
+  // Auto-detect from AWS internal domain
+  if (process.env.APP_DOMAIN) return process.env.APP_DOMAIN.replace(/\/+$/, '');
   return '';
 }
 
@@ -501,8 +501,8 @@ router.get('/debug', requireAuth, requireTenant, (req, res) => {
   const base = getBase();
   res.json({
     base,
-    RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || null,
-    RAILWAY_STATIC_URL: process.env.RAILWAY_STATIC_URL || null,
+    APP_DOMAIN: process.env.APP_DOMAIN || null,
+    APP_DOMAIN: process.env.APP_DOMAIN || null,
     PUBLIC_URL: process.env.PUBLIC_URL || null,
     voice_active: settings?.active,
     twilio_configured: !!(settings?.twilio_account_sid),
@@ -1004,7 +1004,7 @@ async function retellFetch(path, method, body, apiKey) {
 }
 
 function getPublicBase() {
-  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
   if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
   return '';
 }

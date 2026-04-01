@@ -66,7 +66,7 @@ import ratioReportRouter from './ratio-report.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Log all unhandled errors so they appear in Railway logs
+// Log all unhandled errors so they appear in AWS logs
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[UNHANDLED REJECTION]', reason?.message || reason);
 });
@@ -77,9 +77,9 @@ const PORT = process.env.PORT || 3003;
 const isProd = process.env.NODE_ENV === 'production';
 
 // Ensure uploads directory exists
-// Use Railway volume for uploads if available
-const uploadsDir = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'uploads')
+// Use AWS volume for uploads if available
+const uploadsDir = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, 'uploads')
   : path.join(__dirname, '..', 'uploads');
 if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
 
