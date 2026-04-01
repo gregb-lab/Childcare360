@@ -577,6 +577,8 @@ function NQFComplianceTimeline({ dayEntries, rooms }) {
 // Drag educator from left onto room on right to assign shift
 function SmartRosterBuilder({ period, entries, educators, rooms, allDates, onDelete, onReload, onEditShift }) {
   const [selDay, setSelDay] = React.useState(allDates[0] || null);
+  // Keep selDay in sync if allDates changes (period loaded after mount)
+  React.useEffect(()=>{ if(!selDay && allDates.length>0) setSelDay(allDates[0]); },[allDates.length]);
   const [selRoomId, setSelRoomId] = React.useState(null);
   const [dragging, setDragging] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
@@ -1395,6 +1397,13 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload 
     API("/api/rooms").then(r=>{ if(Array.isArray(r)) setRooms(r.map(rm=>({...rm, ageGroup: rm.age_group||rm.ageGroup}))); }).catch(()=>{});
   },[]);
 
+  // Auto-select first date when switching to day-based views
+  useEffect(()=>{
+    if((viewMode==="gantt"||viewMode==="grid")&&!selDay&&allDates.length>0){
+      setSelDay(allDates[0]);
+    }
+  },[viewMode,allDates.length]);
+
   // Listen for reload events from DragRosterGrid
   useEffect(()=>{
     const handler = (e) => { if(e.detail?.period_id) loadP(e.detail.period_id); };
@@ -1846,7 +1855,9 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload 
                         <div style={{minWidth:700}}>
                           <GanttTimeline/>
                           {ganttRows.length===0 ? (
-                            <div style={{padding:40,textAlign:"center",color:"#A89DB5"}}>No shifts on this day</div>
+                            <div style={{padding:40,textAlign:"center",color:"#A89DB5"}}>
+                              {entries.length>0 ? "No shifts on "+fmtDate(activeDay) : "No shifts in this roster period"}
+                            </div>
                           ) : ganttRows.map((row,i)=>(
                             <GanttRow key={row.name+i} label={row.name} sublabel={row.qual?Q[row.qual]?.s:undefined} entries={row.entries} qColors={qColors} onDelete={delEntry} onEdit={setEditShift} highlight={i%2===0}/>
                           ))}
@@ -1864,16 +1875,18 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload 
               )}
 
               {/* GRID VIEW */}
-              {viewMode==="grid"&&activeDay&&(
+              {viewMode==="grid"&&(activeDay||allDates[0])&&(
                 <div>
                   <div style={{display:"flex",gap:3,marginBottom:8,overflowX:"auto",flexWrap:"nowrap"}}>
                     {allDates.map(date=>{const d=new Date(date+"T12:00:00");const isActive=activeDay===date;return(<button key={date} onClick={()=>setSelDay(date)} style={{flexShrink:0,padding:"4px 10px",borderRadius:8,border:isActive?"2px solid #8B6DAF":"1px solid #EDE8F4",background:isActive?"#8B6DAF":"#fff",color:isActive?"#fff":"#555",cursor:"pointer",fontSize:10,fontWeight:isActive?700:500}}>{DAYS[d.getDay()]} {d.getDate()}</button>);})}
                   </div>
                   <div style={card}>
-                    <div style={{fontWeight:700,fontSize:13,color:"#3D3248",marginBottom:12}}>📋 {fmtDate(activeDay)}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:"#3D3248",marginBottom:12}}>📋 {fmtDate(activeDay||allDates[0])}</div>
                     {(()=>{
+                      const _gridDay=activeDay||allDates[0];
+                      const _gridEntries=entries.filter(e=>e.date===_gridDay);
                       const byRoom={};
-                      dayEntries.forEach(e=>{const rn=e.room_name||"Unassigned";if(!byRoom[rn])byRoom[rn]=[];byRoom[rn].push(e);});
+                      _gridEntries.forEach(e=>{const rn=e.room_name||"Unassigned";if(!byRoom[rn])byRoom[rn]=[];byRoom[rn].push(e);});
                       return Object.entries(byRoom).map(([room,re])=>{
                         const hasECT=re.some(e=>e.qualification==="ect"||e.qualification==="diploma");
                         return (
