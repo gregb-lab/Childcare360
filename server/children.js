@@ -586,6 +586,46 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// PUT /:id/medical-plans/:pid
+router.put('/:id/medical-plans/:pid', requireAuth, requireTenant, (req, res) => {
+  try {
+    const b = req.body;
+    D().prepare("UPDATE medical_plans SET condition_name=COALESCE(?,condition_name), severity=COALESCE(?,severity), triggers=COALESCE(?,triggers), symptoms=COALESCE(?,symptoms), action_steps=COALESCE(?,action_steps), doctor_name=COALESCE(?,doctor_name), doctor_phone=COALESCE(?,doctor_phone), review_date=COALESCE(?,review_date), expiry_date=COALESCE(?,expiry_date), extended_notes=COALESCE(?,extended_notes), notes=COALESCE(?,notes), document_url=COALESCE(?,document_url), updated_at=datetime('now') WHERE id=? AND child_id=? AND tenant_id=?")
+      .run(b.condition_name||null, b.severity||null, b.triggers||null, b.symptoms||null, b.action_steps||null, b.doctor_name||null, b.doctor_phone||null, b.review_date||null, b.expiry_date||null, b.extended_notes||null, b.notes||null, b.document_url||null, req.params.pid, req.params.id, req.tenantId);
+    const row = D().prepare('SELECT * FROM medical_plans WHERE id=? AND tenant_id=?').get(req.params.pid, req.tenantId);
+    res.json(row || { ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /:id/upload
+router.post('/:id/upload', requireAuth, requireTenant, async (req, res) => {
+  try {
+    const { default: busboy } = await import('busboy');
+    const { randomUUID } = await import('crypto');
+    const { default: pathMod } = await import('path');
+    const { default: fsMod } = await import('fs');
+    const bb = busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
+    let savedUrl = null;
+    bb.on('file', (name, file, info) => {
+      const ext = pathMod.extname(info.filename || '.pdf').toLowerCase() || '.pdf';
+      const fname = 'child_' + req.params.id + '_' + randomUUID() + ext;
+      const uploadsDir = process.env.DATA_DIR
+        ? pathMod.join(process.env.DATA_DIR, 'uploads')
+        : pathMod.join(process.cwd(), 'uploads');
+      fsMod.mkdirSync(uploadsDir, { recursive: true });
+      const stream = fsMod.createWriteStream(pathMod.join(uploadsDir, fname));
+      file.pipe(stream);
+      stream.on('finish', () => { savedUrl = '/uploads/' + fname; });
+    });
+    bb.on('finish', () => {
+      if (savedUrl) res.json({ url: savedUrl, ok: true });
+      else res.status(400).json({ error: 'No file received' });
+    });
+    bb.on('error', (e) => res.status(500).json({ error: e.message }));
+    req.pipe(bb);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /:id/ccs
 router.get('/:id/ccs', (req, res) => {
   try {
