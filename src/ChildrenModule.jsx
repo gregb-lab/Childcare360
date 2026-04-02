@@ -1168,93 +1168,171 @@ function ParentalRequestForm({ childId, onSaved, onClose }) {
 function ImmunisationTab({ child }) {
   const [records, setRecords] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [addVaccine, setAddVaccine] = useState('');
+  const [addCustom, setAddCustom] = useState('');
+  const [addDate, setAddDate] = useState('');
+  const [addBatch, setAddBatch] = useState('');
+  const [addProvider, setAddProvider] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    API(`/api/children/${child.id}/immunisations`).then(r => { if (Array.isArray(r)) setRecords(r); }).catch(() => {});
-  }, [child.id]);
+  const load = () => API(`/api/children/${child.id}/immunisations`).then(r => { if (Array.isArray(r)) setRecords(r); }).catch(() => {});
+  useEffect(() => { load(); }, [child.id]);
 
   const SCHEDULE = [
     { age: "Birth", vaccines: ["Hepatitis B"] },
-    { age: "2 months", vaccines: ["Hep B","Rotavirus","DTaP","Hib","IPV","PCV13"] },
-    { age: "4 months", vaccines: ["Rotavirus","DTaP","Hib","IPV","PCV13"] },
-    { age: "6 months", vaccines: ["Hep B","Rotavirus","DTaP","Hib","IPV","Influenza"] },
-    { age: "12 months", vaccines: ["MMR","Varicella","PCV13","Hep A"] },
-    { age: "15 months", vaccines: ["Hib","PCV13","DTaP"] },
-    { age: "18 months", vaccines: ["Hep A","Influenza"] },
-    { age: "2 years", vaccines: ["Influenza"] },
-    { age: "4–6 years", vaccines: ["DTaP","IPV","MMR","Varicella","Influenza"] },
+    { age: "2 months", vaccines: ["Hep B", "Rotavirus", "DTaP", "Hib", "IPV", "PCV13"] },
+    { age: "4 months", vaccines: ["Rotavirus", "DTaP", "Hib", "IPV", "PCV13"] },
+    { age: "6 months", vaccines: ["Hep B", "DTaP", "Hib", "IPV", "PCV13", "Influenza"] },
+    { age: "12 months", vaccines: ["MMR", "Meningococcal ACWY", "PCV13"] },
+    { age: "18 months", vaccines: ["Varicella", "MMR", "Hep A", "DTaP", "Hib"] },
+    { age: "4 years", vaccines: ["DTaP", "IPV", "MMR", "Varicella"] },
+    { age: "Annual", vaccines: ["Influenza"] },
   ];
 
-  const given = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && r.given);
-  const upcoming = (vaccine) => records.some(r => r.vaccine_name?.toLowerCase().includes(vaccine.toLowerCase()) && !r.given && r.due_date);
+  const isGiven = (vaccine) => records.some(r => r.vaccine_name && r.vaccine_name.toLowerCase().includes(vaccine.toLowerCase()));
 
-  const addRecord = async (f) => {
-    let r;
-    try { r = await API(`/api/children/${child.id}/immunisations`, { method: "POST", body: f }); if(r.error){alert(r.error);return;} }
-    catch(e) { toast("Failed to save immunisation.", "error"); return; }
-    if (r.id) { setRecords(p => [...p, r]); setShowAdd(false); }
+  const handleBadgeClick = (vaccine) => {
+    if (isGiven(vaccine)) return;
+    setAddVaccine(vaccine);
+    setAddCustom('');
+    setAddDate(new Date().toISOString().split('T')[0]);
+    setAddBatch('');
+    setAddProvider('');
+    setShowAdd(true);
+  };
+
+  const handleAddOther = () => {
+    setAddVaccine('other');
+    setAddCustom('');
+    setAddDate(new Date().toISOString().split('T')[0]);
+    setAddBatch('');
+    setAddProvider('');
+    setShowAdd(true);
+  };
+
+  const saveRecord = async () => {
+    const vName = addVaccine === 'other' ? addCustom.trim() : addVaccine;
+    if (!vName) { alert('Please enter a vaccine name'); return; }
+    if (!addDate) { alert('Please enter the date given'); return; }
+    setSaving(true);
+    try {
+      const r = await API(`/api/children/${child.id}/immunisations`, {
+        method: 'POST',
+        body: { vaccine_name: vName, date_given: addDate, given_date: addDate, batch_number: addBatch || null, provider: addProvider || null, status: 'given' }
+      });
+      if (r && r.error) { alert(r.error); setSaving(false); return; }
+      await load();
+      setShowAdd(false);
+      setAddVaccine('');
+    } catch(e) { alert('Failed to save: ' + e.message); }
+    setSaving(false);
+  };
+
+  const deleteRecord = async (id) => {
+    if (!confirm('Delete this immunisation record?')) return;
+    await API(`/api/children/${child.id}/immunisations/${id}`, { method: 'DELETE' }).catch(() => {});
+    setRecords(p => p.filter(r => r.id !== id));
   };
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>💉 Immunisation Schedule & Records</h4>
-          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#8A7F96" }}>National Immunisation Program schedule — automatic reminders sent to family 30 days before due</p>
-        </div>
-        <button onClick={() => setShowAdd(true)} style={btnS}>+ Add Record</button>
+      <div style={{ marginBottom: 16 }}>
+        <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700 }}>💉 Immunisation Schedule</h4>
+        <p style={{ margin: 0, fontSize: 11, color: '#8A7F96' }}>Australian National Immunisation Program (ATAGI) — click any vaccine to record it as given</p>
       </div>
 
-      {/* Schedule overview */}
-      <div style={card}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700 }}>NIP Schedule Overview</h4>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {SCHEDULE.map(s => (
-            <div key={s.age} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <div style={{ width: 90, fontSize: 11, fontWeight: 700, color: "#5C4E6A", flexShrink: 0, paddingTop: 4 }}>{s.age}</div>
-              <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {s.vaccines.map(v => {
-                  const done = given(v), due = upcoming(v);
-                  return (
-                    <span key={v} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 600,
-                      background: done ? "#E8F5E9" : due ? "#FFF3E0" : "#F5F5F5",
-                      color: done ? "#2E7D32" : due ? "#E65100" : "#8A7F96",
-                      border: `1px solid ${done ? "#A5D6A7" : due ? "#FFCC80" : "#E0E0E0"}` }}>
-                      {done ? "✓" : due ? "⏰" : ""} {v}
-                    </span>
-                  );
-                })}
-              </div>
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #EDE8F4', padding: 16, marginBottom: 16 }}>
+        {SCHEDULE.map(s => (
+          <div key={s.age} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+            <div style={{ width: 80, fontSize: 11, fontWeight: 700, color: '#5C4E6A', flexShrink: 0, paddingTop: 5 }}>{s.age}</div>
+            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {s.vaccines.map(v => {
+                const given = isGiven(v);
+                return (
+                  <button key={v} onClick={() => handleBadgeClick(v)}
+                    style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, fontWeight: 600,
+                      cursor: given ? 'default' : 'pointer',
+                      background: given ? '#E8F5E9' : '#F5F5F5',
+                      color: given ? '#2E7D32' : '#8A7F96',
+                      border: '1px solid ' + (given ? '#A5D6A7' : '#E0E0E0') }}>
+                    {given ? '✓ ' : ''}{v}
+                  </button>
+                );
+              })}
             </div>
-          ))}
+          </div>
+        ))}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <button onClick={handleAddOther}
+            style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, fontWeight: 600, cursor: 'pointer',
+              background: '#F5F0FB', color: '#7C3AED', border: '1px dashed #7C3AED' }}>
+            + Other vaccine
+          </button>
         </div>
       </div>
 
-      {/* Records table */}
+      {showAdd && (
+        <div style={{ background: '#F8F5FF', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid #DDD6EE' }}>
+          <h5 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700 }}>
+            Record: {addVaccine === 'other' ? 'Custom Vaccine' : addVaccine}
+          </h5>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+            {addVaccine === 'other' && (
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#5C4E6A', display: 'block', marginBottom: 4 }}>Vaccine Name *</label>
+                <input style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #DDD6EE', fontSize: 13, boxSizing: 'border-box' }}
+                  value={addCustom} onChange={e => setAddCustom(e.target.value)} placeholder="Enter vaccine name" autoFocus />
+              </div>
+            )}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#5C4E6A', display: 'block', marginBottom: 4 }}>Date Given *</label>
+              <input type="date" style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #DDD6EE', fontSize: 13, boxSizing: 'border-box' }}
+                value={addDate} onChange={e => setAddDate(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#5C4E6A', display: 'block', marginBottom: 4 }}>Batch Number</label>
+              <input style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #DDD6EE', fontSize: 13, boxSizing: 'border-box' }}
+                value={addBatch} onChange={e => setAddBatch(e.target.value)} placeholder="Optional" />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#5C4E6A', display: 'block', marginBottom: 4 }}>Provider</label>
+              <input style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #DDD6EE', fontSize: 13, boxSizing: 'border-box' }}
+                value={addProvider} onChange={e => setAddProvider(e.target.value)} placeholder="e.g. GP, council clinic" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowAdd(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #DDD6EE', background: '#fff', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+            <button onClick={saveRecord} disabled={saving}
+              style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#7C3AED', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, opacity: saving ? 0.6 : 1 }}>
+              {saving ? 'Saving…' : 'Save Record'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {records.length > 0 && (
-        <div style={card}>
-          <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700 }}>Recorded Immunisations</h4>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #EDE8F4', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid #EDE8F4', fontWeight: 700, fontSize: 12, color: '#5C4E6A' }}>
+            Recorded Immunisations ({records.length})
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #EDE8F4" }}>
-                {["Vaccine","Given Date","Due Date","Batch #","Provider","Status"].map(h => (
-                  <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontSize: 10, color: "#8A7F96", fontWeight: 700, textTransform: "uppercase" }}>{h}</th>
+              <tr style={{ background: '#FAFAFA' }}>
+                {['Vaccine', 'Date Given', 'Batch', 'Provider', ''].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#8A7F96', borderBottom: '1px solid #F0EBF8' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {records.map(r => (
-                <tr key={r.id} style={{ borderBottom: "1px solid #F5F0FB" }}>
-                  <td style={{ padding: "7px 10px", fontWeight: 700, color: "#3D3248" }}>{r.vaccine_name}</td>
-                  <td style={{ padding: "7px 10px" }}>{fmtDate(r.given_date || r.date_given)}</td>
-                  <td style={{ padding: "7px 10px", color: r.due_date && new Date(r.due_date) < new Date() && !r.given ? "#B71C1C" : "#3D3248" }}>{fmtDate(r.due_date)}</td>
-                  <td style={{ padding: "7px 10px" }}>{r.batch_number || "—"}</td>
-                  <td style={{ padding: "7px 10px" }}>{r.provider || "—"}</td>
-                  <td style={{ padding: "7px 10px" }}>
-                    <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700,
-                      background: r.given ? "#E8F5E9" : "#FFF3E0", color: r.given ? "#2E7D32" : "#E65100" }}>
-                      {r.given ? "Given" : "Due"}
-                    </span>
+                <tr key={r.id} style={{ borderBottom: '1px solid #F5F0FB' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 600, fontSize: 12 }}>{r.vaccine_name}</td>
+                  <td style={{ padding: '8px 12px', fontSize: 12 }}>{r.date_given || r.given_date || '—'}</td>
+                  <td style={{ padding: '8px 12px', fontSize: 12, color: '#8A7F96' }}>{r.batch_number || '—'}</td>
+                  <td style={{ padding: '8px 12px', fontSize: 12, color: '#8A7F96' }}>{r.provider || '—'}</td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <button onClick={() => deleteRecord(r.id)}
+                      style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -1262,37 +1340,6 @@ function ImmunisationTab({ child }) {
           </table>
         </div>
       )}
-
-      {showAdd && (
-        <div style={{ ...card, background: lp }}>
-          <ImmunisationForm onSave={addRecord} onClose={() => setShowAdd(false)} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ImmunisationForm({ onSave, onClose }) {
-  const [f, setF] = useState({ vaccine_name: "", given: true, given_date: "", due_date: "", batch_number: "", provider: "", notes: "" });
-  return (
-    <div>
-      <h4 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700 }}>Add Immunisation Record</h4>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-        <div><label style={lbl}>Vaccine Name</label><input style={inp} value={f.vaccine_name} onChange={e => setF(p => ({ ...p, vaccine_name: e.target.value }))} /></div>
-        <div><label style={lbl}>Given Date</label><DatePicker value={f.given_date} onChange={v => setF(p => ({ ...p, given_date: v }))}/></div>
-        <div><label style={lbl}>Due Date</label><DatePicker value={f.due_date} onChange={v => setF(p => ({ ...p, due_date: v }))}/></div>
-        <div><label style={lbl}>Batch #</label><input style={inp} value={f.batch_number} onChange={e => setF(p => ({ ...p, batch_number: e.target.value }))} /></div>
-        <div><label style={lbl}>Provider</label><input style={inp} value={f.provider} onChange={e => setF(p => ({ ...p, provider: e.target.value }))} /></div>
-        <div style={{ display: "flex", alignItems: "center", paddingTop: 18 }}>
-          <label style={{ fontSize: 12, display: "flex", gap: 6, cursor: "pointer" }}>
-            <input type="checkbox" checked={f.given} onChange={e => setF(p => ({ ...p, given: e.target.checked }))} /> Already given
-          </label>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button onClick={onClose} style={btnS}>Cancel</button>
-        <button onClick={() => onSave(f)} style={btnP}>Save Record</button>
-      </div>
     </div>
   );
 }

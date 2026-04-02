@@ -71,7 +71,8 @@ export function RosteringModule() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const loadPeriod = async id => { try { const d = await API("/api/rostering/periods/" + id); if (d && !d.error) setSelPeriod(d); else console.error("loadPeriod error:", d?.error); } catch(e) { console.error("loadPeriod:", e.message); } };
+  const loadPeriod = async id => { try { const d = await API("/api/rostering/periods/" + id); if (d && !d.error) { setSelPeriod(d); localStorage.setItem('c360_last_period_id', id); } else console.error("loadPeriod error:", d?.error); } catch(e) { console.error("loadPeriod:", e.message); } };
+  useEffect(() => { const lastId = localStorage.getItem('c360_last_period_id'); if (lastId) loadPeriod(lastId); }, []);
   const loadEd = async id => { try { const d = await API("/api/rostering/educators/" + id); setSelEd(d); } catch(e) {} };
 
   const pendingCount = data.proposals.filter(p => p.status === "pending").length;
@@ -80,7 +81,6 @@ export function RosteringModule() {
     { id: "roster", l: "Roster", i: "📅" }, { id: "timesheet", l: "Timesheet", i: "🕐" },
     { id: "sickcover", l: "Sick Cover", i: "📱" }, { id: "patterns", l: "Patterns", i: "📈" },
     { id: "proposals", l: "Changes", i: "🔔", b: pendingCount },
-    { id: "settings", l: "Settings", i: "⚙️" },
     { id: "reports", l: "Reports", i: "📄" },
   ];
 
