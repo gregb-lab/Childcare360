@@ -1219,4 +1219,89 @@ Centre Management`;
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ SETTINGS ═══════════════════════════════════════════════════════════════
+r.get('/settings', (req, res) => {
+  try {
+    D().prepare('CREATE TABLE IF NOT EXISTS rostering_settings (id TEXT PRIMARY KEY, tenant_id TEXT UNIQUE, operating_days TEXT, open_time TEXT, close_time TEXT, default_period_type TEXT, default_break_mins INTEGER DEFAULT 30, created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    let s = D().prepare('SELECT * FROM rostering_settings WHERE tenant_id=?').get(req.tenantId);
+    if (!s) s = { operating_days: '[1,2,3,4,5]', open_time: '07:00', close_time: '18:30', default_period_type: 'weekly', default_break_mins: 30 };
+    s.operating_days = JSON.parse(s.operating_days || '[1,2,3,4,5]');
+    res.json(s);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.put('/settings', (req, res) => {
+  try {
+    const { operating_days, open_time, close_time, default_period_type, default_break_mins } = req.body;
+    const id = uuid();
+    D().prepare('INSERT OR REPLACE INTO rostering_settings (id,tenant_id,operating_days,open_time,close_time,default_period_type,default_break_mins) VALUES(?,?,?,?,?,?,?)')
+      .run(id, req.tenantId, JSON.stringify(operating_days||[1,2,3,4,5]), open_time||'07:00', close_time||'18:30', default_period_type||'weekly', default_break_mins||30);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ DAY ROSTER ═════════════════════════════════════════════════════════════
+r.get('/day-roster', (req, res) => {
+  try {
+    const { period_id, date } = req.query;
+    D().prepare('CREATE TABLE IF NOT EXISTS educator_room_preferences (id TEXT PRIMARY KEY, tenant_id TEXT, educator_id TEXT, room_id TEXT, preference_level INTEGER DEFAULT 1, set_by TEXT, created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    const entries = D().prepare(`
+      SELECT re.*, e.first_name || ' ' || e.last_name as educator_name,
+        e.qualification, e.hourly_rate_cents, e.reliability_score,
+        r.name as room_name, r.age_group, r.current_children,
+        erp.id as has_preference
+      FROM roster_entries re
+      JOIN educators e ON e.id = re.educator_id
+      LEFT JOIN rooms r ON r.id = re.room_id
+      LEFT JOIN educator_room_preferences erp ON erp.educator_id = re.educator_id AND erp.room_id = re.room_id AND erp.tenant_id = re.tenant_id
+      WHERE re.period_id=? AND re.date=? AND re.tenant_id=?
+      ORDER BY re.start_time
+    `).all(period_id, date, req.tenantId);
+
+    const rooms = D().prepare("SELECT * FROM rooms WHERE tenant_id=? ORDER BY name").all(req.tenantId);
+
+    const dow = new Date(date + 'T12:00:00').getDay();
+    const availableEds = D().prepare(`
+      SELECT e.*, ea.available, ea.start_time as avail_start, ea.end_time as avail_end
+      FROM educators e
+      LEFT JOIN educator_availability ea ON ea.educator_id=e.id AND ea.day_of_week=?
+      WHERE e.tenant_id=? AND e.status='active'
+      ORDER BY e.reliability_score DESC
+    `).all(dow, req.tenantId);
+
+    // Add preferences to each educator
+    availableEds.forEach(ed => {
+      const prefs = D().prepare('SELECT room_id FROM educator_room_preferences WHERE educator_id=? AND tenant_id=?').all(ed.id, req.tenantId);
+      ed.preferred_rooms = prefs.map(p => p.room_id);
+    });
+
+    res.json({ entries, rooms, available_educators: availableEds });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ EDUCATOR ROOM PREFERENCES ═════════════════════════════════════════════
+r.get('/educator-preferences/:educatorId', (req, res) => {
+  try {
+    D().prepare('CREATE TABLE IF NOT EXISTS educator_room_preferences (id TEXT PRIMARY KEY, tenant_id TEXT, educator_id TEXT, room_id TEXT, preference_level INTEGER DEFAULT 1, set_by TEXT, created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    const rows = D().prepare('SELECT * FROM educator_room_preferences WHERE educator_id=? AND tenant_id=?').all(req.params.educatorId, req.tenantId);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.post('/educator-preferences', (req, res) => {
+  try {
+    D().prepare('CREATE TABLE IF NOT EXISTS educator_room_preferences (id TEXT PRIMARY KEY, tenant_id TEXT, educator_id TEXT, room_id TEXT, preference_level INTEGER DEFAULT 1, set_by TEXT, created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    const { educator_id, room_id } = req.body;
+    const existing = D().prepare('SELECT id FROM educator_room_preferences WHERE educator_id=? AND room_id=? AND tenant_id=?').get(educator_id, room_id, req.tenantId);
+    if (existing) {
+      D().prepare('DELETE FROM educator_room_preferences WHERE id=?').run(existing.id);
+      res.json({ removed: true });
+    } else {
+      const id = uuid();
+      D().prepare('INSERT INTO educator_room_preferences (id,tenant_id,educator_id,room_id,preference_level,set_by) VALUES(?,?,?,?,1,?)').run(id, req.tenantId, educator_id, room_id, 'manager');
+      res.json({ id, added: true });
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default r;

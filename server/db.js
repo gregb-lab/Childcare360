@@ -3322,6 +3322,10 @@ export function initDatabase() {
     'ALTER TABLE voice_settings ADD COLUMN retell_agent_id TEXT',
     'ALTER TABLE voice_settings ADD COLUMN retell_phone_number_id TEXT',
     'ALTER TABLE voice_settings ADD COLUMN retell_llm_id TEXT',
+    'CREATE TABLE IF NOT EXISTS educator_room_preferences (id TEXT PRIMARY KEY, tenant_id TEXT, educator_id TEXT, room_id TEXT, preference_level INTEGER DEFAULT 1, set_by TEXT, created_at TEXT DEFAULT (datetime(\'now\')))',
+    'CREATE TABLE IF NOT EXISTS rostering_settings (id TEXT PRIMARY KEY, tenant_id TEXT UNIQUE, operating_days TEXT DEFAULT \'[1,2,3,4,5]\', open_time TEXT DEFAULT \'07:00\', close_time TEXT DEFAULT \'18:30\', default_period_type TEXT DEFAULT \'weekly\', default_break_mins INTEGER DEFAULT 30, created_at TEXT DEFAULT (datetime(\'now\')))',
+    'ALTER TABLE roster_periods ADD COLUMN is_special INTEGER DEFAULT 0',
+    'ALTER TABLE roster_periods ADD COLUMN special_notes TEXT',
   ].forEach(sql => { try { db.exec(sql); } catch(e) {} });
 
   seedDemoData(db);
@@ -5660,5 +5664,9 @@ function initLearningTables(db) {
     'ALTER TABLE waitlist ADD COLUMN offer_date TEXT',
     // shift_fill_requests
     'ALTER TABLE shift_fill_requests ADD COLUMN escalation_time TEXT',
+    'CREATE TABLE IF NOT EXISTS educator_room_preferences (id TEXT PRIMARY KEY, tenant_id TEXT, educator_id TEXT, room_id TEXT, preference_level INTEGER DEFAULT 1, set_by TEXT, created_at TEXT DEFAULT (datetime(\'now\')))',
+    'CREATE TABLE IF NOT EXISTS rostering_settings (id TEXT PRIMARY KEY, tenant_id TEXT UNIQUE, operating_days TEXT DEFAULT \'[1,2,3,4,5]\', open_time TEXT DEFAULT \'07:00\', close_time TEXT DEFAULT \'18:30\', default_period_type TEXT DEFAULT \'weekly\', default_break_mins INTEGER DEFAULT 30, created_at TEXT DEFAULT (datetime(\'now\')))',
+    'ALTER TABLE roster_periods ADD COLUMN is_special INTEGER DEFAULT 0',
+    'ALTER TABLE roster_periods ADD COLUMN special_notes TEXT',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

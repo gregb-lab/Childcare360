@@ -41,12 +41,13 @@ const GANTT_START = 360, GANTT_END = 1140, GANTT_SPAN = GANTT_END - GANTT_START;
 const pct = m => Math.max(0, Math.min(100, (m - GANTT_START) / GANTT_SPAN * 100));
 
 export function RosteringModule() {
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState("roster");
   const [fullscreen, setFullscreen] = useState(false);
   const [data, setData] = useState({ stats: null, educators: [], periods: [], fills: [], config: null, proposals: [], templates: [] });
   const [selPeriod, setSelPeriod] = useState(null);
   const [selEd, setSelEd] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState({ operating_days: [1,2,3,4,5], open_time: "07:00", close_time: "18:30", default_period_type: "weekly", default_break_mins: 30 });
 
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape" && fullscreen) setFullscreen(false); };
@@ -59,13 +60,14 @@ export function RosteringModule() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [stats, eRes, pRes, frRes, acRes, cpRes, tRes] = await Promise.all([
+      const [stats, eRes, pRes, frRes, acRes, cpRes, tRes, sRes] = await Promise.all([
         API("/api/rostering/stats"), API("/api/rostering/educators"), API("/api/rostering/periods"),
         API("/api/rostering/fill-requests"), API("/api/rostering/ai-config"), API("/api/rostering/change-proposals"),
-        API("/api/rostering/templates"),
+        API("/api/rostering/templates"), API("/api/rostering/settings"),
       ]);
       setData({ stats, educators: eRes.educators || [], periods: pRes.periods || [], fills: frRes.requests || [], config: acRes.configs?.[0] || null, proposals: cpRes.proposals || [], templates: tRes.templates || [] });
       setArchived(pRes.archived || []);
+      if (sRes && !sRes.error) setSettings(sRes);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, []);
@@ -77,29 +79,26 @@ export function RosteringModule() {
 
   const pendingCount = data.proposals.filter(p => p.status === "pending").length;
   const tabs = [
-    { id: "dashboard", l: "Dashboard", i: "📊" }, { id: "educators", l: "Educators", i: "👩‍🏫" },
-    { id: "roster", l: "Roster", i: "📅" }, { id: "timesheet", l: "Timesheet", i: "🕐" },
-    { id: "sickcover", l: "Sick Cover", i: "📱" }, { id: "patterns", l: "Patterns", i: "📈" },
-    { id: "proposals", l: "Changes", i: "🔔", b: pendingCount },
-    { id: "reports", l: "Reports", i: "📄" },
+    { id: "roster", l: "Roster", i: "📅", b: pendingCount },
+    { id: "sickcover", l: "Sick Cover", i: "📱" },
+    { id: "patterns", l: "Patterns", i: "📈" },
+    { id: "educators", l: "Educators", i: "👩‍🏫" },
+    { id: "timesheet", l: "Timesheet", i: "🕐" },
   ];
 
   if (loading && !data.stats) return <div style={{ textAlign: "center", padding: 60 }}><div style={{ fontSize: 48, marginBottom: 12 }}>🤖</div><p style={{ color: "#8A7F96", fontWeight: 600 }}>Loading AI Rostering…</p></div>;
 
-  const fsStyle = fullscreen ? {
-    position: "fixed", inset: 0, zIndex: 9999, background: "#F8F5F1",
-    overflowY: "auto", padding: "0 0 40px",
-  } : {};
+  const fsStyle = fullscreen ? { position: "fixed", inset: 0, zIndex: 9999, background: "#F8F5F1", overflowY: "auto", padding: "0 0 40px" } : {};
 
   return (
     <div style={fsStyle}>
       <div style={{ ...card, background: "linear-gradient(135deg,#EDE4F0,#E8F0ED)", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#3D3248" }}>🤖 AI Rostering & Workforce Intelligence</h2>
-          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#5C4E6A" }}>AI roster generation · NQF compliance · Sick cover · Timesheet · Natural language assistant</p>
+          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#5C4E6A" }}>AI roster generation · NQF compliance · Sick cover · Timesheet</p>
         </div>
         <button onClick={() => setFullscreen(f => !f)}
-          title={fullscreen ? "Exit full screen" : "Full screen — easier rostering"}
+          title={fullscreen ? "Exit full screen" : "Full screen"}
           style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(139,109,175,0.3)", background: fullscreen ? "#7C3AED" : "rgba(139,109,175,0.1)", color: fullscreen ? "#fff" : "#7C3AED", cursor: "pointer", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
           {fullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen"}
         </button>
@@ -111,14 +110,11 @@ export function RosteringModule() {
           </button>
         ))}
       </div>
-      {tab === "dashboard" && <DashboardTab d={data} />}
-      {tab === "educators" && <EducatorsTab educators={data.educators} loadEd={loadEd} selEd={selEd} setSelEd={setSelEd} reload={load} />}
-      {tab === "roster" && <RosterTab educators={data.educators} periods={data.periods} templates={data.templates} archived={archived} sp={selPeriod} loadP={loadPeriod} reload={load} />}
-      {tab === "timesheet" && <TimesheetTab educators={data.educators} periods={data.periods} />}
+      {tab === "roster" && <RosterTab educators={data.educators} periods={data.periods} templates={data.templates} archived={archived} sp={selPeriod} loadP={loadPeriod} reload={load} settings={settings} proposals={data.proposals} />}
       {tab === "sickcover" && <SickCoverTab educators={data?.educators || []} fills={data?.fills || []} reload={load} />}
       {tab === "patterns" && <PatternsTab />}
-      {tab === "proposals" && <ProposalsTab proposals={data.proposals} reload={load} />}
-      {tab === "reports" && <RosterReportsTab educators={data.educators} periods={data.periods} />}
+      {tab === "educators" && <EducatorsTab educators={data.educators} loadEd={loadEd} selEd={selEd} setSelEd={setSelEd} reload={load} />}
+      {tab === "timesheet" && <TimesheetTab educators={data.educators} periods={data.periods} />}
     </div>
   );
 }
@@ -1403,872 +1399,513 @@ Be concise, practical and specific. Focus on compliance, costs, risks and action
   );
 }
 
-/* ═══ ROSTER TAB ═══ */
-function RosterTab({ educators, periods, templates, archived, sp, loadP, reload }) {
-  const [gen,setGen]=useState(false);
-  const [gf,setGf]=useState({period_type:"weekly",start_date:nextMon(),end_date:addDays(nextMon(),4),weekly_budget_cents:0});
-  const [gRes,setGRes]=useState(null);
-  const [gErr,setGErr]=useState(null);
-  const [viewMode,setViewMode]=useState("week");
-  const [groupBy,setGroupBy]=useState("educator");
-  const [selDay,setSelDay]=useState(null);
-  const [addForm,setAddForm]=useState(null);
-  const [rooms,setRooms]=useState([]);
-  const [showOptimise,setShowOptimise]=useState(false);
-  const [optResult,setOptResult]=useState(null);
-  const [optLoading,setOptLoading]=useState(false);
-  const [lunchCoverEdId,setLunchCoverEdId]=useState("");
-  const [showTemplates,setShowTemplates]=useState(false);
-  const [editShift,setEditShift]=useState(null);
-  const [saveTplName,setSaveTplName]=useState("");
-  const [showEmailRoster,setShowEmailRoster]=useState(false);
-  const [emailForm,setEmailForm]=useState({educator_ids:[],include_all:false,subject:"",message:""});
-  const [emailSending,setEmailSending]=useState(false);
-  const [emailResult,setEmailResult]=useState(null);
-  const [showPrintView,setShowPrintView]=useState(false);
-  const [printMode,setPrintMode]=useState("week"); // week | educator | room
+/* ═══ ROSTER TAB (REDESIGNED) ═══ */
+/* ═══ ROSTER TAB (REDESIGNED) ═══ */
+function RosterTab({ educators, periods, templates, archived, sp, loadP, reload, settings, proposals }) {
+  const [subView, setSubView] = useState("week"); // 'week' | 'day' | 'generate'
+  const [selDay, setSelDay] = useState(null);
+  const [selRoom, setSelRoom] = useState(null);
+  const [dayLayout, setDayLayout] = useState("kanban"); // 'kanban' | 'timeline'
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [editShift, setEditShift] = useState(null);
 
-  useEffect(()=>{
-    API("/api/rooms").then(r=>{ if(Array.isArray(r)) setRooms(r.map(rm=>({...rm, ageGroup: rm.age_group||rm.ageGroup}))); }).catch(()=>{});
-  },[]);
+  // Generate form state
+  const [gf, setGf] = useState({ period_type: settings?.default_period_type || "weekly", start_date: nextMon(), end_date: addDays(nextMon(), 4), weekly_budget_cents: 0, is_special: false, special_notes: "" });
+  const [gRes, setGRes] = useState(null);
+  const [gErr, setGErr] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [lunchCoverEdId, setLunchCoverEdId] = useState(null);
 
-  // Listen for reload events from DragRosterGrid
-  useEffect(()=>{
-    const handler = (e) => { if(e.detail?.period_id) loadP(e.detail.period_id); };
-    window.addEventListener("c360-roster-reload", handler);
-    return ()=>window.removeEventListener("c360-roster-reload", handler);
-  },[loadP]);
+  // Period selector
+  const [showNewPeriod, setShowNewPeriod] = useState(false);
+  const [newPeriod, setNewPeriod] = useState({ name: "", start_date: nextMon(), end_date: addDays(nextMon(), 4) });
 
-  const generate=async()=>{
-    setGen(true);setGErr(null);setGRes(null);
-    try{const r=await API("/api/rostering/generate",{method:"POST",body:{...gf,lunch_cover_educator_id:lunchCoverEdId||null}});if(r.error)setGErr(r.error);else{setGRes(r);reload();if(r.period_id){loadP(r.period_id);setTimeout(()=>loadP(r.period_id),1000);}setGf({period_type:"weekly",start_date:nextMon(),end_date:addDays(nextMon(),4),weekly_budget_cents:0});}}catch(e){setGErr(e.message);}
-    setGen(false);
+  // Derived data from selected period
+  const period = sp?.period;
+  const entries = sp?.entries || [];
+  const rooms = sp?.rooms || [];
+  const allDates = [...new Set(entries.map(e => e.date))].sort();
+  const opDays = settings?.operating_days || [1, 2, 3, 4, 5];
+
+  // Auto-select first day
+  useEffect(() => {
+    if (allDates.length > 0 && !selDay) setSelDay(allDates[0]);
+  }, [allDates.length]);
+
+  // Listen for roster reload events
+  useEffect(() => {
+    const handler = (e) => { if (e.detail?.period_id) loadP(e.detail.period_id); };
+    window.addEventListener("roster-reload", handler);
+    return () => window.removeEventListener("roster-reload", handler);
+  }, [loadP]);
+
+  const dayEntries = selDay ? entries.filter(e => e.date === selDay) : [];
+
+  // Entry CRUD
+  const delEntry = async id => {
+    try { await API("/api/rostering/entries/" + id, { method: "DELETE" }); if (sp?.period?.id) loadP(sp.period.id); } catch (e) { toast("Delete failed", "error"); }
   };
-  const approve=async id=>{try{const r=await API("/api/rostering/periods/"+id+"/approve",{method:"PUT"});if(r.error){alert(r.error);return;}reload();loadP(id);}catch(e){alert("Approve failed: "+e.message);}};
-  const publish=async id=>{try{const r=await API("/api/rostering/periods/"+id+"/publish",{method:"PUT"});if(r.error){alert(r.error);return;}reload();loadP(id);}catch(e){alert("Publish failed: "+e.message);}};
-  const delEntry=async id=>{try{await API("/api/rostering/entries/"+id,{method:"DELETE"});if(sp?.period?.id)loadP(sp.period.id);}catch(e){alert("Delete failed.");}};
-  const saveEditShift=async()=>{
-    if(!editShift) return;
-    try{
-      await API("/api/rostering/entries/"+editShift.id,{method:"PUT",body:{
-        educator_id:editShift.educator_id,room_id:editShift.room_id,date:editShift.date,
-        start_time:editShift.start_time,end_time:editShift.end_time,break_mins:editShift.break_mins,
-        lunch_start:editShift.lunch_start,is_lunch_cover:editShift.is_lunch_cover,
-      }});
-      setEditShift(null);
-      if(sp?.period?.id) loadP(sp.period.id);
+  const saveEntry = async (body) => {
+    try {
+      const r = await API("/api/rostering/entries", { method: "POST", body: { ...body, period_id: period?.id, tenant_id: undefined } });
+      if (r?.error) { toast(r.error, "error"); return; }
+      if (period?.id) loadP(period.id);
+      toast("Shift saved");
+    } catch (e) { toast("Save failed", "error"); }
+  };
+  const updateEntry = async (id, body) => {
+    try {
+      await API("/api/rostering/entries/" + id, { method: "PUT", body });
+      if (period?.id) loadP(period.id);
       toast("Shift updated");
-    }catch(e){toast("Save failed","error");}
+    } catch (e) { toast("Update failed", "error"); }
   };
 
-  const runOptimise=async()=>{
-    setOptLoading(true);
-    try{const r=await API("/api/rostering/availability-optimise",{method:"POST",body:{period_id:sp?.period?.id,date:selDay}});setOptResult(r);}catch(e){}
-    setOptLoading(false);
-  };
-  const applyOptimise=async(suggestion)=>{
-    await API("/api/rostering/entries/"+suggestion.entry_id,{method:"PUT",body:{start_time:suggestion.new_start,end_time:suggestion.new_end}});
-    setOptResult(null);
-    if(sp?.period?.id) loadP(sp.period.id);
-  };
-  const saveTemplate=async()=>{
-    if(!saveTplName.trim()||!sp?.period?.id) return;
-    try{await API("/api/rostering/templates",{method:"POST",body:{name:saveTplName,period_id:sp.period.id}});}catch(e){toast("Failed to save template.", "error");return;}
-    setSaveTplName("");reload();
-  };
-  const applyTemplate=async(tplId)=>{
-    const start=window.prompt("Apply template — enter start date (YYYY-MM-DD):",nextMon());
-    if(!start) return;
-    const r=await API(`/api/rostering/templates/${tplId}/apply`,{method:"POST",body:{start_date:start}});
-    if(r.period_id){reload();loadP(r.period_id);}
-  };
-  const sendEmailRoster=async()=>{
-    if(!period?.id) return;
-    setEmailSending(true); setEmailResult(null);
-    try{
-      const r=await API("/api/rostering/periods/"+period.id+"/email-roster",{
-        method:"POST",
-        body:{...emailForm,subject:emailForm.subject||"Your Roster – "+period.start_date+" to "+period.end_date}
-      });
-      setEmailResult(r);
-      toast(r.message||"Rosters sent ✓");
-    }catch(e){toast("Email failed","error");}
-    setEmailSending(false);
+  // Generate roster
+  const handleGenerate = async () => {
+    setGenerating(true); setGErr(null); setGRes(null);
+    try {
+      const r = await API("/api/rostering/generate", { method: "POST", body: { ...gf, lunch_cover_educator_id: lunchCoverEdId || null } });
+      if (r?.error) setGErr(r.error);
+      else { setGRes(r); reload(); if (r.period_id) { loadP(r.period_id); setTimeout(() => loadP(r.period_id), 1000); } }
+    } catch (e) { setGErr(e.message); }
+    setGenerating(false);
   };
 
-  const unpublish = async id => {
-    if(!confirm("Unlock this published roster for editing? Educators will see it as updated when you re-publish.")) return;
-    try{const r=await API("/api/rostering/periods/"+id+"/unpublish",{method:"PUT"});if(r.error){toast(r.error,"error");return;}reload();loadP(id);toast("Roster unlocked for editing");}
-    catch(e){toast("Unlock failed","error");}
+  // Approve / Publish
+  const approve = async id => { try { await API("/api/rostering/periods/" + id + "/approve", { method: "PUT" }); reload(); loadP(id); toast("Roster approved"); } catch (e) { toast("Approve failed", "error"); } };
+  const publish = async id => { try { await API("/api/rostering/periods/" + id + "/publish", { method: "PUT" }); reload(); loadP(id); toast("Roster published"); } catch (e) { toast("Publish failed", "error"); } };
+
+  // Template actions
+  const saveAsTemplate = async () => {
+    const name = prompt("Template name:");
+    if (!name || !period?.id) return;
+    try {
+      await API("/api/rostering/templates", { method: "POST", body: { period_id: period.id, name } });
+      reload(); toast("Template saved");
+    } catch (e) { toast("Failed", "error"); }
+  };
+  const applyTemplate = async (templateId) => {
+    const startDate = prompt("Start date (YYYY-MM-DD):", nextMon());
+    if (!startDate) return;
+    try {
+      const r = await API("/api/rostering/templates/" + templateId + "/apply", { method: "POST", body: { start_date: startDate } });
+      if (r?.period_id) { loadP(r.period_id); reload(); toast("Template applied"); }
+    } catch (e) { toast("Failed to apply", "error"); }
+  };
+  const deleteTemplate = async (id) => {
+    if (!confirm("Delete this template?")) return;
+    try { await API("/api/rostering/templates/" + id, { method: "DELETE" }); reload(); toast("Template deleted"); } catch (e) { toast("Failed", "error"); }
   };
 
-  const deleteTemplate=async(id)=>{
-    if(!confirm("Delete this template?")) return;
-    await API(`/api/rostering/templates/${id}`,{method:"DELETE"});
-    reload();
+  // Room compliance for week overview
+  const getRoomCompliance = (roomId, date) => {
+    const re = entries.filter(e => e.room_id === roomId && e.date === date);
+    const room = rooms.find(r => r.id === roomId);
+    const ageKey = AGE_MAP[room?.age_group] || "preschool";
+    const nqf = NQF_RATIOS[ageKey] || { ratio: 11, ect_required: false };
+    const children = room?.current_children || room?.child_count || 0;
+    const required = children > 0 ? Math.max(1, Math.ceil(children / nqf.ratio)) : 1;
+    const hasECT = re.some(e => e.qualification === "ect" || e.qualification === "diploma");
+    const ratioOk = re.length >= required;
+    const ectOk = !nqf.ect_required || hasECT;
+    const hrs = re.reduce((s, e) => { const sM = tM(e.start_time || "07:00"), eM = tM(e.end_time || "15:00"); return s + (eM - sM - (e.break_mins || 30)) / 60; }, 0);
+    const cost = re.reduce((s, e) => { const sM = tM(e.start_time || "07:00"), eM = tM(e.end_time || "15:00"); return s + ((eM - sM - (e.break_mins || 30)) / 60) * ((e.hourly_rate_cents || 3500) / 100); }, 0);
+    return { count: re.length, required, ratioOk, ectOk, compliant: ratioOk && ectOk, hrs: hrs.toFixed(1), cost: cost.toFixed(0), entries: re };
   };
 
-  const entries=sp?.entries||[];
-  const period=sp?.period;
-  const allDates=[...new Set(entries.map(e=>e.date))].sort();
-  const activeDay=selDay||allDates[0]||null;
-  // Auto-select first date when switching to gantt/grid (after allDates is declared)
-  useEffect(()=>{
-    if((viewMode==="gantt"||viewMode==="grid")&&!selDay&&allDates.length>0){
-      setSelDay(allDates[0]);
-    }
-  },[viewMode,allDates.length]);
-  const dayEntries=activeDay?entries.filter(e=>e.date===activeDay):[];
-  const qColors={ect:"#2E8B57",diploma:"#7E5BA3",cert3:"#D4A26A",working_towards_diploma:"#5B8DB5",working_towards:"#B87D47"};
-
-  const ganttRows=useMemo(()=>{
-    if(!dayEntries.length) return [];
-    if(groupBy==="educator"){
-      const byEd={};
-      dayEntries.forEach(e=>{
-        if(!byEd[e.educator_id])byEd[e.educator_id]={name:e.educator_name,qual:e.qualification,entries:[]};
-        byEd[e.educator_id].entries.push(e);
-      });
-      return Object.values(byEd).sort((a,b)=>a.name.localeCompare(b.name));
-    } else {
-      const byRoom={};
-      dayEntries.forEach(e=>{
-        const rn=e.room_name||"Unassigned";
-        if(!byRoom[rn])byRoom[rn]={name:rn,room_id:e.room_id,entries:[]};
-        byRoom[rn].entries.push(e);
-      });
-      return Object.values(byRoom).sort((a,b)=>a.name.localeCompare(b.name));
-    }
-  },[dayEntries,groupBy]);
-
-  const hoursSummary=useMemo(()=>{
-    const eh={};
-    dayEntries.forEach(e=>{
-      const sM=tM(e.start_time||"07:00"),eM=tM(e.end_time||"15:00"),bM=e.break_mins||30;
-      const h=(eM-sM-bM)/60;
-      if(!eh[e.educator_name])eh[e.educator_name]={h:0,q:e.qualification,r:e.hourly_rate_cents||3500};
-      eh[e.educator_name].h+=h;
-    });
-    return eh;
-  },[dayEntries]);
-
-  const totalDayCost=Object.values(hoursSummary).reduce((a,v)=>a+v.h*(v.r/100),0);
-  const totalPeriodCost=(period?.total_cost_cents||0)/100;
-  const budget=(period?.weekly_budget_cents||0)/100;
-  const overBudget=budget>0&&totalPeriodCost>budget;
+  // Pending proposals count
+  const pendingProposals = (proposals || []).filter(p => p.status === "pending");
 
   return (
-    <>
     <div>
-      {/* Generation panel */}
-      <div style={{...card,background:"linear-gradient(135deg,#EDE4F0,#E8F0ED)",padding:14,marginBottom:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:22}}>🤖</span><div><h3 style={{margin:0,fontSize:14,fontWeight:800}}>AI Roster Generator</h3><p style={{margin:0,fontSize:10,color:"#5C4E6A"}}>NQF ratios · Availability · Reliability · Distance · Cost · 38h cap</p></div></div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"end"}}>
-          <div><label style={lbl}>Period</label><select style={sel} value={gf.period_type} onChange={e=>setGf({...gf,period_type:e.target.value})}><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly">Monthly</option></select></div>
-          <div><label style={lbl}>Start</label><DatePicker value={gf.start_date||""} onChange={v=>setGf({...gf,start_date:v})} /></div>
-          <div><label style={lbl}>End</label><DatePicker value={gf.end_date||""} min={gf.start_date||undefined} onChange={v=>setGf({...gf,end_date:v})} /></div>
-          <div><label style={lbl}>Weekly Budget ($)</label><input type="number" style={{...inp,width:100}} value={gf.weekly_budget_cents?(gf.weekly_budget_cents/100):""} onChange={e=>setGf({...gf,weekly_budget_cents:Math.round(parseFloat(e.target.value||0)*100)})} placeholder="Optional"/></div>
-          <div><label style={lbl}>Lunch Cover</label>
-            <select style={{...sel,width:180}} value={lunchCoverEdId} onChange={e=>setLunchCoverEdId(e.target.value)}>
-              <option value="">None (standard breaks)</option>
-              {educators.filter(e=>e.is_lunch_cover||e.employment_type==="casual").map(e=>(
-                <option key={e.id} value={e.id}>🍽 {e.first_name} {e.last_name}</option>
-              ))}
-            </select>
-          </div>
-          <button onClick={generate} disabled={gen} style={{...btnP,padding:"8px 20px",opacity:gen?0.6:1}}>{gen?"⏳ Generating…":"🤖 Generate"}</button>
-        </div>
-        {gErr&&(
-          <div style={{marginTop:8,padding:"8px 12px",borderRadius:8,background:"rgba(192,107,115,0.08)",border:"1px solid rgba(192,107,115,0.2)",fontSize:11,color:"#C06B73"}}>
-            ⚠ {gErr}
-          </div>
+      {/* ── Period selector bar ── */}
+      <div style={{ ...card, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96" }}>PERIOD</label>
+        <select value={period?.id || ""} onChange={e => { if (e.target.value) loadP(e.target.value); }}
+          style={{ ...sel, width: 220, fontSize: 12 }}>
+          <option value="">— Select a roster period —</option>
+          {periods.map(p => <option key={p.id} value={p.id}>{p.period_type === "weekly" ? "Week" : "Fortnight"}: {fmtDate(p.start_date)} → {fmtDate(p.end_date)} {p.status !== "draft" ? `(${p.status})` : ""}{p.is_special ? " 🌟" : ""}</option>)}
+        </select>
+        {period && (
+          <>
+            <Badge text={period.status || "draft"} color={period.status === "published" ? "#2E8B57" : period.status === "approved" ? "#5B8DB5" : "#D4A26A"} />
+            {period.status === "draft" && <button onClick={() => approve(period.id)} style={btnS}>✓ Approve</button>}
+            {period.status === "approved" && <button onClick={() => publish(period.id)} style={btnP}>📤 Publish</button>}
+            <button onClick={saveAsTemplate} style={btnS}>💾 Save as Template</button>
+          </>
         )}
-        {/* Overlap warning: show if dates overlap existing period */}
-        {(()=>{
-          const s=gf.start_date,e=gf.end_date;
-          const clash=s&&e&&periods.find(p=>p.status!=="archived"&&p.start_date<=e&&p.end_date>=s&&p.id!==period?.id);
-          if(!clash) return null;
-          return(
-            <div style={{marginTop:8,padding:"8px 12px",borderRadius:8,background:"rgba(230,81,0,0.06)",border:"1px solid rgba(230,81,0,0.25)",fontSize:11,color:"#E65100",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-              <span>⚠ A <strong>{clash.status}</strong> roster already covers {clash.start_date} → {clash.end_date}</span>
-              <button onClick={()=>{loadP(clash.id);}} style={{...btnS,fontSize:10,padding:"3px 8px",flexShrink:0}}>View it</button>
-            </div>
-          );
-        })()}
-        {gRes&&<div style={{marginTop:8,padding:"6px 10px",borderRadius:8,background:"rgba(46,139,87,0.06)",border:"1px solid rgba(46,139,87,0.15)",fontSize:11}}>✅ <strong>{gRes.entries_created}</strong> shifts · <strong>{gRes.total_hours}h</strong> · <strong>${((gRes.total_cost||0)/100).toLocaleString()}</strong> · <strong>{gRes.compliance_score}%</strong> compliance</div>}
-      </div>
-
-      {/* Templates panel */}
-      <div style={{...card,padding:"10px 14px",marginBottom:8}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <h4 style={{margin:0,fontSize:12,fontWeight:700}}>📋 Roster Templates</h4>
-          <button onClick={()=>setShowTemplates(!showTemplates)} style={{...btnS,fontSize:10}}>{showTemplates?"Hide":"Show"} Templates ({templates.length})</button>
-        </div>
-        {showTemplates&&(
-          <div style={{marginTop:10}}>
-            {templates.length===0&&<div style={{fontSize:11,color:"#A89DB5",marginBottom:8}}>No templates saved yet. Generate a roster and save it as a template.</div>}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-              {templates.map(t=>(
-                <div key={t.id} style={{padding:"6px 10px",borderRadius:8,background:"#F8F5F1",border:"1px solid #E8E0D8",fontSize:11,display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{fontWeight:600}}>{t.name}</span>
-                  <span style={{color:"#A89DB5",fontSize:9}}>{(t.entries||[]).length} shifts</span>
-                  <button onClick={()=>applyTemplate(t.id)} style={{...btnP,padding:"2px 8px",fontSize:9}}>Apply</button>
-                  <button onClick={()=>deleteTemplate(t.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#C06B73",fontSize:11}}>×</button>
-                </div>
-              ))}
-            </div>
-            {period&&<div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <input value={saveTplName} onChange={e=>setSaveTplName(e.target.value)} placeholder="Template name…" style={{...inp,width:200,fontSize:11}}/>
-              <button onClick={saveTemplate} disabled={!saveTplName.trim()} style={{...btnP,padding:"6px 14px",fontSize:11,opacity:!saveTplName.trim()?0.5:1}}>💾 Save Current as Template</button>
-            </div>}
+        <button onClick={() => setShowTemplates(!showTemplates)} style={btnS}>📋 Templates{templates.length > 0 ? ` (${templates.length})` : ""}</button>
+        <div style={{ flex: 1 }} />
+        {pendingProposals.length > 0 && (
+          <div style={{ padding: "4px 10px", borderRadius: 8, background: "#FFF3E0", border: "1px solid #FFCC80", fontSize: 11, fontWeight: 600, color: "#E65100" }}>
+            🔔 {pendingProposals.length} pending change{pendingProposals.length !== 1 ? "s" : ""}
           </div>
         )}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"190px 1fr",gap:12}}>
-        {/* Period sidebar */}
-        <div>
-          <div style={{fontSize:10,fontWeight:700,color:"#5C4E6A",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span>ROSTERS</span>
-            <span style={{fontSize:9,color:"#A89DB5"}}>{periods.length} active</span>
-          </div>
-          {periods.length===0&&<div style={{fontSize:11,color:"#A89DB5",padding:12}}>No rosters yet. Generate one above.</div>}
-          {periods.map(p=>{
-            const statusColor=p.status==="published"?"#2E8B57":p.status==="approved"?"#7E5BA3":"#D4A26A";
-            const isNow=p.start_date<=new Date().toISOString().slice(0,10)&&p.end_date>=new Date().toISOString().slice(0,10);
-            return(
-              <div key={p.id} onClick={()=>{loadP(p.id);setSelDay(null);}}
-                style={{...card,padding:8,marginBottom:3,cursor:"pointer",
-                  borderLeft:"3px solid "+(period?.id===p.id?"#7C3AED":statusColor),
-                  ...(period?.id===p.id?{boxShadow:"0 0 0 2px rgba(124,58,237,0.2)",background:"rgba(124,58,237,0.02)"}:{})}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:10,fontWeight:700,color:"#3D3248"}}>{p.start_date}</span>
-                  <Badge text={p.status} color={statusColor}/>
-                </div>
-                <div style={{fontSize:9,color:"#A89DB5",marginTop:2}}>→ {p.end_date}</div>
-                <div style={{fontSize:8,color:"#A89DB5",marginTop:1,display:"flex",gap:6}}>
-                  <span>{p.entry_count||0} shifts</span>
-                  <span>{p.generated_by==="ai"?"🤖 AI":"✋ Manual"}</span>
-                  {isNow&&<span style={{color:"#2E8B57",fontWeight:700}}>● Current</span>}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Archived section */}
-          {(archived||[]).length>0&&(
-            <div style={{marginTop:10}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#A89DB5",marginBottom:4,paddingTop:6,borderTop:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between"}}>
-                <span>📦 ARCHIVED</span>
-                <span style={{fontSize:9}}>(last {(archived||[]).length})</span>
-              </div>
-              {(archived||[]).map(p=>(
-                <div key={p.id} onClick={()=>{loadP(p.id);setSelDay(null);}}
-                  style={{...card,padding:7,marginBottom:2,cursor:"pointer",opacity:0.65,
-                    borderLeft:"3px solid #BDBDBD",
-                    ...(period?.id===p.id?{opacity:1,boxShadow:"0 0 0 2px rgba(124,58,237,0.2)"}:{})}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:10,fontWeight:600,color:"#6B5F7A"}}>{p.start_date}</span>
-                    <span style={{fontSize:8,color:"#A89DB5",background:"#F5F5F5",padding:"1px 6px",borderRadius:10,fontWeight:700}}>ARCHIVED</span>
+      {/* ── Templates panel ── */}
+      {showTemplates && (
+        <div style={{ ...card, padding: 14 }}>
+          <h4 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700 }}>📋 Roster Templates</h4>
+          {templates.length === 0 ? <p style={{ fontSize: 12, color: "#8A7F96" }}>No templates saved yet. Select a period and click "Save as Template".</p> : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 8 }}>
+              {templates.map(t => (
+                <div key={t.id} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #EDE8F4", background: "#FDFBF9" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
+                  <div style={{ fontSize: 10, color: "#8A7F96", marginTop: 2 }}>{t.entry_count || "?"} shifts</div>
+                  <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                    <button onClick={() => applyTemplate(t.id)} style={{ ...btnP, padding: "4px 10px", fontSize: 10 }}>Apply</button>
+                    <button onClick={() => deleteTemplate(t.id)} style={{ ...btnS, padding: "4px 8px", fontSize: 10, color: "#C06B73" }}>Delete</button>
                   </div>
-                  <div style={{fontSize:8,color:"#A89DB5",marginTop:1}}>{p.entry_count||0} shifts · {p.end_date}</div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      )}
 
-        {/* Main roster area */}
+      {/* ── Sub-view tabs ── */}
+      <div style={{ display: "flex", gap: 3, marginBottom: 12 }}>
+        {[["week", "📊 Week Overview"], ["day", "📝 Day Editor"], ["generate", "🤖 Generate AI Roster"]].map(([id, l]) => (
+          <button key={id} onClick={() => setSubView(id)}
+            style={{ padding: "8px 16px", borderRadius: "8px 8px 0 0", border: subView === id ? "1px solid #8B6DAF" : "1px solid #D9D0C7", borderBottom: subView === id ? "2px solid #fff" : "1px solid #D9D0C7", background: subView === id ? "#fff" : "#F8F5F1", color: subView === id ? "#7C3AED" : "#6B5F7A", fontWeight: subView === id ? 700 : 500, fontSize: 12, cursor: "pointer", fontFamily: "inherit", marginBottom: -1, position: "relative", zIndex: subView === id ? 1 : 0 }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══ WEEK OVERVIEW ═══ */}
+      {subView === "week" && (
+        <div style={{ ...card, padding: 16 }}>
+          {!period ? (
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#8A7F96" }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
+              <p style={{ fontSize: 14, fontWeight: 600 }}>Select a roster period above, or generate a new one</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: "#3D3248" }}>
+                      <th style={{ padding: "8px 12px", textAlign: "left", color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: 700, width: 120 }}>ROOM</th>
+                      {allDates.map(d => {
+                        const dt = new Date(d + "T12:00:00");
+                        const dayTotal = entries.filter(e => e.date === d);
+                        const dayCost = dayTotal.reduce((s, e) => { const sM = tM(e.start_time || "07:00"), eM = tM(e.end_time || "15:00"); return s + ((eM - sM - (e.break_mins || 30)) / 60) * ((e.hourly_rate_cents || 3500) / 100); }, 0);
+                        const isToday = d === new Date().toISOString().slice(0, 10);
+                        return (
+                          <th key={d} style={{ padding: "6px 8px", textAlign: "center", color: isToday ? "#C9A8FF" : "rgba(255,255,255,0.9)", background: isToday ? "rgba(139,109,175,0.3)" : undefined, minWidth: 90 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700 }}>{DAYS[dt.getDay()]}</div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>{dt.getDate()}</div>
+                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)" }}>{dayTotal.length} shifts · ${dayCost.toFixed(0)}</div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rooms.map((room, ri) => (
+                      <tr key={room.id} style={{ background: ri % 2 === 0 ? "#FDFBF9" : "#fff" }}>
+                        <td style={{ padding: "8px 12px", fontWeight: 700, color: "#3D3248", borderRight: "1px solid #EDE8F4", fontSize: 11 }}>
+                          {room.name}
+                          <div style={{ fontSize: 9, color: "#8A7F96", fontWeight: 400 }}>{room.current_children || 0} children</div>
+                        </td>
+                        {allDates.map(d => {
+                          const c = getRoomCompliance(room.id, d);
+                          const bg = c.compliant ? "rgba(46,139,87,0.08)" : c.count > 0 ? "rgba(245,166,35,0.08)" : "rgba(192,107,115,0.06)";
+                          const borderColor = c.compliant ? "#A5D6A7" : c.count > 0 ? "#FFCC80" : "#FFCDD2";
+                          return (
+                            <td key={d} onClick={() => { setSelDay(d); setSelRoom(room.id); setSubView("day"); }}
+                              style={{ padding: "6px 8px", textAlign: "center", cursor: "pointer", border: "1px solid #F0EBF8", background: bg, transition: "background 0.15s" }}
+                              onMouseEnter={e => e.currentTarget.style.background = "rgba(139,109,175,0.12)"}
+                              onMouseLeave={e => e.currentTarget.style.background = bg}>
+                              <div style={{ fontSize: 16, fontWeight: 800, color: c.compliant ? "#2E8B57" : c.count > 0 ? "#F5A623" : "#C06B73" }}>
+                                {c.count}/{c.required}
+                              </div>
+                              <div style={{ fontSize: 9, color: "#8A7F96" }}>{c.hrs}h · ${c.cost}</div>
+                              {!c.ectOk && <div style={{ fontSize: 8, color: "#E65100" }}>⚠ ECT needed</div>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* NQF timeline for selected day */}
+              {selDay && dayEntries.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#5C4E6A", marginBottom: 6 }}>Compliance for {fmtDate(selDay)}</div>
+                  <NQFComplianceTimeline dayEntries={dayEntries} rooms={rooms} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ DAY EDITOR ═══ */}
+      {subView === "day" && (
         <div>
           {!period ? (
-            <div style={{...card,padding:40,textAlign:"center",color:"#A89DB5"}}><div style={{fontSize:40,marginBottom:8}}>📅</div><p>Generate a roster above, or select a period from the left.</p></div>
+            <div style={{ ...card, textAlign: "center", padding: "40px 0", color: "#8A7F96" }}>
+              <p style={{ fontSize: 14, fontWeight: 600 }}>Select a roster period to edit shifts</p>
+            </div>
           ) : (
-            <div>
-              {/* Period header */}
-              <div style={{...card,padding:"10px 16px",marginBottom:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-                  <div>
-                    <span style={{fontWeight:800,fontSize:14}}>{period.start_date} → {period.end_date}</span>
-                    <span style={{marginLeft:10,fontSize:11,color:"#A89DB5"}}>{Math.round(period.total_hours||0)}h · ${totalPeriodCost.toLocaleString()} · {period.compliance_score||"—"}% · {period.generated_by==="ai"?"🤖 AI":"✋ Manual"}</span>
-                    {budget>0&&<span style={{marginLeft:8,fontSize:11,fontWeight:700,color:overBudget?"#C06B73":"#2E8B57"}}>Budget: ${budget.toLocaleString()} {overBudget?"⚠ OVER by $"+(totalPeriodCost-budget).toFixed(0):"✓ under"}</span>}
-                  </div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                    <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:"1px solid #EDE8F4"}}>
-                      {[["week","📆 Week"],["build","🏗 Smart Build"],["gantt","📊 Gantt"],["grid","📋 Grid"]].map(([m,l])=>(
-                        <button key={m} onClick={()=>setViewMode(m)} style={{padding:"5px 10px",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,background:viewMode===m?"#8B6DAF":"#fff",color:viewMode===m?"#fff":"#555"}}>{l}</button>
-                      ))}
-                    </div>
-                    <button onClick={()=>setShowOptimise(!showOptimise)} style={{...btnS,fontSize:11,padding:"5px 10px",background:showOptimise?"#EDE8F4":undefined}}>🔧 Optimise</button>
-                    {["draft","approved"].includes(period.status)&&<button onClick={()=>setAddForm({date:allDates[0]||gf.start_date,educator_id:"",room_id:"",start_time:"07:00",end_time:"15:00",break_mins:30,lunch_start:"",is_lunch_cover:false})} style={{...btnS,fontSize:11,padding:"5px 12px",background:"#F0EBF8",color:"#7C3AED",border:"1px solid #DDD6EE"}}>+ Add Shift</button>}
-                    {period.status==="draft"&&<button onClick={()=>approve(period.id)} style={btnP}>✓ Approve</button>}
-                    {period.status==="approved"&&<button onClick={()=>publish(period.id)} style={btnP}>📤 Publish</button>}
-                    {period.status==="published"&&(
-                      <>
-                        <button onClick={()=>unpublish(period.id)} style={{...btnS,fontSize:11,color:"#E65100",border:"1px solid #E65100"+"40"}} title="Unlock for editing — educators will see the updated version when you re-publish">🔓 Edit Roster</button>
-                        <button onClick={()=>setShowEmailRoster(true)} style={{...btnP,background:"#1565C0"}}>📧 Email Roster</button>
-                      </>
-                    )}
-                    {period.status==="archived"&&(
-                      <span style={{fontSize:11,color:"#A89DB5",padding:"5px 10px",background:"#F5F5F5",borderRadius:8}}>📦 Archived — read only</span>
-                    )}
-                    <button onClick={()=>setShowPrintView(!showPrintView)} style={{...btnS,fontSize:11}}>🖨 Print / Export</button>
-                    {period.status==="draft"&&<button onClick={async()=>{if(!confirm("Delete this draft roster? This cannot be undone."))return;try{await API("/api/rostering/periods/"+period.id,{method:"DELETE"});toast("Roster deleted");reload();loadP&&setSelDay(null);}catch(e){toast("Delete failed","error");}}} style={{...btnS,fontSize:11,color:"#C06B73",border:"1px solid #C06B7330"}}>🗑 Delete Draft</button>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }}>
+              {/* Main area */}
+              <div>
+                {/* Day selector + layout toggle */}
+                <div style={{ display: "flex", gap: 3, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  {allDates.map(d => {
+                    const dt = new Date(d + "T12:00:00");
+                    const active = selDay === d;
+                    return (
+                      <button key={d} onClick={() => setSelDay(d)}
+                        style={{ padding: "5px 10px", borderRadius: 8, border: active ? "2px solid #8B6DAF" : "1px solid #EDE8F4", background: active ? "#8B6DAF" : "#fff", color: active ? "#fff" : "#555", cursor: "pointer", fontSize: 11, fontWeight: active ? 700 : 500 }}>
+                        {DAYS[dt.getDay()]} {dt.getDate()}
+                      </button>
+                    );
+                  })}
+                  <div style={{ flex: 1 }} />
+                  <div style={{ display: "flex", gap: 2, background: "#F0EBF8", borderRadius: 6, padding: 2 }}>
+                    {[["kanban", "Kanban"], ["timeline", "Timeline"]].map(([id, l]) => (
+                      <button key={id} onClick={() => setDayLayout(id)}
+                        style={{ padding: "4px 10px", borderRadius: 5, border: "none", background: dayLayout === id ? "#fff" : "transparent", color: dayLayout === id ? "#7C3AED" : "#8A7F96", fontWeight: dayLayout === id ? 700 : 500, fontSize: 10, cursor: "pointer" }}>
+                        {l}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
 
-              {/* AI Assistant */}
-              <div style={{marginBottom:8}}>
-                <AIRosterAssistant entries={entries} educators={educators} rooms={rooms} period={period}/>
-              </div>
-
-              {/* Optimise panel */}
-              {showOptimise&&(
-                <div style={{...card,background:"linear-gradient(135deg,#EDE4F0,#F0F8F0)",padding:14,marginBottom:8}}>
-                  <h4 style={{margin:"0 0 8px",fontSize:13,fontWeight:800}}>🔧 AI Availability Optimiser</h4>
-                  <p style={{margin:"0 0 10px",fontSize:11,color:"#5C4E6A"}}>Shifts educator hours earlier/later to reduce costs or close coverage gaps — maintaining NQF compliance.</p>
-                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <div><label style={lbl}>Day to Optimise</label>
-                      <select style={{...sel,width:160}} value={selDay||""} onChange={e=>setSelDay(e.target.value)}>
-                        <option value="">Select day…</option>
-                        {allDates.map(d=><option key={d} value={d}>{fmtDate(d)}</option>)}
-                      </select>
-                    </div>
-                    <button onClick={runOptimise} disabled={optLoading||!selDay} style={{...btnP,marginTop:16,opacity:optLoading?0.6:1}}>{optLoading?"⏳ Analysing…":"🤖 Run Optimiser"}</button>
-                  </div>
-                  {optResult&&(
-                    <div style={{marginTop:12}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#3D3248",marginBottom:8}}>
-                        {optResult.suggestions?.length>0 ? `${optResult.suggestions.length} suggestion${optResult.suggestions.length>1?"s":""} found:` : "✅ Already optimised for this day"}
-                      </div>
-                      {(optResult.suggestions||[]).map((s,i)=>(
-                        <div key={i} style={{padding:"10px 14px",borderRadius:10,background:"#fff",border:"1px solid #D4E8D4",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
-                          <div>
-                            <div style={{fontWeight:700,fontSize:12,color:"#3D3248"}}>{s.educator_name}</div>
-                            <div style={{fontSize:11,color:"#5C4E6A",marginTop:2}}>{s.current_start}–{s.current_end} → <strong>{s.new_start}–{s.new_end}</strong></div>
-                            <div style={{fontSize:11,color:"#2E7D32",marginTop:2}}>{s.reason}</div>
-                            <div style={{fontSize:10,color:"#A89DB5",marginTop:2}}>Saves {s.saving_mins} min · ${(s.cost_saving/100).toFixed(2)} · Compliance: {s.compliance_ok?"✅":"⚠"}</div>
-                          </div>
-                          <button onClick={()=>applyOptimise(s)} style={{...btnP,background:"#2E7D32",fontSize:11,padding:"6px 14px",whiteSpace:"nowrap"}}>Apply</button>
-                        </div>
-                      ))}
-                      {optResult.attendance_insights&&(
-                        <div style={{padding:"10px 14px",borderRadius:10,background:"#F8F5FF",border:"1px solid #DDD6F4",fontSize:11,color:"#5C4E6A"}}>
-                          <strong>📊 Insight:</strong> {optResult.attendance_insights}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* WEEK VIEW - full drag-and-drop roster grid */}
-              {viewMode==="week"&&(
-                <div>
-                  <NQFComplianceTimeline dayEntries={entries} rooms={rooms}/>
-                  <DragRosterGrid entries={entries} allDates={allDates} educators={educators} rooms={rooms} period={period} onDelete={delEntry} onEdit={setEditShift}
-                    onAddShift={(edId,date)=>{const ed=educators.find(e=>e.id===edId);const avail=ed?.availability?.find(a=>a.day_of_week===new Date(date+"T12:00:00").getDay());setAddForm({date,educator_id:edId||"",room_id:"",start_time:avail?.start_time||"07:00",end_time:avail?.end_time||"15:00",break_mins:30,lunch_start:"",is_lunch_cover:false});}}/>
-                  {/* Add shift inline form for week/grid view */}
-                  {addForm&&(
-                    <div style={{...card,padding:14,marginTop:8,background:"#FAF7FF",border:"1px solid #DDD6EE"}}>
-                      <div style={{fontWeight:700,fontSize:13,marginBottom:10,color:"#3D3248"}}>+ Add Shift — {addForm.date}</div>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
-                        <div><label style={lbl}>Educator</label>
-                          <select style={sel} value={addForm.educator_id} onChange={e=>setAddForm(p=>({...p,educator_id:e.target.value}))}>
-                            <option value="">Select educator…</option>
-                            {educators.map(e=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
-                          </select></div>
-                        <div><label style={lbl}>Room</label>
-                          <select style={sel} value={addForm.room_id} onChange={e=>setAddForm(p=>({...p,room_id:e.target.value}))}>
-                            <option value="">No room</option>
-                            {rooms.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                          </select></div>
-                        <div><label style={lbl}>Start</label><input type="time" style={inp} value={addForm.start_time} onChange={e=>setAddForm(p=>({...p,start_time:e.target.value}))}/></div>
-                        <div><label style={lbl}>End</label><input type="time" style={inp} value={addForm.end_time} onChange={e=>setAddForm(p=>({...p,end_time:e.target.value}))}/></div>
-                        <div><label style={lbl}>Break (mins)</label><input type="text" inputMode="decimal" style={inp} value={addForm.break_mins} onChange={e=>setAddForm(p=>({...p,break_mins:e.target.value}))} onBlur={e=>{const n=parseInt(e.target.value);setAddForm(p=>({...p,break_mins:isNaN(n)?0:n}));}}/></div>
-                      </div>
-                      <div style={{display:"flex",gap:8,marginTop:10}}>
-                        <button onClick={async()=>{
-                          if(!addForm.educator_id){window.showToast&&window.showToast("Select an educator","error");return;}
-                          try{
-                            const res=await API("/api/rostering/entries",{method:"POST",body:{...addForm,period_id:period.id,date:addForm.date,cost_cents:Math.round(((tM(addForm.end_time)-tM(addForm.start_time)-addForm.break_mins)/60)*(educators.find(e=>e.id===addForm.educator_id)?.hourly_rate_cents||3500))}});
-                            if(res.error){window.showToast&&window.showToast(res.error,"error");return;}
-                            setAddForm(null);loadP(period.id);
-                            window.showToast&&window.showToast("Shift added ✓");
-                          }catch(e){window.showToast&&window.showToast(e.message||"Save failed","error");}
-                        }} style={btnP}>Save Shift</button>
-                        <button onClick={()=>setAddForm(null)} style={btnS}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* GANTT VIEW */}
-              {viewMode==="gantt"&&(
-                <div>
-                  {/* Day tabs */}
-                  <div style={{display:"flex",gap:3,marginBottom:8,overflowX:"auto",flexWrap:"nowrap",paddingBottom:2}}>
-                    {allDates.map(date=>{
-                      const d=new Date(date+"T12:00:00");
-                      const dc=entries.filter(e=>e.date===date);
-                      const isActive=activeDay===date;
+                {/* KANBAN VIEW */}
+                {dayLayout === "kanban" && selDay && (
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(rooms.length, 1)}, minmax(160px, 1fr))`, gap: 8, overflowX: "auto" }}>
+                    {rooms.map(room => {
+                      const c = getRoomCompliance(room.id, selDay);
+                      const ageKey = AGE_MAP[room.age_group] || "preschool";
+                      const nqf = NQF_RATIOS[ageKey] || { ratio: 11 };
+                      const isSelected = selRoom === room.id;
                       return (
-                        <button key={date} onClick={()=>setSelDay(date)} style={{flexShrink:0,padding:"6px 12px",borderRadius:8,border:isActive?"2px solid #8B6DAF":"1px solid #EDE8F4",background:isActive?"#8B6DAF":"#fff",color:isActive?"#fff":"#555",cursor:"pointer",fontSize:11,fontWeight:isActive?700:500,textAlign:"center",minWidth:60}}>
-                          <div style={{fontSize:9,opacity:0.8}}>{DAYS[d.getDay()]}</div>
-                          <div style={{fontSize:13,fontWeight:700}}>{d.getDate()}</div>
-                          <div style={{fontSize:8,marginTop:1,opacity:0.7}}>{dc.length} shift{dc.length!==1?"s":""}</div>
-                        </button>
-                      );
-                    })}
-                    <button onClick={()=>{setAddForm({date:activeDay||allDates[0],educator_id:"",room_id:"",start_time:"07:00",end_time:"15:00",break_mins:30,lunch_start:"",is_lunch_cover:false});}} style={{...btnS,flexShrink:0,fontSize:11,padding:"6px 12px"}}>+ Add Shift</button>
-                  </div>
-
-                  {activeDay&&<NQFComplianceTimeline dayEntries={dayEntries} rooms={rooms}/>}
-
-                  {/* Add shift form */}
-                  {addForm&&(
-                    <div style={{...card,padding:14,marginBottom:8,background:"#FAF7FF"}}>
-                      <h4 style={{margin:"0 0 10px",fontSize:12,fontWeight:700}}>Add Shift</h4>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
-                        <div><label style={lbl}>Date</label>
-                          <DatePicker value={addForm.date} onChange={v=>setAddForm({...addForm,date:v})} />
-                        </div>
-                        <div><label style={lbl}>Educator</label>
-                          <select style={sel} value={addForm.educator_id} onChange={e=>setAddForm({...addForm,educator_id:e.target.value})}>
-                            <option value="">Select…</option>
-                            {educators.map(e=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
-                          </select>
-                        </div>
-                        <div><label style={lbl}>Room</label>
-                          <select style={sel} value={addForm.room_id} onChange={e=>setAddForm({...addForm,room_id:e.target.value})}>
-                            <option value="">Select…</option>
-                            {rooms.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                          </select>
-                        </div>
-                        <div><label style={lbl}>Start</label><TimeInput style={inp} value={addForm.start_time} onChange={v=>setAddForm({...addForm,start_time:v})}/></div>
-                        <div><label style={lbl}>End</label><TimeInput style={inp} value={addForm.end_time} onChange={v=>setAddForm({...addForm,end_time:v})}/></div>
-                        <div><label style={lbl}>Break (mins)</label><input type="number" style={inp} value={addForm.break_mins} onChange={e=>setAddForm({...addForm,break_mins:parseInt(e.target.value)||30})}/></div>
-                        <div><label style={lbl}>Lunch Break Start</label><TimeInput style={inp} value={addForm.lunch_start} onChange={v=>setAddForm({...addForm,lunch_start:v})}/></div>
-                        <div style={{display:"flex",alignItems:"flex-end",paddingBottom:4}}>
-                          <label style={{display:"flex",gap:6,alignItems:"center",fontSize:11,cursor:"pointer"}}>
-                            <input type="checkbox" checked={addForm.is_lunch_cover} onChange={e=>setAddForm({...addForm,is_lunch_cover:e.target.checked})}/> 🍽 Lunch cover
-                          </label>
-                        </div>
-                      </div>
-                      <div style={{display:"flex",gap:8,marginTop:10}}>
-                        <button onClick={async()=>{
-                          if(!addForm.educator_id){window.showToast&&window.showToast("Select an educator","error");return;}
-                          try{
-                            const res=await API("/api/rostering/entries",{method:"POST",body:{...addForm,period_id:period.id,date:addForm.date||activeDay,cost_cents:Math.round(((tM(addForm.end_time)-tM(addForm.start_time)-addForm.break_mins)/60)*(educators.find(e=>e.id===addForm.educator_id)?.hourly_rate_cents||3500))}});
-                            if(res.error){window.showToast&&window.showToast(res.error,"error");return;}
-                            setAddForm(null);loadP(period.id);
-                            window.showToast&&window.showToast("Shift added ✓");
-                          }catch(e){window.showToast&&window.showToast(e.message||"Save failed","error");}
-                        }} style={btnP}>Save Shift</button>
-                        <button onClick={()=>setAddForm(null)} style={btnS}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Gantt */}
-                  {activeDay&&(
-                    <div style={{...card,padding:0,overflow:"hidden"}}>
-                      <div style={{padding:"10px 16px",borderBottom:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        <div style={{fontWeight:700,fontSize:13,color:"#3D3248"}}>📊 {fmtDate(activeDay)}</div>
-                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          <span style={{fontSize:11,color:"#8A7F96"}}>{dayEntries.length} shifts · ${totalDayCost.toFixed(0)} est.</span>
-                          <div style={{display:"flex",borderRadius:7,overflow:"hidden",border:"1px solid #EDE8F4"}}>
-                            {[["educator","By Educator"],["room","By Room"]].map(([m,l])=>(
-                              <button key={m} onClick={()=>setGroupBy(m)} style={{padding:"4px 10px",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,background:groupBy===m?"#8B6DAF":"#fff",color:groupBy===m?"#fff":"#555"}}>{l}</button>
-                            ))}
+                        <div key={room.id} onClick={() => setSelRoom(room.id)}
+                          style={{ background: "#fff", borderRadius: 12, border: isSelected ? "2px solid #8B6DAF" : "1px solid #EDE8F4", overflow: "hidden", cursor: "pointer" }}>
+                          {/* Room header */}
+                          <div style={{ padding: "8px 12px", background: c.compliant ? "rgba(46,139,87,0.08)" : c.count > 0 ? "rgba(245,166,35,0.08)" : "rgba(192,107,115,0.06)", borderBottom: "1px solid #EDE8F4" }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#3D3248" }}>{room.name}</div>
+                            <div style={{ fontSize: 9, color: "#8A7F96" }}>{room.current_children || 0} children · 1:{nqf.ratio} · {c.count}/{c.required} educators</div>
+                            <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
+                              <Badge text={c.compliant ? "✓ Compliant" : c.ratioOk ? "⚠ No ECT" : `✗ Need ${c.required - c.count} more`} color={c.compliant ? "#2E8B57" : c.count > 0 ? "#E65100" : "#C06B73"} />
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div style={{overflowX:"auto"}}>
-                        <div style={{minWidth:700}}>
-                          <GanttTimeline/>
-                          {ganttRows.length===0 ? (
-                            <div style={{padding:40,textAlign:"center",color:"#A89DB5"}}>
-                              {entries.length>0 ? "No shifts on "+fmtDate(activeDay) : "No shifts in this roster period"}
-                            </div>
-                          ) : ganttRows.map((row,i)=>(
-                            <GanttRow key={row.name+i} label={row.name} sublabel={row.qual?Q[row.qual]?.s:undefined} entries={row.entries} qColors={qColors} onDelete={delEntry} onEdit={setEditShift} highlight={i%2===0}/>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Legend */}
-                      <div style={{padding:"8px 16px",borderTop:"1px solid #EDE8F4",display:"flex",gap:10,flexWrap:"wrap"}}>
-                        {Object.entries(qColors).map(([q,c])=>(
-                          <div key={q} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:2,background:c}}/><span style={{fontSize:9,color:"#8A7F96"}}>{Q[q]?.s||q}</span></div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* GRID VIEW */}
-              {viewMode==="grid"&&(activeDay||allDates[0])&&(
-                <div>
-                  <div style={{display:"flex",gap:3,marginBottom:8,overflowX:"auto",flexWrap:"nowrap"}}>
-                    {allDates.map(date=>{const d=new Date(date+"T12:00:00");const isActive=activeDay===date;return(<button key={date} onClick={()=>setSelDay(date)} style={{flexShrink:0,padding:"4px 10px",borderRadius:8,border:isActive?"2px solid #8B6DAF":"1px solid #EDE8F4",background:isActive?"#8B6DAF":"#fff",color:isActive?"#fff":"#555",cursor:"pointer",fontSize:10,fontWeight:isActive?700:500}}>{DAYS[d.getDay()]} {d.getDate()}</button>);})}
-                  </div>
-                  <div style={card}>
-                    <div style={{fontWeight:700,fontSize:13,color:"#3D3248",marginBottom:12}}>📋 {fmtDate(activeDay||allDates[0])}</div>
-                    {(()=>{
-                      const _gridDay=activeDay||allDates[0];
-                      const _gridEntries=entries.filter(e=>e.date===_gridDay);
-                      const byRoom={};
-                      _gridEntries.forEach(e=>{const rn=e.room_name||"Unassigned";if(!byRoom[rn])byRoom[rn]=[];byRoom[rn].push(e);});
-                      return Object.entries(byRoom).map(([room,re])=>{
-                        const hasECT=re.some(e=>e.qualification==="ect"||e.qualification==="diploma");
-                        return (
-                          <div key={room} style={{marginBottom:12,borderRadius:10,border:"1px solid "+(hasECT?"#D4E8D4":"#E8C0C4"),overflow:"hidden"}}>
-                            <div style={{padding:"6px 12px",background:hasECT?"rgba(46,139,87,0.04)":"rgba(192,107,115,0.06)",display:"flex",justifyContent:"space-between"}}>
-                              <span style={{fontWeight:700,fontSize:12}}>{room}</span>
-                              {hasECT?<Badge text="✓ ECT" color="#2E8B57"/>:<Badge text="⚠ No ECT/Diploma" color="#C06B73"/>}
-                            </div>
-                            {re.sort((a,b)=>(a.start_time||"").localeCompare(b.start_time||"")).map(e=>{
-                              const qx=Q[e.qualification]||{c:"#999",s:"?"};
-                              const sM=tM(e.start_time||"07:00"),eM=tM(e.end_time||"15:00");
-                              const hrs=((eM-sM-(e.break_mins||30))/60).toFixed(1);
+                          {/* Shift cards */}
+                          <div style={{ padding: 8, minHeight: 80 }}>
+                            {c.entries.map(e => {
+                              const qc = Q[e.qualification]?.c || "#8B6DAF";
+                              const hrs = ((tM(e.end_time || "15:00") - tM(e.start_time || "07:00") - (e.break_mins || 30)) / 60).toFixed(1);
                               return (
-                                <div key={e.id} style={{padding:"6px 12px",borderBottom:"1px solid #F5F0FB",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                    <div style={{width:7,height:7,borderRadius:"50%",background:qx.c}}/>
-                                    <span style={{fontSize:12,fontWeight:700}}>{e.educator_name}</span>
-                                    <Badge text={qx.s} color={qx.c}/>
-                                    {e.is_lunch_cover&&<Badge text="🍽 Lunch Cover" color="#D4A26A"/>}
-                                    {e.role==="lead_educator"&&<Badge text="Lead" color="#7E5BA3"/>}
-                                  </div>
-                                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                                    <span style={{fontSize:11,color:"#8A7F96"}}>{e.start_time}–{e.end_time} ({hrs}h)</span>
-                                    <button onClick={()=>delEntry(e.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#C06B73",fontSize:13}}>✕</button>
+                                <div key={e.id} onClick={ev => { ev.stopPropagation(); setEditShift(e); }}
+                                  style={{ padding: "6px 10px", marginBottom: 4, borderRadius: 8, background: qc + "15", border: "1px solid " + qc + "40", cursor: "pointer" }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: qc }}>{e.educator_name}</div>
+                                  <div style={{ fontSize: 10, color: "#5C4E6A" }}>{e.start_time}–{e.end_time} · {hrs}h</div>
+                                  <div style={{ display: "flex", gap: 3, marginTop: 2 }}>
+                                    <Badge text={Q[e.qualification]?.s || "?"} color={qc} />
+                                    {e.is_lunch_cover ? <Badge text="🍽 Lunch" color="#5B8DB5" /> : null}
                                   </div>
                                 </div>
                               );
                             })}
+                            {/* Add shift placeholder */}
+                            <div onClick={ev => { ev.stopPropagation(); setSelRoom(room.id); }}
+                              style={{ padding: "8px 0", textAlign: "center", borderRadius: 8, border: "2px dashed #E0D6E8", color: "#A89DB5", fontSize: 11, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
+                              + Add shift
+                            </div>
                           </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* SMART BUILD VIEW */}
-              {viewMode==="build"&&(
-                <SmartRosterBuilder
-                  period={period}
-                  entries={entries}
-                  educators={educators}
-                  rooms={rooms}
-                  allDates={allDates}
-                  onDelete={delEntry}
-                  onReload={()=>sp?.period?.id&&loadP(sp.period.id)}
-                  onEditShift={setEditShift}
-                />
-              )}
-
-              {/* Edit Shift Modal */}
-              {editShift&&(
-                <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:520,width:"94%",boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                      <h3 style={{margin:0,fontSize:16,fontWeight:700}}>✏️ Edit Shift</h3>
-                      <button onClick={()=>setEditShift(null)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#8A7F96"}}>✕</button>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-                      <div>
-                        <label style={lbl}>Educator</label>
-                        <select style={sel} value={editShift.educator_id} onChange={e=>setEditShift({...editShift,educator_id:e.target.value})}>
-                          {educators.map(e=><option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={lbl}>Room</label>
-                        <select style={sel} value={editShift.room_id||""} onChange={e=>setEditShift({...editShift,room_id:e.target.value})}>
-                          <option value="">No room</option>
-                          {rooms.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={lbl}>Date</label>
-                        <DatePicker value={editShift.date} onChange={v=>setEditShift({...editShift,date:v})}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Break (mins)</label>
-                        <input type="text" inputMode="numeric" style={inp} value={editShift.break_mins||30}
-                          onChange={e=>setEditShift({...editShift,break_mins:parseInt(e.target.value)||30})}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Start Time</label>
-                        <TimeInput style={inp} value={editShift.start_time} onChange={v=>setEditShift({...editShift,start_time:v})}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>End Time</label>
-                        <TimeInput style={inp} value={editShift.end_time} onChange={v=>setEditShift({...editShift,end_time:v})}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Lunch Break Start</label>
-                        <TimeInput style={inp} value={editShift.lunch_start||""} onChange={v=>setEditShift({...editShift,lunch_start:v})}/>
-                      </div>
-                      <div style={{display:"flex",alignItems:"flex-end",paddingBottom:4}}>
-                        <label style={{display:"flex",gap:6,alignItems:"center",fontSize:12,cursor:"pointer"}}>
-                          <input type="checkbox" checked={!!editShift.is_lunch_cover} onChange={e=>setEditShift({...editShift,is_lunch_cover:e.target.checked})}/> 🍽 Lunch cover
-                        </label>
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:10,justifyContent:"space-between"}}>
-                      <button onClick={()=>{if(confirm("Delete this shift?"))delEntry(editShift.id);setEditShift(null);}}
-                        style={{padding:"9px 16px",background:"#FFEBEE",color:"#C9828A",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>🗑 Delete</button>
-                      <div style={{display:"flex",gap:8}}>
-                        <button onClick={()=>setEditShift(null)} style={{...btnS,padding:"9px 18px"}}>Cancel</button>
-                        <button onClick={saveEditShift} style={{...btnP,padding:"9px 22px"}}>Save Changes</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Hours summary */}
-              {activeDay&&viewMode==="gantt"&&Object.keys(hoursSummary).length>0&&(
-                <div style={{...card,padding:"10px 14px"}}>
-                  <div style={{fontSize:10,fontWeight:700,color:"#5C4E6A",marginBottom:6}}>HOURS — {fmtDate(activeDay)}</div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:4}}>
-                    {Object.entries(hoursSummary).sort((a,b)=>b[1].h-a[1].h).map(([n,d])=>{
-                      const qx=Q[d.q]||{c:"#999",s:"?"};
-                      const p=Math.min(100,Math.round((d.h/38)*100));
-                      const over=d.h>=38,warn=d.h>=34&&d.h<38;
-                      return <div key={n} style={{padding:"5px 8px",borderRadius:6,background:over?"#FFF5F5":warn?"#FFFDE7":"#F8F5F1",border:`1px solid ${over?"#FFCDD2":warn?"#FFE082":"#E8E0D8"}`,fontSize:10}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                          <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:"50%",background:qx.c}}/><span style={{fontWeight:600}}>{n}</span></div>
-                          <div><strong style={{color:over?"#C62828":warn?"#E65100":"inherit"}}>{d.h.toFixed(1)}h</strong><span style={{color:"#A89DB5"}}>/38h</span></div>
                         </div>
-                        <div style={{height:3,borderRadius:2,background:"#E8E0D8",overflow:"hidden"}}><div style={{height:"100%",width:p+"%",background:over?"#E53935":warn?"#FB8C00":"#6BA38B",transition:"width 0.3s"}}/></div>
-                        {over&&<div style={{fontSize:9,color:"#C62828",fontWeight:700,marginTop:2}}>⚠️ AT 38H CAP</div>}
-                        {warn&&<div style={{fontSize:9,color:"#E65100",marginTop:2}}>Near cap</div>}
-                      </div>;
+                      );
                     })}
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px",borderRadius:6,background:"rgba(139,109,175,0.08)",border:"1px solid rgba(139,109,175,0.2)",fontSize:10,gridColumn:"span 2"}}>
-                      <strong>Daily Total</strong><strong style={{color:"#7E5BA3"}}>${totalDayCost.toFixed(0)}</strong>
+                  </div>
+                )}
+
+                {/* TIMELINE VIEW */}
+                {dayLayout === "timeline" && selDay && (
+                  <div style={card}>
+                    <GanttTimeline />
+                    {rooms.map(room => {
+                      const re = dayEntries.filter(e => e.room_id === room.id);
+                      return <GanttRow key={room.id} label={room.name} sublabel={`${re.length} educator${re.length !== 1 ? "s" : ""}`} entries={re} qColors={{ ect: "#2E8B57", diploma: "#7E5BA3", cert3: "#D4A26A", working_towards_diploma: "#5B8DB5", working_towards: "#B87D47" }} onDelete={delEntry} onEdit={setEditShift} />;
+                    })}
+                    <div style={{ marginTop: 8 }}>
+                      <NQFComplianceTimeline dayEntries={dayEntries} rooms={rooms} />
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* Right side: Educator panel */}
+              <div style={{ ...card, padding: 12, maxHeight: "calc(100vh - 250px)", overflowY: "auto", position: "sticky", top: 16 }}>
+                <h4 style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#3D3248" }}>
+                  👩‍🏫 {selRoom ? `Educators for ${rooms.find(r => r.id === selRoom)?.name || "Room"}` : "Available Educators"}
+                </h4>
+                {selDay && (() => {
+                  const dow = new Date(selDay + "T12:00:00").getDay();
+                  const alreadyAssigned = dayEntries.filter(e => selRoom ? e.room_id === selRoom : true).map(e => e.educator_id);
+                  const scored = educators.filter(e => e.status === "active" || !e.status).map(ed => {
+                    let score = 50;
+                    score += (ed.reliability_score || 0) / 2;
+                    if (ed.preferred_rooms?.includes(selRoom)) score += 20;
+                    const avail = ed.availability?.find(a => a.day_of_week === dow);
+                    if (avail?.available) score += 15;
+                    if (alreadyAssigned.includes(ed.id)) score -= 100;
+                    return { ...ed, score, available: avail?.available, avail_start: avail?.start_time, avail_end: avail?.end_time, assigned: alreadyAssigned.includes(ed.id) };
+                  }).sort((a, b) => b.score - a.score);
+
+                  return scored.map(ed => {
+                    const qc = Q[ed.qualification]?.c || "#8B6DAF";
+                    const weekHrs = entries.filter(e => e.educator_id === ed.id).reduce((s, e) => { const sM = tM(e.start_time || "07:00"), eM = tM(e.end_time || "15:00"); return s + (eM - sM - (e.break_mins || 30)) / 60; }, 0);
+                    return (
+                      <div key={ed.id}
+                        draggable onDragStart={e => e.dataTransfer.setData("educatorId", ed.id)}
+                        style={{ padding: "6px 10px", marginBottom: 3, borderRadius: 8, border: "1px solid " + (ed.assigned ? "#E0E0E0" : "#EDE8F4"), background: ed.assigned ? "#FAFAFA" : "#fff", opacity: ed.assigned ? 0.5 : 1, cursor: ed.assigned ? "default" : "grab" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#3D3248" }}>{ed.first_name} {ed.last_name}</span>
+                            {ed.preferred_rooms?.includes(selRoom) && <span title="Prefers this room" style={{ marginLeft: 4 }}>⭐</span>}
+                          </div>
+                          <Badge text={Q[ed.qualification]?.s || "?"} color={qc} />
+                        </div>
+                        <div style={{ display: "flex", gap: 8, fontSize: 9, color: "#8A7F96", marginTop: 2 }}>
+                          <span>{ed.available ? `${(ed.avail_start || "?").slice(0, 5)}–${(ed.avail_end || "?").slice(0, 5)}` : "Not avail"}</span>
+                          <span>{weekHrs.toFixed(1)}h this week</span>
+                          <span>{Math.round(ed.reliability_score || 0)}% reliable</span>
+                        </div>
+                        {!ed.assigned && (
+                          <button onClick={() => saveEntry({ educator_id: ed.id, room_id: selRoom || rooms[0]?.id, date: selDay, start_time: ed.avail_start || settings?.open_time || "07:00", end_time: ed.avail_end || settings?.close_time || "15:00", break_mins: settings?.default_break_mins || 30 })}
+                            style={{ marginTop: 4, padding: "3px 8px", borderRadius: 6, border: "1px solid #8B6DAF", background: "#F5F0FB", color: "#7C3AED", fontSize: 9, fontWeight: 700, cursor: "pointer", width: "100%" }}>
+                            + Assign to {selRoom ? rooms.find(r => r.id === selRoom)?.name || "room" : "room"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Edit shift modal */}
+          {editShift && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 460, width: "92%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>✏️ Edit Shift</h3>
+                  <button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#8A7F96" }}>×</button>
                 </div>
-              )}
+                <div style={{ background: "#F8F5FC", borderRadius: 10, padding: "8px 14px", marginBottom: 14, fontSize: 12, color: "#5C4E6A" }}>
+                  <strong>{editShift.educator_name}</strong> · {fmtDate(editShift.date)} · {rooms.find(r => r.id === editShift.room_id)?.name || ""}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                  <div><label style={lbl}>Start Time</label><input type="time" value={editShift.start_time || "07:00"} onChange={e => setEditShift({ ...editShift, start_time: e.target.value })} style={inp} /></div>
+                  <div><label style={lbl}>End Time</label><input type="time" value={editShift.end_time || "15:00"} onChange={e => setEditShift({ ...editShift, end_time: e.target.value })} style={inp} /></div>
+                  <div><label style={lbl}>Break (mins)</label><input type="number" value={editShift.break_mins || 30} onChange={e => setEditShift({ ...editShift, break_mins: parseInt(e.target.value) || 0 })} style={inp} /></div>
+                  <div><label style={lbl}>Room</label>
+                    <select value={editShift.room_id || ""} onChange={e => setEditShift({ ...editShift, room_id: e.target.value })} style={sel}>
+                      {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+                  <button onClick={() => { delEntry(editShift.id); setEditShift(null); }} style={{ ...btnS, color: "#C06B73", borderColor: "#FFCDD2" }}>🗑 Delete</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => setEditShift(null)} style={btnS}>Cancel</button>
+                    <button onClick={() => { updateEntry(editShift.id, { start_time: editShift.start_time, end_time: editShift.end_time, break_mins: editShift.break_mins, room_id: editShift.room_id }); setEditShift(null); }} style={btnP}>💾 Save</button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
-      </div>
+      )}
+
+      {/* ═══ GENERATE AI ROSTER ═══ */}
+      {subView === "generate" && (
+        <div style={{ ...card, padding: 20, maxWidth: 600 }}>
+          <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800 }}>🤖 Generate AI Roster</h3>
+          <p style={{ margin: "0 0 16px", fontSize: 11, color: "#8A7F96" }}>The AI will create an optimised roster based on NQF ratios, educator availability, qualifications, and your budget.</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+            <div>
+              <label style={lbl}>Period Type</label>
+              <select value={gf.period_type} onChange={e => { const t = e.target.value; setGf({ ...gf, period_type: t, end_date: addDays(gf.start_date, t === "weekly" ? 4 : 13) }); }} style={sel}>
+                <option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Weekly Budget ($)</label>
+              <input type="number" value={gf.weekly_budget_cents ? gf.weekly_budget_cents / 100 : ""} onChange={e => setGf({ ...gf, weekly_budget_cents: Math.round(parseFloat(e.target.value || 0) * 100) })} style={inp} placeholder="0 = no limit" />
+            </div>
+            <div>
+              <label style={lbl}>Start Date</label>
+              <DatePicker value={gf.start_date} onChange={v => setGf({ ...gf, start_date: v, end_date: addDays(v, gf.period_type === "weekly" ? 4 : 13) })} />
+            </div>
+            <div>
+              <label style={lbl}>End Date</label>
+              <DatePicker value={gf.end_date} onChange={v => setGf({ ...gf, end_date: v })} />
+            </div>
+            <div>
+              <label style={lbl}>Lunch Cover Educator</label>
+              <select value={lunchCoverEdId || ""} onChange={e => setLunchCoverEdId(e.target.value || null)} style={sel}>
+                <option value="">— None —</option>
+                {educators.filter(e => e.is_lunch_cover).map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "end" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={gf.is_special || false} onChange={e => setGf({ ...gf, is_special: e.target.checked })} />
+                🌟 Special roster (outside hours)
+              </label>
+            </div>
+          </div>
+
+          {gf.is_special && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Special Roster Notes</label>
+              <input value={gf.special_notes || ""} onChange={e => setGf({ ...gf, special_notes: e.target.value })} style={inp} placeholder="e.g. School holiday program, training day" />
+            </div>
+          )}
+
+          <button onClick={handleGenerate} disabled={generating}
+            style={{ ...btnP, padding: "12px 32px", fontSize: 14, width: "100%", justifyContent: "center", opacity: generating ? 0.6 : 1 }}>
+            {generating ? "⏳ Generating…" : "🤖 Generate Roster"}
+          </button>
+
+          {gErr && <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", color: "#C06B73", fontSize: 12 }}>❌ {gErr}</div>}
+
+          {gRes && (
+            <div style={{ marginTop: 12, padding: "14px 18px", borderRadius: 12, background: "rgba(46,139,87,0.06)", border: "1px solid rgba(46,139,87,0.2)" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#2E8B57", marginBottom: 8 }}>✅ Roster Generated!</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Shifts</div><div style={{ fontWeight: 800 }}>{gRes.shifts_created || gRes.entries?.length || "?"}</div></div>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Hours</div><div style={{ fontWeight: 800 }}>{gRes.total_hours?.toFixed(1) || "?"}</div></div>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Cost</div><div style={{ fontWeight: 800 }}>${gRes.total_cost?.toFixed(0) || "?"}</div></div>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Compliance</div><div style={{ fontWeight: 800, color: gRes.compliance_score >= 90 ? "#2E8B57" : "#E65100" }}>{gRes.compliance_score || "?"}%</div></div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={() => { if (gRes.period_id) { loadP(gRes.period_id); setSubView("week"); } }} style={btnP}>📊 View Roster</button>
+                <button onClick={handleGenerate} style={btnS}>🔄 Regenerate</button>
+              </div>
+            </div>
+          )}
+
+          {/* AI Assistant */}
+          {period && <div style={{ marginTop: 16 }}><AIRosterAssistant entries={entries} educators={educators} rooms={rooms} period={period} /></div>}
+        </div>
+      )}
     </div>
-
-    {/* ── EMAIL ROSTER MODAL ── */}
-    {showEmailRoster&&period&&(
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:580,width:"94%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-            <h3 style={{margin:0,fontSize:16,fontWeight:800}}>📧 Email Roster</h3>
-            <button onClick={()=>{setShowEmailRoster(false);setEmailResult(null);}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#8A7F96"}}>×</button>
-          </div>
-          <div style={{background:"#F0FFF4",border:"1px solid #A7F3D0",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#065F46"}}>
-            <strong>Roster:</strong> {period.start_date} → {period.end_date} · {entries.length} shifts
-          </div>
-
-          {/* Recipient selection */}
-          <div style={{marginBottom:14}}>
-            <label style={{fontSize:11,fontWeight:700,color:"#8A7F96",display:"block",marginBottom:8,textTransform:"uppercase"}}>Send To</label>
-            <label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:emailForm.include_all?"#EDE8F4":"#F8F5F1",borderRadius:10,border:"1px solid "+(emailForm.include_all?"#8B6DAF":"#E0D6E8"),cursor:"pointer",marginBottom:8}}>
-              <input type="checkbox" checked={emailForm.include_all} onChange={e=>setEmailForm(f=>({...f,include_all:e.target.checked,educator_ids:[]}))}/>
-              <div>
-                <div style={{fontWeight:700,fontSize:13}}>All rostered educators</div>
-                <div style={{fontSize:11,color:"#8A7F96"}}>{[...new Set(entries.map(e=>e.educator_id))].length} educators on this roster</div>
-              </div>
-            </label>
-            {!emailForm.include_all&&(
-              <div style={{maxHeight:200,overflowY:"auto",border:"1px solid #EDE8F4",borderRadius:10,padding:8}}>
-                {[...new Set(entries.map(e=>e.educator_id))].map(eid=>{
-                  const e=entries.find(x=>x.educator_id===eid);
-                  const checked=emailForm.educator_ids.includes(eid);
-                  return e&&(
-                    <label key={eid} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",cursor:"pointer",borderRadius:7,background:checked?"rgba(139,109,175,0.06)":"transparent"}}>
-                      <input type="checkbox" checked={checked} onChange={ev=>setEmailForm(f=>({...f,educator_ids:ev.target.checked?[...f.educator_ids,eid]:f.educator_ids.filter(x=>x!==eid)}))}/>
-                      <div>
-                        <div style={{fontSize:13,fontWeight:600}}>{e.educator_name}</div>
-                        <div style={{fontSize:11,color:"#8A7F96"}}>{entries.filter(x=>x.educator_id===eid).length} shifts · {e.email||"No email"}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Subject and message */}
-          <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,fontWeight:700,color:"#8A7F96",display:"block",marginBottom:5,textTransform:"uppercase"}}>Subject</label>
-            <input value={emailForm.subject} onChange={e=>setEmailForm(f=>({...f,subject:e.target.value}))}
-              placeholder={"Your Roster – "+period.start_date+" to "+period.end_date}
-              style={{padding:"9px 12px",borderRadius:8,border:"1px solid #D9D0C7",fontSize:13,width:"100%",boxSizing:"border-box"}}/>
-          </div>
-          <div style={{marginBottom:16}}>
-            <label style={{fontSize:11,fontWeight:700,color:"#8A7F96",display:"block",marginBottom:5,textTransform:"uppercase"}}>Message (optional)</label>
-            <textarea value={emailForm.message} onChange={e=>setEmailForm(f=>({...f,message:e.target.value}))}
-              rows={3} placeholder="Hi team, please find your roster below. Let us know if you have any questions."
-              style={{padding:"9px 12px",borderRadius:8,border:"1px solid #D9D0C7",fontSize:13,width:"100%",boxSizing:"border-box",resize:"vertical"}}/>
-          </div>
-
-          {emailResult&&(
-            <div style={{background:"#E8F5E9",border:"1px solid #A5D6A7",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#1B5E20"}}>
-              ✅ {emailResult.message} {emailResult.skipped>0&&`(${emailResult.skipped} skipped — no email address)`}
-            </div>
-          )}
-
-          <div style={{display:"flex",gap:10}}>
-            <button onClick={()=>{setShowEmailRoster(false);setEmailResult(null);}} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #DDD",background:"#FDFBF9",color:"#555",cursor:"pointer",fontWeight:600,fontSize:13}}>Close</button>
-            <button onClick={sendEmailRoster} disabled={emailSending||(!emailForm.include_all&&emailForm.educator_ids.length===0)}
-              style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:"#1565C0",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,opacity:(emailSending||(!emailForm.include_all&&emailForm.educator_ids.length===0))?0.6:1}}>
-              {emailSending?"Sending…":"📧 Send Roster Emails"}
-            </button>
-          </div>
-          <div style={{marginTop:10,fontSize:11,color:"#A89DB5",textAlign:"center"}}>Requires SMTP config in Settings → Notifications. Emails are logged in the activity feed.</div>
-        </div>
-      </div>
-    )}
-
-    {/* ── PRINT / EXPORT VIEW ── */}
-    {showPrintView&&period&&(
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:800,width:"96%",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <h3 style={{margin:0,fontSize:16,fontWeight:800}}>🖨 Print / Export Roster</h3>
-            <button onClick={()=>setShowPrintView(false)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#8A7F96"}}>×</button>
-          </div>
-
-          {/* Print mode selector */}
-          <div style={{display:"flex",gap:8,marginBottom:20}}>
-            {[["week","📅 Full Week"],["educator","👩‍🏫 By Educator"],["room","🏠 By Room"]].map(([id,l])=>(
-              <button key={id} onClick={()=>setPrintMode(id)} style={{padding:"8px 16px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,background:printMode===id?"#8B6DAF":"#EDE8F4",color:printMode===id?"#fff":"#6B5F7A"}}>{l}</button>
-            ))}
-            <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-              <button onClick={()=>window.print()} style={{padding:"8px 18px",background:"#3D3248",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}>🖨 Print</button>
-            </div>
-          </div>
-
-          {/* Print content */}
-          <div id="print-roster-content" style={{fontFamily:"inherit"}}>
-            <div style={{textAlign:"center",marginBottom:16,borderBottom:"2px solid #3D3248",paddingBottom:12}}>
-              <div style={{fontWeight:800,fontSize:18,color:"#3D3248"}}>Childcare360 — Roster</div>
-              <div style={{fontSize:13,color:"#5C4E6A",marginTop:4}}>{period.start_date} to {period.end_date} · {entries.length} shifts · Status: {period.status?.toUpperCase()}</div>
-            </div>
-
-            {printMode==="week"&&(
-              <div>
-                {allDates.map(date=>{
-                  const de=entries.filter(e=>e.date===date);
-                  return(
-                    <div key={date} style={{marginBottom:20,pageBreakInside:"avoid"}}>
-                      <div style={{fontWeight:800,fontSize:14,color:"#3D3248",padding:"6px 10px",background:"#EDE8F4",borderRadius:6,marginBottom:8}}>
-                        {new Date(date+"T12:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
-                      </div>
-                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                        <thead><tr style={{background:"#F8F5FC"}}>{["Educator","Qualification","Room","Start","End","Break","Hours"].map(h=>(
-                          <th key={h} style={{padding:"6px 10px",textAlign:"left",borderBottom:"1px solid #EDE8F4",fontWeight:700,color:"#5C4E6A"}}>{h}</th>
-                        ))}</tr></thead>
-                        <tbody>{de.map((e,i)=>{
-                          const hrs=((tM(e.end_time)-tM(e.start_time)-(e.break_mins||30))/60).toFixed(1);
-                          return(<tr key={e.id} style={{background:i%2===0?"#fff":"#FDFBF9"}}>
-                            <td style={{padding:"6px 10px",borderBottom:"1px solid #F5F0FB",fontWeight:600}}>{e.educator_name}</td>
-                            <td style={{padding:"6px 10px",borderBottom:"1px solid #F5F0FB",color:"#8A7F96",fontSize:11}}>{e.qualification}</td>
-                            <td style={{padding:"6px 10px",borderBottom:"1px solid #F5F0FB"}}>{e.room_name||"—"}</td>
-                            <td style={{padding:"6px 10px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.start_time}</td>
-                            <td style={{padding:"6px 10px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.end_time}</td>
-                            <td style={{padding:"6px 10px",borderBottom:"1px solid #F5F0FB",color:"#8A7F96"}}>{e.break_mins||30}m</td>
-                            <td style={{padding:"6px 10px",borderBottom:"1px solid #F5F0FB",fontWeight:700,color:"#7E5BA3"}}>{hrs}h</td>
-                          </tr>);
-                        })}</tbody>
-                      </table>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {printMode==="educator"&&(
-              <div>
-                {[...new Set(entries.map(e=>e.educator_id))].map(eid=>{
-                  const edEntries=entries.filter(e=>e.educator_id===eid).sort((a,b)=>a.date.localeCompare(b.date));
-                  const edName=edEntries[0]?.educator_name;
-                  const totalHrs=edEntries.reduce((s,e)=>(s+(tM(e.end_time)-tM(e.start_time)-(e.break_mins||30))/60),0);
-                  return(
-                    <div key={eid} style={{marginBottom:24,pageBreakInside:"avoid",border:"1px solid #EDE8F4",borderRadius:10,overflow:"hidden"}}>
-                      <div style={{background:"#3D3248",color:"#fff",padding:"10px 16px",display:"flex",justifyContent:"space-between"}}>
-                        <span style={{fontWeight:800,fontSize:14}}>{edName}</span>
-                        <span style={{fontSize:12,opacity:0.8}}>{edEntries.length} shifts · {totalHrs.toFixed(1)}h total</span>
-                      </div>
-                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                        <thead><tr style={{background:"#F8F5FC"}}>{["Date","Day","Room","Start","End","Break","Hours"].map(h=>(
-                          <th key={h} style={{padding:"7px 12px",textAlign:"left",borderBottom:"1px solid #EDE8F4",fontWeight:700,color:"#5C4E6A"}}>{h}</th>
-                        ))}</tr></thead>
-                        <tbody>{edEntries.map((e,i)=>{
-                          const d=new Date(e.date+"T12:00:00");
-                          const hrs=((tM(e.end_time)-tM(e.start_time)-(e.break_mins||30))/60).toFixed(1);
-                          return(<tr key={e.id} style={{background:i%2===0?"#fff":"#FDFBF9"}}>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.date}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB"}}>{d.toLocaleDateString("en-AU",{weekday:"short"})}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB"}}>{e.room_name||"—"}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.start_time}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.end_time}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",color:"#8A7F96"}}>{e.break_mins||30}m</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontWeight:700,color:"#7E5BA3"}}>{hrs}h</td>
-                          </tr>);
-                        })}</tbody>
-                      </table>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {printMode==="room"&&(
-              <div>
-                {[...new Set(entries.map(e=>e.room_name||"Unassigned"))].sort().map(roomName=>{
-                  const rEntries=entries.filter(e=>(e.room_name||"Unassigned")===roomName).sort((a,b)=>a.date.localeCompare(b.date)||a.start_time.localeCompare(b.start_time));
-                  return(
-                    <div key={roomName} style={{marginBottom:24,pageBreakInside:"avoid",border:"1px solid #EDE8F4",borderRadius:10,overflow:"hidden"}}>
-                      <div style={{background:"#7E5BA3",color:"#fff",padding:"10px 16px",display:"flex",justifyContent:"space-between"}}>
-                        <span style={{fontWeight:800,fontSize:14}}>🏠 {roomName}</span>
-                        <span style={{fontSize:12,opacity:0.8}}>{rEntries.length} shifts</span>
-                      </div>
-                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                        <thead><tr style={{background:"#F8F5FC"}}>{["Date","Educator","Qualification","Start","End","Hours"].map(h=>(
-                          <th key={h} style={{padding:"7px 12px",textAlign:"left",borderBottom:"1px solid #EDE8F4",fontWeight:700,color:"#5C4E6A"}}>{h}</th>
-                        ))}</tr></thead>
-                        <tbody>{rEntries.map((e,i)=>{
-                          const hrs=((tM(e.end_time)-tM(e.start_time)-(e.break_mins||30))/60).toFixed(1);
-                          return(<tr key={e.id} style={{background:i%2===0?"#fff":"#FDFBF9"}}>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.date}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontWeight:600}}>{e.educator_name}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",color:"#8A7F96",fontSize:11}}>{e.qualification}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.start_time}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontFamily:"monospace"}}>{e.end_time}</td>
-                            <td style={{padding:"7px 12px",borderBottom:"1px solid #F5F0FB",fontWeight:700,color:"#7E5BA3"}}>{hrs}h</td>
-                          </tr>);
-                        })}</tbody>
-                      </table>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )}
-
-    </>
   );
 }
+
 
 /* ═══ SICK COVER ═══ */
 function SickCoverTab({ educators = [], fills = [], reload }) {
