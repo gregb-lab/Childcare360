@@ -37,7 +37,7 @@ const EMP = { permanent: "Permanent", part_time: "Part-Time", casual: "Casual", 
 const NQF_RATIOS = { babies: { ratio: 4, ect_required: true }, toddlers: { ratio: 5, ect_required: false }, preschool: { ratio: 11, ect_required: true }, oshc: { ratio: 15, ect_required: false } };
 const AGE_MAP = { "babies":"babies","0-2":"babies","toddlers":"toddlers","2-3":"toddlers","preschool":"preschool","3-4":"preschool","3-5":"preschool","4-5":"preschool","oshc":"oshc","school_age":"oshc" };
 const ROOM_COLORS = ["#8B6DAF","#6BA38B","#C9929E","#D4A26A","#5B8DB5","#9B7DC0","#C06B73","#4A8A6E"];
-const GANTT_START = 360, GANTT_END = 1140, GANTT_SPAN = GANTT_END - GANTT_START;
+const GANTT_START = 300, GANTT_END = 1200, GANTT_SPAN = GANTT_END - GANTT_START; // 5am–8pm range
 const pct = m => Math.max(0, Math.min(100, (m - GANTT_START) / GANTT_SPAN * 100));
 
 export function RosteringModule() {
@@ -472,15 +472,20 @@ function GanttBar({ entry, qColor, onDelete, onEdit }) {
   );
 }
 
-function GanttTimeline() {
-  const hours = []; for (let h = 6; h <= 19; h++) hours.push(h);
+function GanttTimeline({ openHour, closeHour }) {
+  const startH = Math.max(5, (openHour || 7) - 1);
+  const endH = Math.min(20, (closeHour || 19) + 1);
+  const hours = []; for (let h = startH; h <= endH; h++) hours.push(h);
   return (
     <div style={{ position:"relative", height:20, borderBottom:"1px solid #EDE8F4", marginLeft:160 }}>
-      {hours.map(h => (
-        <div key={h} style={{ position:"absolute", left:pct(h*60)+"%", top:0, height:"100%", borderLeft:"1px solid #F0EBF8", display:"flex", alignItems:"center" }}>
-          <span style={{ fontSize:9, color:"#A89DB5", paddingLeft:2, fontWeight:600 }}>{h}:00</span>
-        </div>
-      ))}
+      {hours.map(h => {
+        const isEdge = h < (openHour || 7) || h > (closeHour || 19);
+        return (
+          <div key={h} style={{ position:"absolute", left:pct(h*60)+"%", top:0, height:"100%", borderLeft:"1px solid " + (isEdge ? "#F5F0FB" : "#EDE8F4"), display:"flex", alignItems:"center" }}>
+            <span style={{ fontSize:9, color: isEdge ? "#D6CEE0" : "#A89DB5", paddingLeft:2, fontWeight:600 }}>{h}:00</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1697,7 +1702,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
                     <div style={{ fontSize: 10, color: "#8A7F96", marginBottom: 6, padding: "4px 8px", background: "#F8F5FC", borderRadius: 6, display: "inline-block" }}>
                       💡 <strong>Drag</strong> an educator from the right panel onto a room row to assign a shift · <strong>Click</strong> any shift bar to edit
                     </div>
-                    <GanttTimeline />
+                    <GanttTimeline openHour={tM(settings?.open_time || "07:00") / 60} closeHour={Math.ceil(tM(settings?.close_time || "18:30") / 60)} />
                     {rooms.map((room, ri) => {
                       const re = dayEntries.filter(e => e.room_id === room.id);
                       const c = getRoomCompliance(room.id, selDay);
@@ -1742,7 +1747,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
                             <div style={{ fontSize: 8, color: "#8A7F96", marginTop: 1 }}>{re.length}/{c.required} educators · 1:{nqf.ratio} · {room.current_children || 0} kids</div>
                           </div>
                           <div style={{ flex: 1, position: "relative", minHeight: Math.max(40, re.length * 34 + 4) }}>
-                            {[6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(h => (
+                            {(() => { const s = Math.max(5, Math.floor(tM(settings?.open_time||"07:00")/60)-1), e = Math.min(20, Math.ceil(tM(settings?.close_time||"18:30")/60)+1), hrs=[]; for(let h=s;h<=e;h++) hrs.push(h); return hrs; })().map(h => (
                               <div key={h} style={{ position: "absolute", left: pct(h * 60) + "%", top: 0, bottom: 0, borderLeft: "1px solid #F0EBF820", pointerEvents: "none" }} />
                             ))}
                             {re.map((entry, ei) => {
@@ -1790,10 +1795,15 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
                     const avail = ed?.availability?.find(a => a.day_of_week === dow);
                     if (avail?.available) score += 15;
                     const dayAssigned = dayEntries.filter(e => e.educator_id === ed.id);
-                    return { ...ed, score, available: avail?.available, avail_start: avail?.start_time, avail_end: avail?.end_time, dayShifts: dayAssigned.length };
+                    // Rostered educators get negative score so they sort to bottom
+                    if (dayAssigned.length > 0) score -= 200;
+                    return { ...ed, score, available: avail?.available, avail_start: avail?.start_time, avail_end: avail?.end_time, dayShifts: dayAssigned.length, rostered: dayAssigned.length > 0 };
                   }).sort((a, b) => b.score - a.score);
 
-                  return scored.map(ed => {
+                  const unrostered = scored.filter(e => !e.rostered);
+                  const rostered = scored.filter(e => e.rostered);
+
+                  const renderEd = (ed, greyed) => {
                     const qc = Q[ed.qualification]?.c || "#8B6DAF";
                     const weekHrs = entries.filter(e => e.educator_id === ed.id).reduce((s, e) => { const sM2 = tM(e.start_time || "07:00"), eM2 = tM(e.end_time || "15:00"); return s + (eM2 - sM2 - (e.break_mins || 30)) / 60; }, 0);
                     return (
@@ -1801,22 +1811,36 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
                         draggable
                         onDragStart={e => { e.dataTransfer.setData("educatorId", ed.id); setDragEdId(ed.id); }}
                         onDragEnd={() => setDragEdId(null)}
-                        style={{ padding: "6px 10px", marginBottom: 3, borderRadius: 8, border: "1px solid #EDE8F4", background: dragEdId === ed.id ? "rgba(139,109,175,0.08)" : "#fff", cursor: "grab", userSelect: "none" }}>
+                        style={{ padding: "6px 10px", marginBottom: 3, borderRadius: 8, border: "1px solid " + (greyed ? "#E8E0D8" : "#EDE8F4"), background: dragEdId === ed.id ? "rgba(139,109,175,0.08)" : greyed ? "#F8F5F1" : "#fff", cursor: "grab", userSelect: "none", opacity: greyed ? 0.5 : 1 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: "#3D3248" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: greyed ? "#A89DB5" : "#3D3248" }}>
                             {ed.first_name} {ed.last_name}
-                            {ed.dayShifts > 0 && <span style={{ fontSize: 9, color: "#8A7F96", fontWeight: 400 }}> ({ed.dayShifts} today)</span>}
+                            {ed.dayShifts > 0 && <span style={{ fontSize: 9, color: "#A89DB5", fontWeight: 400 }}> ({ed.dayShifts} shift{ed.dayShifts !== 1 ? "s" : ""} today)</span>}
                           </span>
-                          <Badge text={Q[ed.qualification]?.s || "?"} color={qc} />
+                          <Badge text={Q[ed.qualification]?.s || "?"} color={greyed ? "#A89DB5" : qc} />
                         </div>
-                        <div style={{ display: "flex", gap: 8, fontSize: 9, color: "#8A7F96", marginTop: 2 }}>
+                        <div style={{ display: "flex", gap: 8, fontSize: 9, color: "#A89DB5", marginTop: 2 }}>
                           <span>{ed.available ? "✓ Avail" : "✗ Off"}</span>
                           <span>{weekHrs.toFixed(1)}h/wk</span>
                           <span>{Math.round(ed.reliability_score || 0)}%</span>
                         </div>
                       </div>
                     );
-                  });
+                  };
+
+                  return (
+                    <>
+                      {unrostered.map(ed => renderEd(ed, false))}
+                      {rostered.length > 0 && (
+                        <>
+                          <div style={{ padding: "6px 0 4px", fontSize: 9, fontWeight: 700, color: "#A89DB5", borderTop: "1px solid #EDE8F4", marginTop: 4 }}>
+                            ALREADY ROSTERED TODAY ({rostered.length})
+                          </div>
+                          {rostered.map(ed => renderEd(ed, true))}
+                        </>
+                      )}
+                    </>
+                  );
                 })()}
               </div>
             </div>
