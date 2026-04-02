@@ -1405,7 +1405,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
   const [subView, setSubView] = useState("week"); // 'week' | 'day' | 'generate'
   const [selDay, setSelDay] = useState(null);
   const [selRoom, setSelRoom] = useState(null);
-  const [dayLayout, setDayLayout] = useState("kanban"); // 'kanban' | 'timeline'
+  const [dragEdId, setDragEdId] = useState(null); // educator being dragged
   const [showTemplates, setShowTemplates] = useState(false);
   const [editShift, setEditShift] = useState(null);
 
@@ -1489,6 +1489,8 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
   // Approve / Publish
   const approve = async id => { try { await API("/api/rostering/periods/" + id + "/approve", { method: "PUT" }); reload(); loadP(id); toast("Roster approved"); } catch (e) { toast("Approve failed", "error"); } };
   const publish = async id => { try { await API("/api/rostering/periods/" + id + "/publish", { method: "PUT" }); reload(); loadP(id); toast("Roster published"); } catch (e) { toast("Publish failed", "error"); } };
+  const unpublish = async id => { try { await API("/api/rostering/periods/" + id + "/unpublish", { method: "PUT" }); reload(); loadP(id); toast("Roster reverted to draft"); } catch (e) { toast("Unpublish failed", "error"); } };
+  const deletePeriod = async id => { if (!confirm("Delete this roster period and all its shifts? This cannot be undone.")) return; try { await API("/api/rostering/periods/" + id, { method: "DELETE" }); reload(); localStorage.removeItem("c360_last_period_id"); toast("Period deleted"); } catch (e) { toast("Delete failed", "error"); } };
 
   // Template actions
   const saveAsTemplate = async () => {
@@ -1545,7 +1547,10 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
           <>
             <Badge text={period.status || "draft"} color={period.status === "published" ? "#2E8B57" : period.status === "approved" ? "#5B8DB5" : "#D4A26A"} />
             {period.status === "draft" && <button onClick={() => approve(period.id)} style={btnS}>✓ Approve</button>}
+            {period.status === "draft" && <button onClick={() => deletePeriod(period.id)} style={{ ...btnS, color: "#C06B73", borderColor: "#FFCDD2" }}>🗑 Delete</button>}
             {period.status === "approved" && <button onClick={() => publish(period.id)} style={btnP}>📤 Publish</button>}
+            {period.status === "approved" && <button onClick={() => unpublish(period.id)} style={btnS}>↩ Revert to Draft</button>}
+            {period.status === "published" && <button onClick={() => unpublish(period.id)} style={btnS}>✏️ Edit (Unpublish)</button>}
             <button onClick={saveAsTemplate} style={btnS}>💾 Save as Template</button>
           </>
         )}
@@ -1668,138 +1673,147 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
               <p style={{ fontSize: 14, fontWeight: 600 }}>Select a roster period to edit shifts</p>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }}>
-              {/* Main area */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 12 }}>
+              {/* Main: Timeline view */}
               <div>
-                {/* Day selector + layout toggle */}
-                <div style={{ display: "flex", gap: 3, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+                {/* Day selector */}
+                <div style={{ display: "flex", gap: 3, marginBottom: 10, flexWrap: "wrap" }}>
                   {allDates.map(d => {
                     const dt = new Date(d + "T12:00:00");
                     const active = selDay === d;
+                    const dayShifts = entries.filter(e => e.date === d).length;
                     return (
                       <button key={d} onClick={() => setSelDay(d)}
-                        style={{ padding: "5px 10px", borderRadius: 8, border: active ? "2px solid #8B6DAF" : "1px solid #EDE8F4", background: active ? "#8B6DAF" : "#fff", color: active ? "#fff" : "#555", cursor: "pointer", fontSize: 11, fontWeight: active ? 700 : 500 }}>
-                        {DAYS[dt.getDay()]} {dt.getDate()}
+                        style={{ padding: "5px 12px", borderRadius: 8, border: active ? "2px solid #8B6DAF" : "1px solid #EDE8F4", background: active ? "#8B6DAF" : "#fff", color: active ? "#fff" : "#555", cursor: "pointer", fontSize: 11, fontWeight: active ? 700 : 500 }}>
+                        {DAYS[dt.getDay()]} {dt.getDate()} <span style={{ fontSize: 9, opacity: 0.7 }}>({dayShifts})</span>
                       </button>
                     );
                   })}
-                  <div style={{ flex: 1 }} />
-                  <div style={{ display: "flex", gap: 2, background: "#F0EBF8", borderRadius: 6, padding: 2 }}>
-                    {[["kanban", "Kanban"], ["timeline", "Timeline"]].map(([id, l]) => (
-                      <button key={id} onClick={() => setDayLayout(id)}
-                        style={{ padding: "4px 10px", borderRadius: 5, border: "none", background: dayLayout === id ? "#fff" : "transparent", color: dayLayout === id ? "#7C3AED" : "#8A7F96", fontWeight: dayLayout === id ? 700 : 500, fontSize: 10, cursor: "pointer" }}>
-                        {l}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
-                {/* KANBAN VIEW */}
-                {dayLayout === "kanban" && selDay && (
-                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(rooms.length, 1)}, minmax(160px, 1fr))`, gap: 8, overflowX: "auto" }}>
-                    {rooms.map(room => {
+                {/* Timeline with drag-drop rooms */}
+                {selDay && (
+                  <div style={card}>
+                    <div style={{ fontSize: 10, color: "#8A7F96", marginBottom: 6, padding: "4px 8px", background: "#F8F5FC", borderRadius: 6, display: "inline-block" }}>
+                      💡 <strong>Drag</strong> an educator from the right panel onto a room row to assign a shift · <strong>Click</strong> any shift bar to edit
+                    </div>
+                    <GanttTimeline />
+                    {rooms.map((room, ri) => {
+                      const re = dayEntries.filter(e => e.room_id === room.id);
                       const c = getRoomCompliance(room.id, selDay);
+                      const isDropTarget = selRoom === room.id && dragEdId;
                       const ageKey = AGE_MAP[room.age_group] || "preschool";
                       const nqf = NQF_RATIOS[ageKey] || { ratio: 11 };
-                      const isSelected = selRoom === room.id;
                       return (
-                        <div key={room.id} onClick={() => setSelRoom(room.id)}
-                          style={{ background: "#fff", borderRadius: 12, border: isSelected ? "2px solid #8B6DAF" : "1px solid #EDE8F4", overflow: "hidden", cursor: "pointer" }}>
-                          {/* Room header */}
-                          <div style={{ padding: "8px 12px", background: c.compliant ? "rgba(46,139,87,0.08)" : c.count > 0 ? "rgba(245,166,35,0.08)" : "rgba(192,107,115,0.06)", borderBottom: "1px solid #EDE8F4" }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#3D3248" }}>{room.name}</div>
-                            <div style={{ fontSize: 9, color: "#8A7F96" }}>{room.current_children || 0} children · 1:{nqf.ratio} · {c.count}/{c.required} educators</div>
-                            <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
-                              <Badge text={c.compliant ? "✓ Compliant" : c.ratioOk ? "⚠ No ECT" : `✗ Need ${c.required - c.count} more`} color={c.compliant ? "#2E8B57" : c.count > 0 ? "#E65100" : "#C06B73"} />
+                        <div key={room.id}
+                          onDragOver={e => { e.preventDefault(); setSelRoom(room.id); }}
+                          onDragLeave={() => {}}
+                          onDrop={e => {
+                            e.preventDefault();
+                            const edId = e.dataTransfer.getData("educatorId") || dragEdId;
+                            if (!edId) return;
+                            const ed = educators.find(x => x.id === edId);
+                            const dow = new Date(selDay + "T12:00:00").getDay();
+                            const avail = ed?.availability?.find(a => a.day_of_week === dow);
+                            const startT = avail?.start_time || settings?.open_time || "07:00";
+                            const endM = tM(startT) + 480; // 8 hour shift
+                            setEditShift({
+                              _isNew: true,
+                              educator_id: edId,
+                              educator_name: ed ? `${ed.first_name} ${ed.last_name}` : "?",
+                              qualification: ed?.qualification,
+                              room_id: room.id,
+                              date: selDay,
+                              start_time: startT,
+                              end_time: mT(Math.min(endM, tM(settings?.close_time || "18:30"))),
+                              break_mins: settings?.default_break_mins || 30,
+                              is_lunch_cover: 0,
+                              lunch_start: "",
+                            });
+                            setDragEdId(null);
+                          }}
+                          style={{ display: "flex", borderBottom: "1px solid #F5F0FB", background: isDropTarget ? "rgba(139,109,175,0.08)" : ri % 2 === 0 ? "#FDFBF9" : "#fff", minHeight: 40, transition: "background 0.15s", outline: isDropTarget ? "2px dashed #8B6DAF" : "none", outlineOffset: -2 }}>
+                          <div style={{ width: 160, flexShrink: 0, padding: "4px 8px", display: "flex", flexDirection: "column", justifyContent: "center", borderRight: "1px solid #EDE8F4", cursor: "pointer" }}
+                            onClick={() => setSelRoom(room.id)}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.compliant ? "#2E8B57" : c.count > 0 ? "#F5A623" : "#C06B73", flexShrink: 0 }} />
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "#3D3248", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{room.name}</span>
                             </div>
+                            <div style={{ fontSize: 8, color: "#8A7F96", marginTop: 1 }}>{re.length}/{c.required} educators · 1:{nqf.ratio} · {room.current_children || 0} kids</div>
                           </div>
-                          {/* Shift cards */}
-                          <div style={{ padding: 8, minHeight: 80 }}>
-                            {c.entries.map(e => {
-                              const qc = Q[e.qualification]?.c || "#8B6DAF";
-                              const hrs = ((tM(e.end_time || "15:00") - tM(e.start_time || "07:00") - (e.break_mins || 30)) / 60).toFixed(1);
+                          <div style={{ flex: 1, position: "relative", minHeight: Math.max(40, re.length * 34 + 4) }}>
+                            {[6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(h => (
+                              <div key={h} style={{ position: "absolute", left: pct(h * 60) + "%", top: 0, bottom: 0, borderLeft: "1px solid #F0EBF820", pointerEvents: "none" }} />
+                            ))}
+                            {re.map((entry, ei) => {
+                              const qColor = Q[entry.qualification]?.c || "#8B6DAF";
+                              const sM = tM(entry.start_time || "07:00"), eM = tM(entry.end_time || "15:00");
+                              const left = pct(sM), width = pct(eM) - pct(sM);
+                              const top = ei * 32 + 4;
+                              const hrs = ((eM - sM - (entry.break_mins || 30)) / 60).toFixed(1);
                               return (
-                                <div key={e.id} onClick={ev => { ev.stopPropagation(); setEditShift(e); }}
-                                  style={{ padding: "6px 10px", marginBottom: 4, borderRadius: 8, background: qc + "15", border: "1px solid " + qc + "40", cursor: "pointer" }}>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: qc }}>{e.educator_name}</div>
-                                  <div style={{ fontSize: 10, color: "#5C4E6A" }}>{e.start_time}–{e.end_time} · {hrs}h</div>
-                                  <div style={{ display: "flex", gap: 3, marginTop: 2 }}>
-                                    <Badge text={Q[e.qualification]?.s || "?"} color={qc} />
-                                    {e.is_lunch_cover ? <Badge text="🍽 Lunch" color="#5B8DB5" /> : null}
-                                  </div>
+                                <div key={entry.id} onClick={() => setEditShift({ ...entry })}
+                                  style={{ position: "absolute", left: left + "%", width: Math.max(width, 3) + "%", top, height: 28, borderRadius: 5, background: qColor + "25", border: "1px solid " + qColor + "50", cursor: "pointer", overflow: "hidden", display: "flex", alignItems: "center", padding: "0 6px", gap: 4 }}
+                                  title={`${entry.educator_name} · ${entry.start_time}–${entry.end_time} (${hrs}h)`}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: qColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {entry.educator_name?.split(" ")[0]} {width > 12 ? `${entry.start_time}–${entry.end_time}` : ""}
+                                  </span>
+                                  {entry.is_lunch_cover ? <span style={{ fontSize: 8 }}>🍽</span> : null}
                                 </div>
                               );
                             })}
-                            {/* Add shift placeholder */}
-                            <div onClick={ev => { ev.stopPropagation(); setSelRoom(room.id); }}
-                              style={{ padding: "8px 0", textAlign: "center", borderRadius: 8, border: "2px dashed #E0D6E8", color: "#A89DB5", fontSize: 11, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
-                              + Add shift
-                            </div>
+                            {re.length === 0 && (
+                              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#D6CEE0", fontSize: 10, fontWeight: 600 }}>
+                                {isDropTarget ? "Drop educator here →" : "Drop educator to add shift"}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
-                  </div>
-                )}
-
-                {/* TIMELINE VIEW */}
-                {dayLayout === "timeline" && selDay && (
-                  <div style={card}>
-                    <GanttTimeline />
-                    {rooms.map(room => {
-                      const re = dayEntries.filter(e => e.room_id === room.id);
-                      return <GanttRow key={room.id} label={room.name} sublabel={`${re.length} educator${re.length !== 1 ? "s" : ""}`} entries={re} qColors={{ ect: "#2E8B57", diploma: "#7E5BA3", cert3: "#D4A26A", working_towards_diploma: "#5B8DB5", working_towards: "#B87D47" }} onDelete={delEntry} onEdit={setEditShift} />;
-                    })}
-                    <div style={{ marginTop: 8 }}>
+                    <div style={{ marginTop: 10 }}>
                       <NQFComplianceTimeline dayEntries={dayEntries} rooms={rooms} />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Right side: Educator panel */}
+              {/* Right: Educator panel */}
               <div style={{ ...card, padding: 12, maxHeight: "calc(100vh - 250px)", overflowY: "auto", position: "sticky", top: 16 }}>
-                <h4 style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#3D3248" }}>
-                  👩‍🏫 {selRoom ? `Educators for ${rooms.find(r => r.id === selRoom)?.name || "Room"}` : "Available Educators"}
-                </h4>
+                <h4 style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: "#3D3248" }}>👩‍🏫 Educators</h4>
+                <p style={{ margin: "0 0 8px", fontSize: 9, color: "#8A7F96" }}>Drag onto a room row to assign</p>
                 {selDay && (() => {
                   const dow = new Date(selDay + "T12:00:00").getDay();
-                  const alreadyAssigned = dayEntries.filter(e => selRoom ? e.room_id === selRoom : true).map(e => e.educator_id);
                   const scored = educators.filter(e => e.status === "active" || !e.status).map(ed => {
-                    let score = 50;
-                    score += (ed.reliability_score || 0) / 2;
+                    let score = 50 + (ed.reliability_score || 0) / 2;
                     if (ed.preferred_rooms?.includes(selRoom)) score += 20;
-                    const avail = ed.availability?.find(a => a.day_of_week === dow);
+                    const avail = ed?.availability?.find(a => a.day_of_week === dow);
                     if (avail?.available) score += 15;
-                    if (alreadyAssigned.includes(ed.id)) score -= 100;
-                    return { ...ed, score, available: avail?.available, avail_start: avail?.start_time, avail_end: avail?.end_time, assigned: alreadyAssigned.includes(ed.id) };
+                    const dayAssigned = dayEntries.filter(e => e.educator_id === ed.id);
+                    return { ...ed, score, available: avail?.available, avail_start: avail?.start_time, avail_end: avail?.end_time, dayShifts: dayAssigned.length };
                   }).sort((a, b) => b.score - a.score);
 
                   return scored.map(ed => {
                     const qc = Q[ed.qualification]?.c || "#8B6DAF";
-                    const weekHrs = entries.filter(e => e.educator_id === ed.id).reduce((s, e) => { const sM = tM(e.start_time || "07:00"), eM = tM(e.end_time || "15:00"); return s + (eM - sM - (e.break_mins || 30)) / 60; }, 0);
+                    const weekHrs = entries.filter(e => e.educator_id === ed.id).reduce((s, e) => { const sM2 = tM(e.start_time || "07:00"), eM2 = tM(e.end_time || "15:00"); return s + (eM2 - sM2 - (e.break_mins || 30)) / 60; }, 0);
                     return (
                       <div key={ed.id}
-                        draggable onDragStart={e => e.dataTransfer.setData("educatorId", ed.id)}
-                        style={{ padding: "6px 10px", marginBottom: 3, borderRadius: 8, border: "1px solid " + (ed.assigned ? "#E0E0E0" : "#EDE8F4"), background: ed.assigned ? "#FAFAFA" : "#fff", opacity: ed.assigned ? 0.5 : 1, cursor: ed.assigned ? "default" : "grab" }}>
+                        draggable
+                        onDragStart={e => { e.dataTransfer.setData("educatorId", ed.id); setDragEdId(ed.id); }}
+                        onDragEnd={() => setDragEdId(null)}
+                        style={{ padding: "6px 10px", marginBottom: 3, borderRadius: 8, border: "1px solid #EDE8F4", background: dragEdId === ed.id ? "rgba(139,109,175,0.08)" : "#fff", cursor: "grab", userSelect: "none" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: "#3D3248" }}>{ed.first_name} {ed.last_name}</span>
-                            {ed.preferred_rooms?.includes(selRoom) && <span title="Prefers this room" style={{ marginLeft: 4 }}>⭐</span>}
-                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#3D3248" }}>
+                            {ed.first_name} {ed.last_name}
+                            {ed.dayShifts > 0 && <span style={{ fontSize: 9, color: "#8A7F96", fontWeight: 400 }}> ({ed.dayShifts} today)</span>}
+                          </span>
                           <Badge text={Q[ed.qualification]?.s || "?"} color={qc} />
                         </div>
                         <div style={{ display: "flex", gap: 8, fontSize: 9, color: "#8A7F96", marginTop: 2 }}>
-                          <span>{ed.available ? `${(ed.avail_start || "?").slice(0, 5)}–${(ed.avail_end || "?").slice(0, 5)}` : "Not avail"}</span>
-                          <span>{weekHrs.toFixed(1)}h this week</span>
-                          <span>{Math.round(ed.reliability_score || 0)}% reliable</span>
+                          <span>{ed.available ? "✓ Avail" : "✗ Off"}</span>
+                          <span>{weekHrs.toFixed(1)}h/wk</span>
+                          <span>{Math.round(ed.reliability_score || 0)}%</span>
                         </div>
-                        {!ed.assigned && (
-                          <button onClick={() => saveEntry({ educator_id: ed.id, room_id: selRoom || rooms[0]?.id, date: selDay, start_time: ed.avail_start || settings?.open_time || "07:00", end_time: ed.avail_end || settings?.close_time || "15:00", break_mins: settings?.default_break_mins || 30 })}
-                            style={{ marginTop: 4, padding: "3px 8px", borderRadius: 6, border: "1px solid #8B6DAF", background: "#F5F0FB", color: "#7C3AED", fontSize: 9, fontWeight: 700, cursor: "pointer", width: "100%" }}>
-                            + Assign to {selRoom ? rooms.find(r => r.id === selRoom)?.name || "room" : "room"}
-                          </button>
-                        )}
                       </div>
                     );
                   });
@@ -1808,12 +1822,12 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
             </div>
           )}
 
-          {/* Edit shift modal */}
+          {/* Shift edit/create modal */}
           {editShift && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 460, width: "92%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+              <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 500, width: "92%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>✏️ Edit Shift</h3>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>{editShift._isNew ? "➕ New Shift" : "✏️ Edit Shift"}</h3>
                   <button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#8A7F96" }}>×</button>
                 </div>
                 <div style={{ background: "#F8F5FC", borderRadius: 10, padding: "8px 14px", marginBottom: 14, fontSize: 12, color: "#5C4E6A" }}>
@@ -1822,19 +1836,29 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                   <div><label style={lbl}>Start Time</label><input type="time" value={editShift.start_time || "07:00"} onChange={e => setEditShift({ ...editShift, start_time: e.target.value })} style={inp} /></div>
                   <div><label style={lbl}>End Time</label><input type="time" value={editShift.end_time || "15:00"} onChange={e => setEditShift({ ...editShift, end_time: e.target.value })} style={inp} /></div>
-                  <div><label style={lbl}>Break (mins)</label><input type="number" value={editShift.break_mins || 30} onChange={e => setEditShift({ ...editShift, break_mins: parseInt(e.target.value) || 0 })} style={inp} /></div>
+                  <div><label style={lbl}>Break (mins)</label><input type="number" value={editShift.break_mins ?? 30} onChange={e => setEditShift({ ...editShift, break_mins: parseInt(e.target.value) || 0 })} style={inp} /></div>
                   <div><label style={lbl}>Room</label>
                     <select value={editShift.room_id || ""} onChange={e => setEditShift({ ...editShift, room_id: e.target.value })} style={sel}>
                       {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
                   </div>
+                  <div><label style={lbl}>Lunch Start (optional)</label><input type="time" value={editShift.lunch_start || ""} onChange={e => setEditShift({ ...editShift, lunch_start: e.target.value })} style={inp} placeholder="Auto" /></div>
+                  <div style={{ display: "flex", alignItems: "end", paddingBottom: 4 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" }}>
+                      <input type="checkbox" checked={!!editShift.is_lunch_cover} onChange={e => setEditShift({ ...editShift, is_lunch_cover: e.target.checked ? 1 : 0 })} />
+                      🍽 Lunch cover shift
+                    </label>
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-                  <button onClick={() => { delEntry(editShift.id); setEditShift(null); }} style={{ ...btnS, color: "#C06B73", borderColor: "#FFCDD2" }}>🗑 Delete</button>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => setEditShift(null)} style={btnS}>Cancel</button>
-                    <button onClick={() => { updateEntry(editShift.id, { start_time: editShift.start_time, end_time: editShift.end_time, break_mins: editShift.break_mins, room_id: editShift.room_id }); setEditShift(null); }} style={btnP}>💾 Save</button>
-                  </div>
+                  {!editShift._isNew && <button onClick={() => { delEntry(editShift.id); setEditShift(null); }} style={{ ...btnS, color: "#C06B73", borderColor: "#FFCDD2" }}>🗑 Delete</button>}
+                  <div style={{ flex: 1 }} />
+                  <button onClick={() => setEditShift(null)} style={btnS}>Cancel</button>
+                  <button onClick={() => {
+                    const body = { educator_id: editShift.educator_id, room_id: editShift.room_id, date: editShift.date, start_time: editShift.start_time, end_time: editShift.end_time, break_mins: editShift.break_mins, lunch_start: editShift.lunch_start || null, is_lunch_cover: editShift.is_lunch_cover || 0 };
+                    if (editShift._isNew) saveEntry(body); else updateEntry(editShift.id, body);
+                    setEditShift(null);
+                  }} style={btnP}>💾 {editShift._isNew ? "Create Shift" : "Save Changes"}</button>
                 </div>
               </div>
             </div>
