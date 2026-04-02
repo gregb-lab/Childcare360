@@ -131,10 +131,11 @@ r.get('/periods/:id', (req, res) => {
   if (!period) return res.status(404).json({ error: 'Period not found' });
   const entries = D().prepare(`SELECT re.*, e.first_name || ' ' || e.last_name as educator_name,
     e.email as educator_email, e.qualification, e.hourly_rate_cents, e.reliability_score, e.employment_type,
-    r.name as room_name, r.age_group
+    r.name as room_name, r.age_group, r.current_children
     FROM roster_entries re JOIN educators e ON e.id = re.educator_id
     LEFT JOIN rooms r ON r.id = re.room_id WHERE re.period_id = ? ORDER BY re.date, re.start_time`).all(req.params.id);
-  res.json({ period, entries });
+  const rooms = D().prepare("SELECT * FROM rooms WHERE tenant_id=? ORDER BY name").all(req.tenantId);
+  res.json({ period, entries, rooms });
 });
 
 r.put('/periods/:id/approve', (req, res) => {

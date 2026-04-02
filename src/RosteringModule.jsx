@@ -1424,8 +1424,22 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
   const period = sp?.period;
   const entries = sp?.entries || [];
   const rooms = sp?.rooms || [];
-  const allDates = [...new Set(entries.map(e => e.date))].sort();
   const opDays = settings?.operating_days || [1, 2, 3, 4, 5];
+  // Generate all dates in period range (not just dates with entries)
+  const allDates = useMemo(() => {
+    if (!period?.start_date || !period?.end_date) return [...new Set(entries.map(e => e.date))].sort();
+    const dates = [];
+    let cur = new Date(period.start_date + "T12:00:00");
+    const end = new Date(period.end_date + "T12:00:00");
+    while (cur <= end) {
+      const dow = cur.getDay();
+      if (period.is_special || opDays.includes(dow)) {
+        dates.push(cur.toISOString().split("T")[0]);
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }, [period?.start_date, period?.end_date, period?.is_special, opDays]);
 
   // Auto-select first day
   useEffect(() => {
@@ -1886,10 +1900,10 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
             <div style={{ marginTop: 12, padding: "14px 18px", borderRadius: 12, background: "rgba(46,139,87,0.06)", border: "1px solid rgba(46,139,87,0.2)" }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#2E8B57", marginBottom: 8 }}>✅ Roster Generated!</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
-                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Shifts</div><div style={{ fontWeight: 800 }}>{gRes.shifts_created || gRes.entries?.length || "?"}</div></div>
-                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Hours</div><div style={{ fontWeight: 800 }}>{gRes.total_hours?.toFixed(1) || "?"}</div></div>
-                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Cost</div><div style={{ fontWeight: 800 }}>${gRes.total_cost?.toFixed(0) || "?"}</div></div>
-                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Compliance</div><div style={{ fontWeight: 800, color: gRes.compliance_score >= 90 ? "#2E8B57" : "#E65100" }}>{gRes.compliance_score || "?"}%</div></div>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Shifts</div><div style={{ fontWeight: 800 }}>{gRes.entries_created || gRes.shifts_created || 0}</div></div>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Hours</div><div style={{ fontWeight: 800 }}>{typeof gRes.total_hours === "number" ? gRes.total_hours.toFixed(1) : 0}</div></div>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Cost</div><div style={{ fontWeight: 800 }}>${typeof gRes.total_cost === "number" ? (gRes.total_cost / 100).toFixed(0) : 0}</div></div>
+                <div><div style={{ fontSize: 9, color: "#8A7F96" }}>Compliance</div><div style={{ fontWeight: 800, color: (gRes.compliance_score || 0) >= 90 ? "#2E8B57" : "#E65100" }}>{gRes.compliance_score || 0}%</div></div>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button onClick={() => { if (gRes.period_id) { loadP(gRes.period_id); setSubView("week"); } }} style={btnP}>📊 View Roster</button>
