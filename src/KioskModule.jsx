@@ -362,19 +362,21 @@ function KioskScreen({ onExit }) {
   };
 
   const handleAction = async (action) => {
-    setState("loading");
-    const endpoint = action === "in" ? "/signin" : "/signout";
-    const r = await KIOSK(endpoint, { body: { pin } });
-    if (r.ok) {
-      setMessage({ type: "success", text: action === "in"
-        ? `✓ Welcome, ${r.child_name}!\nSigned in at ${fmtTime(r.signed_in_at)}`
-        : `👋 Goodbye, ${r.child_name}!\nSigned out at ${fmtTime(r.signed_out_at)}`
-      });
-      setState("success");
-    } else {
-      setMessage({ type: "error", text: r.error || "Something went wrong" });
-      setState("error");
-    }
+    try {
+      setState("loading");
+      const endpoint = action === "in" ? "/signin" : "/signout";
+      const r = await KIOSK(endpoint, { body: { pin } });
+      if (r.ok) {
+        setMessage({ type: "success", text: action === "in"
+          ? `✓ Welcome, ${r.child_name}!\nSigned in at ${fmtTime(r.signed_in_at)}`
+          : `👋 Goodbye, ${r.child_name}!\nSigned out at ${fmtTime(r.signed_out_at)}`
+        });
+        setState("success");
+      } else {
+        setMessage({ type: "error", text: r.error || "Something went wrong" });
+        setState("error");
+      }
+    } catch(e) { console.error('API error:', e); }
   };
 
   const handleBackspace = () => {

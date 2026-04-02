@@ -532,17 +532,17 @@ function PaymentsTab({onRefresh}) {
 
   const createPlan=async()=>{
     const r=await API("/api/invoicing-full/payment-plans",{method:"POST",body:planForm}).catch(e=>console.error('API error:',e));
-    if(r.ok){setShowNewPlan(false);load();onRefresh?.();}
+    if(r?.ok){setShowNewPlan(false);load();onRefresh?.();}
   };
 
   const payInstalment=async(id)=>{
     const r=await API(`/api/invoicing-full/payment-plans/${id}/pay`,{method:"PUT"}).catch(e=>console.error('API error:',e));
-    if(r.ok){load();onRefresh?.();}
+    if(r?.ok){load();onRefresh?.();}
   };
 
   const createCredit=async()=>{
     const r=await API("/api/invoicing-full/credit-notes",{method:"POST",body:creditForm}).catch(e=>console.error('API error:',e));
-    if(r.ok){setShowNewCredit(false);load();}
+    if(r?.ok){setShowNewCredit(false);load();}
   };
 
   const FREQ_L={weekly:"Weekly",fortnightly:"Fortnightly",monthly:"Monthly"};
@@ -716,8 +716,10 @@ function FeesTab() {
   useEffect(()=>{load();},[load]);
 
   const save=async()=>{
-    await API("/api/invoicing-full/fee-schedules",{method:"POST",body:form}).catch(e=>console.error('API error:',e));
-    setEditing(null);load();
+    try {
+      await API("/api/invoicing-full/fee-schedules",{method:"POST",body:form});
+      setEditing(null);load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const editRoom=r=>{
@@ -889,8 +891,10 @@ function SettingsTab() {
   },[]);
 
   const save=async()=>{
-    await API("/api/invoicing-full/templates",{method:"POST",body:{...template,is_default:1}}).catch(e=>console.error('API error:',e));
-    setSaved(true);setTimeout(()=>setSaved(false),2000);
+    try {
+      await API("/api/invoicing-full/templates",{method:"POST",body:{...template,is_default:1}});
+      setSaved(true);setTimeout(()=>setSaved(false),2000);
+    } catch(e) { console.error('API error:', e); }
   };
 
   return (

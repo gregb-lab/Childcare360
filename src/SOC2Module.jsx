@@ -178,20 +178,22 @@ function AuditLogTab() {
   useEffect(() => { load(); }, [load]);
 
   const handleExport = async () => {
-    const params = new URLSearchParams();
-    if (actionFilter) params.set('action', actionFilter);
-    if (fromDate) params.set('from', fromDate);
-    if (toDate) params.set('to', toDate);
-    const token = localStorage.getItem('c360_token');
-    const tenantId = localStorage.getItem('c360_tenant');
-    const resp = await fetch(`/api/audit/logs/export?${params}`, {
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(tenantId ? { 'x-tenant-id': tenantId } : {}) }
-    });
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `audit-log-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+    try {
+      const params = new URLSearchParams();
+      if (actionFilter) params.set('action', actionFilter);
+      if (fromDate) params.set('from', fromDate);
+      if (toDate) params.set('to', toDate);
+      const token = localStorage.getItem('c360_token');
+      const tenantId = localStorage.getItem('c360_tenant');
+      const resp = await fetch(`/api/audit/logs/export?${params}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(tenantId ? { 'x-tenant-id': tenantId } : {}) }
+      });
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `audit-log-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch(e) { console.error('API error:', e); }
   };
 
   const pages = Math.ceil(total / LIMIT);

@@ -319,8 +319,10 @@ function FamiliesTab({ dashboard }) {
   useEffect(()=>{load();},[load]);
 
   const save=async()=>{
+    try {
     await API("/api/ccs/families",{method:"POST",body:form}).catch(e=>console.error('API error:',e));
     setSelected(null);load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const setupFor=(child)=>{

@@ -342,11 +342,13 @@ function EditorForm({ ed, onDone }) {
   const u=(k,v)=>setF(p=>({...p,[k]:v}));
   const save=async()=>{
     if(!f.first_name||!f.last_name) return alert("Name is required");
-    setSaving(true);
-    const body={...f,first_aid:f.first_aid?1:0,is_under_18:f.is_under_18?1:0,is_lunch_cover:f.is_lunch_cover?1:0,availability:avail};
-    if(isNew) await API("/api/rostering/educators",{method:"POST",body}).catch(e=>console.error('API error:',e));
-    else await API("/api/rostering/educators/"+ed.id,{method:"PUT",body}).catch(e=>console.error('API error:',e));
-    setSaving(false); onDone();
+    try {
+      setSaving(true);
+      const body={...f,first_aid:f.first_aid?1:0,is_under_18:f.is_under_18?1:0,is_lunch_cover:f.is_lunch_cover?1:0,availability:avail};
+      if(isNew) await API("/api/rostering/educators",{method:"POST",body}).catch(e=>console.error('API error:',e));
+      else await API("/api/rostering/educators/"+ed.id,{method:"PUT",body}).catch(e=>console.error('API error:',e));
+      setSaving(false); onDone();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const F=({label,k,type,ph,opts,span})=>(

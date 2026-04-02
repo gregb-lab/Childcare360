@@ -111,7 +111,7 @@ function ReportsTab() {
     if(!name)return;
     await API("/api/reports-builder/saved",{method:"POST",body:{name,report_type:selType,config}}).catch(e=>console.error('API error:',e));
     const s=await API("/api/reports-builder/saved".catch(e=>console.error('API error:',e)));
-    setSaved(s.reports||[]);
+    setSaved(s?.reports||[]);
   };
 
   const loadSaved=async(r)=>{
@@ -410,13 +410,15 @@ function RiskTab() {
   };
 
   const save=async()=>{
-    setSaving(true);
-    const r=await API("/api/risk-assessments",{method:"POST",body:{
-      ...newForm,assessment_date:new Date().toISOString().split("T")[0],...checklist
-    }});
-    setSaving(false);
-    if(r.ok){setShowNew(false);load();}
-    else alert(r.error);
+    try {
+      setSaving(true);
+      const r=await API("/api/risk-assessments",{method:"POST",body:{
+        ...newForm,assessment_date:new Date().toISOString().split("T")[0],...checklist
+      }});
+      setSaving(false);
+      if(r.ok){setShowNew(false);load();}
+      else alert(r.error);
+    } catch(e) { console.error('API error:', e); }
   };
 
   const approve=async(id)=>{
@@ -659,8 +661,10 @@ function ScheduledReportsTab() {
 
   const save=async()=>{
     if(!form.name||!form.report_type)return;
-    const r=await API("/api/reports-builder/schedules",{method:"POST",body:form}).catch(e=>console.error('API error:',e));
-    if(r.ok){setShowNew(false);setForm({name:"",report_type:"attendance",frequency:"weekly",day_of_week:1,time:"08:00"});load();}
+    try {
+      const r=await API("/api/reports-builder/schedules",{method:"POST",body:form}).catch(e=>console.error('API error:',e));
+      if(r?.ok){setShowNew(false);setForm({name:"",report_type:"attendance",frequency:"weekly",day_of_week:1,time:"08:00"});load();}
+    } catch(e) { console.error('API error:', e); }
   };
 
   const toggle=async(id,enabled)=>{

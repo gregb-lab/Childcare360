@@ -184,7 +184,7 @@ export function NotificationsInbox() {
     const r = await API("/api/notifications/run", { method: "POST" }).catch(e=>console.error('API error:',e));
     await load();
     setScanning(false);
-    if (r.generated > 0) {
+    if (r?.generated > 0) {
       window.showToast?.(`Generated ${r.generated} notification${r.generated > 1 ? "s" : ""}`, "success");
     } else {
       window.showToast?.("All clear — no new alerts", "success");

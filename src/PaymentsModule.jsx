@@ -96,7 +96,7 @@ function PaymentsTab() {
 
   const sendLink=async(id)=>{
     const r=await API(`/api/payments/requests/${id}/send`,{method:"POST"}).catch(e=>console.error('API error:',e));
-    if(r.ok){alert(`✓ Payment link generated:\n${r.payment_url}`);load();}
+    if(r?.ok){alert(`✓ Payment link generated:\n${r?.payment_url}`);load();}
   };
 
   const markPaid=async(id)=>{
@@ -106,7 +106,7 @@ function PaymentsTab() {
 
   const bulkCreate=async()=>{
     const r=await API("/api/payments/requests/bulk-from-invoices",{method:"POST"}).catch(e=>console.error('API error:',e));
-    alert(r.message||"Done");load();
+    alert(r?.message||"Done");load();
   };
 
   const STATUS_C={pending:WA,sent:IN,paid:OK,cancelled:MU};
@@ -321,7 +321,7 @@ function WaitlistPipelineTab() {
 
   const bulkNotify=async()=>{
     const r=await API("/api/waitlist-auto/bulk-notify",{method:"POST",body:{message:"A place may be becoming available soon. Please contact us to discuss your child's enrolment."}}).catch(e=>console.error('API error:',e));
-    alert(r.message||"Done");
+    alert(r?.message||"Done");
   };
 
   const PRIO_C={high:DA,normal:IN,low:MU};

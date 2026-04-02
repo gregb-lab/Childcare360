@@ -115,6 +115,7 @@ function AIWriterTab() {
   };
 
   const save=async()=>{
+    try {
     setSaving(true);
     await API("/api/ai-assistant/save",{method:"POST",body:{ // catch: .catch(e=>console.error('API error:',e))
       session_id:result?.session_id,
@@ -125,6 +126,7 @@ function AIWriterTab() {
     }});
     setSaving(false);
     alert("✓ Saved"+(form.session_type==="observation"?" as observation":""));
+    } catch(e) { console.error('API error:', e); }
   };
 
   const SESSION_TYPES=[
@@ -280,6 +282,7 @@ function FeeOverridesTab() {
   useEffect(()=>{load();},[load]);
 
   const save=async()=>{
+    try {
     if(!form.child_id)return;
     const body={...form,
       daily_rate_cents:form.daily_rate_cents?Math.round(parseFloat(form.daily_rate_cents)*100):null,
@@ -287,6 +290,7 @@ function FeeOverridesTab() {
     };
     await API("/api/fee-overrides",{method:"POST",body}).catch(e=>console.error('API error:',e));
     setShowNew(false);load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const remove=async(id)=>{
@@ -413,7 +417,7 @@ function ComplianceTasksTab({onCountChange}) {
     setGenerating(true);
     const r=await API("/api/compliance-tasks/auto-generate",{method:"POST"}).catch(e=>console.error('API error:',e));
     load();setGenerating(false);
-    if(r.generated>0)window.showToast?.(`Generated ${r.generated} compliance task${r.generated>1?"s":""}`, "success");
+    if(r?.generated>0)window.showToast?.(`Generated ${r?.generated} compliance task${r?.generated>1?"s":""}`, "success");
     else window.showToast?.("No new tasks to generate", "info");
   };
 

@@ -443,6 +443,36 @@ r.post('/fill-requests', (req, res) => {
   res.json({ id, candidates_found: qualified.length, attempts, config_strategy: config?.contact_strategy || 'sequential' });
 });
 
+r.get('/fill-requests/:id', (req, res) => {
+  try {
+    const row = D().prepare(`SELECT sfr.*,
+      oe.first_name || ' ' || oe.last_name as original_educator_name,
+      fe.first_name || ' ' || fe.last_name as filled_by_name,
+      r.name as room_name
+      FROM shift_fill_requests sfr
+      JOIN educators oe ON oe.id = sfr.original_educator_id
+      LEFT JOIN educators fe ON fe.id = sfr.filled_by
+      LEFT JOIN rooms r ON r.id = sfr.room_id
+      WHERE sfr.id=? AND sfr.tenant_id=?`).get(req.params.id, req.tenantId);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.post('/fill-requests/:id', (req, res) => {
+  try {
+    const { action, educator_id, reason } = req.body;
+    if (action === 'accept') {
+      D().prepare("UPDATE shift_fill_requests SET status='filled', filled_by=?, filled_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+        .run(educator_id, req.params.id, req.tenantId);
+    } else if (action === 'decline') {
+      D().prepare("UPDATE shift_fill_attempts SET status='declined', decline_reason=?, responded_at=datetime('now') WHERE request_id=? AND educator_id=?")
+        .run(reason, req.params.id, educator_id);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 r.get('/fill-requests/:id/attempts', (req, res) => {
   const attempts = D().prepare(`SELECT sfa.*, e.first_name || ' ' || e.last_name as educator_name,
     e.phone, e.reliability_score, e.distance_km
@@ -516,6 +546,20 @@ r.put('/ai-config', (req, res) => {
 r.get('/change-proposals', (req, res) => {
   const proposals = D().prepare('SELECT * FROM roster_change_proposals WHERE tenant_id = ? ORDER BY proposed_at DESC LIMIT 20').all(req.tenantId);
   res.json({ proposals: proposals.map(p => ({ ...p, options: JSON.parse(p.options || '[]'), affected_educators: JSON.parse(p.affected_educators || '[]') })) });
+});
+
+r.post('/change-proposals/:id', (req, res) => {
+  try {
+    const { action, selected_option, reason } = req.body;
+    if (action === 'resolve' || selected_option != null) {
+      D().prepare("UPDATE roster_change_proposals SET status='resolved', selected_option=?, resolved_by=?, resolved_at=datetime('now') WHERE id=? AND tenant_id=?")
+        .run(selected_option || 0, req.userName || 'system', req.params.id, req.tenantId);
+    } else {
+      D().prepare("UPDATE roster_change_proposals SET status=?, resolved_by=?, resolved_at=datetime('now') WHERE id=? AND tenant_id=?")
+        .run(action || 'dismissed', req.userName || 'system', req.params.id, req.tenantId);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 r.post('/change-proposals/:id/resolve', (req, res) => {

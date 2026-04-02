@@ -4612,11 +4612,13 @@ function RoomModal({ room, onSave, onClose }) {
   const update = (field, value) => setForm({ ...form, [field]: value });
 
   const handleSave = async () => {
+    try {
     if (!form.name?.trim()) { alert("Room name is required"); return; }
     setSaving(true);
     await onSave(form);
     setSaving(false);
     onClose();
+    } catch(e) { console.error('API error:', e); }
   };
 
   return (

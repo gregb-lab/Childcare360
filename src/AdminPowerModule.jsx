@@ -80,7 +80,7 @@ function RecruitmentTab() {
 
   const loadApps=async(jobId)=>{
     const r=await API(`/api/admin/recruitment/applications?job_id=${jobId}`.catch(e=>console.error('API error:',e)));
-    setApps(r.applications||[]);setSelJob(jobId);
+    setApps(r?.applications||[]);setSelJob(jobId);
   };
 
   const saveJob=async()=>{

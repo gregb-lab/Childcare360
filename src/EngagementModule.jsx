@@ -78,16 +78,18 @@ function EventsTab() {
 
   const loadDetail=async(id)=>{
     const r=await API(`/api/engagement/events/${id}`.catch(e=>console.error('API error:',e)));
-    setSelected(r.event);
-    setRsvps(r.rsvps||[]);
+    setSelected(r?.event);
+    setRsvps(r?.rsvps||[]);
   };
 
   const save=async()=>{
     if(!form.title||!form.event_date)return;
-    await API("/api/engagement/events",{method:"POST",body:{...form,rsvp_required:form.rsvp_required?1:0,max_attendees:form.max_attendees?parseInt(form.max_attendees):null}}).catch(e=>console.error('API error:',e));
-    setShowForm(false);
-    setForm({title:"",description:"",event_type:"general",event_date:"",start_time:"",end_time:"",location:"",rsvp_required:false,rsvp_deadline:"",max_attendees:""});
-    load();
+    try {
+      await API("/api/engagement/events",{method:"POST",body:{...form,rsvp_required:form.rsvp_required?1:0,max_attendees:form.max_attendees?parseInt(form.max_attendees):null}});
+      setShowForm(false);
+      setForm({title:"",description:"",event_type:"general",event_date:"",start_time:"",end_time:"",location:"",rsvp_required:false,rsvp_deadline:"",max_attendees:""});
+      load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const del=async(id)=>{
@@ -273,9 +275,11 @@ function CommunityTab() {
 
   const submit=async()=>{
     if(!form.body)return;
-    await API("/api/engagement/posts",{method:"POST",body:{...form,author_user_id:"admin"}}).catch(e=>console.error('API error:',e));
-    setForm({title:"",body:"",author_name:"",author_type:"educator",visibility:"centre"});
-    setShowForm(false);load();
+    try {
+      await API("/api/engagement/posts",{method:"POST",body:{...form,author_user_id:"admin"}});
+      setForm({title:"",body:"",author_name:"",author_type:"educator",visibility:"centre"});
+      setShowForm(false);load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const del=async(id)=>{
@@ -288,7 +292,7 @@ function CommunityTab() {
 
   const loadComments=async(id)=>{
     const r=await API(`/api/engagement/comments/${id}`.catch(e=>console.error('API error:',e)));
-    setComments(p=>({...p,[id]:r.comments||[]}));
+    setComments(p=>({...p,[id]:r?.comments||[]}));
   };
 
   const addComment=async(postId)=>{
@@ -302,7 +306,7 @@ function CommunityTab() {
 
   const react=async(postId)=>{
     const r=await API("/api/engagement/reactions",{method:"POST",body:{story_id:postId,story_type:"community",user_id:"admin",reaction:"heart"}}).catch(e=>console.error('API error:',e));
-    setReactions(p=>({...p,[postId]:r.counts||[]}));
+    setReactions(p=>({...p,[postId]:r?.counts||[]}));
     load();
   };
 
@@ -437,10 +441,12 @@ function PoliciesTab() {
 
   const save=async()=>{
     if(!form.title)return;
-    await API("/api/engagement/policies",{method:"POST",body:{...form,requires_acknowledgement:form.requires_acknowledgement?1:0,visible_to_parents:form.visible_to_parents?1:0}}).catch(e=>console.error('API error:',e));
-    setShowForm(false);
-    setForm({title:"",category:"policy",description:"",file_url:"",version:"1.0",requires_acknowledgement:true,visible_to_parents:false});
-    load();
+    try {
+      await API("/api/engagement/policies",{method:"POST",body:{...form,requires_acknowledgement:form.requires_acknowledgement?1:0,visible_to_parents:form.visible_to_parents?1:0}});
+      setShowForm(false);
+      setForm({title:"",category:"policy",description:"",file_url:"",version:"1.0",requires_acknowledgement:true,visible_to_parents:false});
+      load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const archive=async(id)=>{

@@ -112,6 +112,10 @@ function buildRouteMap() {
       }
     }
 
+    // Skip files not directly mounted in index.js (dead code)
+    const isMounted = fileMounts[filename] || Object.values(importAliases).includes(filename);
+    if (!isMounted && !fp.includes('middleware') && !fp.includes('db.js') && !fp.includes('seed')) continue;
+
     // Build map of router variable names to their mount paths for multi-router files
     const routerVarPrefixes = {};
     // Build export alias map: localVar -> exportedName (e.g. ra -> riskAssessmentRouter)
@@ -212,10 +216,20 @@ function checkApiCalls(routes) {
       const apiMatch = line.match(/API\s*\(\s*[`'"](\/api\/[^`'"?]+)/);
       if (!apiMatch) return;
 
-      const apiPath = apiMatch[1]
-        .replace(/\$\{[^}]+\}/g, ':id')    // replace template vars with :id
-        .replace(/:id:id/g, ':id')          // deduplicate
-        .replace(/([^/]):id/g, '$1/:id');   // ensure :id has leading slash
+      let apiPath = apiMatch[1];
+      // Replace template vars that follow a / (path segments) with :id
+      apiPath = apiPath.replace(/\/\$\{[^}]+\}/g, '/:id');
+      // Remove template vars that follow a non-/ (query string appends like ${qs})
+      apiPath = apiPath.replace(/\$\{[^}]+\}/g, '');
+
+      // Detect string concatenation: "/api/path/" + id — only if path ends with /
+      // (indicates an ID segment follows, not a query string)
+      if (apiPath.endsWith('/')) {
+        const afterQuote = line.slice(line.indexOf(apiMatch[1]) + apiMatch[1].length);
+        if (/^['"`]\s*\+\s*\w+/.test(afterQuote)) {
+          apiPath = apiPath.replace(/\/$/, '') + '/:id';
+        }
+      }
 
       // Determine HTTP method
       let method = 'GET';
@@ -360,6 +374,10 @@ function checkRouteSecurity(routes) {
       // If file has global auth middleware, all routes are protected
       if (hasGlobalAuth) return;
 
+      // Check for // PUBLIC comment on preceding line (intentionally unauthenticated)
+      const prevLine = i > 0 ? lines[i - 1] : '';
+      if (prevLine.includes('PUBLIC')) return;
+
       // Check same line + next 2 lines for auth
       const ctx = lines.slice(i, i + 3).join(' ');
       if (!ctx.includes('requireAuth') && !ctx.includes('requireTenant')) {
@@ -379,15 +397,25 @@ function checkErrorSwallowing() {
     const src = readFile(fp);
     const lines = src.split('\n');
     lines.forEach((line, i) => {
-      // .catch(e=>console.error('API error:',e)) pattern that returns undefined
-      if (line.includes('.catch(e=>console.error') || line.includes('.catch(()=>{}')) {
-        const ctx = lines.slice(Math.max(0, i-2), i+3).join('\n');
-        if (ctx.includes('await') && ctx.includes('const r =')) {
-          flag('medium', fp, i+1,
-            '.catch() swallows error and returns undefined — "if (r.id)" will throw',
-            line.trim()
-          );
-        }
+      // Pattern: const r = await API(...).catch(...) — catch returns undefined
+      // Then r.something on the next line will throw
+      if (!line.includes('await') || !line.includes('.catch(')) return;
+      if (!/const\s+\w+\s*=\s*await/.test(line)) return;
+      // Extract the variable name
+      const varMatch = line.match(/const\s+(\w+)\s*=\s*await/);
+      if (!varMatch) return;
+      const varName = varMatch[1];
+      // Check if catch returns a default value like .catch(()=>({})) or .catch(()=>[])
+      if (/\.catch\(\s*\(\)\s*=>\s*[\(\[]/.test(line)) return;
+      // Check next few lines for unsafe access (varName.prop without optional chaining)
+      const next = lines.slice(i + 1, Math.min(lines.length, i + 5)).join('\n');
+      const unsafeRe = new RegExp(`\\b${varName}\\.(?!\\?)`, 'g');
+      const safeRe = new RegExp(`\\b${varName}\\?\\.`, 'g');
+      if (unsafeRe.test(next) && !safeRe.test(next)) {
+        flag('medium', fp, i + 1,
+          `.catch() swallows error — "${varName}.prop" access below may throw`,
+          line.trim()
+        );
       }
     });
   }

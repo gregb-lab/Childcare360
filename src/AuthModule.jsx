@@ -291,11 +291,15 @@ function LoginScreen() {
   };
 
   const handleGoogleLogin = async () => {
+    try {
     setError("Google OAuth requires configuration. Set GOOGLE_CLIENT_ID in your .env file and add the Google Sign-In script to index.html.");
+    } catch(e) { console.error('API error:', e); }
   };
 
   const handleAppleLogin = async () => {
+    try {
     setError("Apple OAuth requires configuration. Set APPLE_CLIENT_ID in your .env file.");
+    } catch(e) { console.error('API error:', e); }
   };
 
   return (
@@ -807,8 +811,10 @@ function TenantPickerScreen() {
   const auth = useAuth();
 
   const handleSelect = async (tenantId) => {
+    try {
     await auth.switchTenant(tenantId);
     window.location.reload();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const serviceLabels = { long_day_care: "Long Day Care", family_day_care: "Family Day Care", preschool: "Preschool", oshc: "OSHC" };

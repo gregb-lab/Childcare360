@@ -375,7 +375,7 @@ function FollowUpsView() {
   const updateFollowUp=async(id,updates)=>{
     await API(`/api/crm/enquiries/${id}`,{method:"PUT",body:updates}).catch(e=>console.error('API error:',e));
     const r=await API("/api/crm/dashboard".catch(e=>console.error('API error:',e)));
-    setFollowUps(r.followUps||[]);
+    setFollowUps(r?.followUps||[]);
   };
 
   if(loading)return <div style={{color:MUTED,padding:40,textAlign:"center"}}>Loading…</div>;

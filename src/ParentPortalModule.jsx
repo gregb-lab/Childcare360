@@ -347,11 +347,13 @@ function OneOffPayment() {
   const total = (parseFloat(form.amount)||0) + surcharge;
 
   const submit = async () => {
-    setSaving(true);
-    const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
-    const h={"Content-Type":"application/json",...(t?{Authorization:`Bearer ${t}`}:{}),...(tid?{"x-tenant-id":tid}:{})};
-    await fetch("/api/parent/one-off-payment",{method:"POST",headers:h,body:JSON.stringify({...form,total_cents:Math.round(total*100)})}).catch(()=>{});
-    setSaving(false); setDone(true);
+    try {
+      setSaving(true);
+      const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
+      const h={"Content-Type":"application/json",...(t?{Authorization:`Bearer ${t}`}:{}),...(tid?{"x-tenant-id":tid}:{})};
+      await fetch("/api/parent/one-off-payment",{method:"POST",headers:h,body:JSON.stringify({...form,total_cents:Math.round(total*100)})}).catch(()=>{});
+      setSaving(false); setDone(true);
+    } catch(e) { console.error('API error:', e); }
   };
 
   if (done) return (
@@ -982,10 +984,12 @@ function ParentAbsence({ child, onSaved }) {
 
   const submit = async () => {
     if (!f.start_date || !f.reason) return;
-    setSaving(true);
-    await API(`/api/parent/absences/${child.id}`, { method: "POST", body: f });
-    setSaving(false); setF({ start_date: "", end_date: "", reason: "", notes: "" }); onSaved();
-    API(`/api/parent/absences/${child.id}`).then(r => { if (Array.isArray(r)) setAbsences(r); }).catch(() => {});
+    try {
+      setSaving(true);
+      await API(`/api/parent/absences/${child.id}`, { method: "POST", body: f });
+      setSaving(false); setF({ start_date: "", end_date: "", reason: "", notes: "" }); onSaved();
+      API(`/api/parent/absences/${child.id}`).then(r => { if (Array.isArray(r)) setAbsences(r); }).catch(() => {});
+    } catch(e) { console.error('API error:', e); }
   };
 
   return (
@@ -1065,14 +1069,16 @@ function ParentEnrolForm({ children, onSaved }) {
 
   const submit = async () => {
     if (!f.childFirstName || !f.parent1Name) return;
-    setSaving(true);
-    // Find tenant from existing child
-    const child = children[0];
-    const tenantId = child?.tenant_id || localStorage.getItem("c360_tenant");
-    await API("/api/enrolment/apply", { method:"POST", body: { ...f, tenantId }}).catch(() => {});
-    setSaving(false);
-    setDone(true);
-    onSaved();
+    try {
+      setSaving(true);
+      // Find tenant from existing child
+      const child = children[0];
+      const tenantId = child?.tenant_id || localStorage.getItem("c360_tenant");
+      await API("/api/enrolment/apply", { method:"POST", body: { ...f, tenantId }}).catch(() => {});
+      setSaving(false);
+      setDone(true);
+      onSaved();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const Field = ({ label, name, type = "text", placeholder = "", required = false }) => (

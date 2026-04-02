@@ -1,0 +1,2467 @@
+═══════════════════════════════════════════════════════════════
+  Childcare360 — Deep QA Analyser v1.0
+  02/04/2026, 2:42:11 pm
+═══════════════════════════════════════════════════════════════
+
+[1/6] Building server route map...
+      Found 340 route definitions
+
+[2/6] Checking API calls vs server routes...
+
+[3/6] Checking DB column mismatches...
+
+[4/6] Checking React import issues...
+
+[5/6] Checking route security...
+
+[6/6] Checking error handling patterns...
+
+🔴 CRITICAL (163) — Will crash at runtime
+  server/ai-assistant.js:253
+    Column "notes" does not exist in table "observations" — will crash on INSERT
+    → INSERT INTO observations (id,tenant_id,child_id,notes,category,eylf_links,created_at)
+  server/ai-assistant.js:253
+    Column "category" does not exist in table "observations" — will crash on INSERT
+    → INSERT INTO observations (id,tenant_id,child_id,notes,category,eylf_links,created_at)
+  server/ai-assistant.js:253
+    Column "eylf_links" does not exist in table "observations" — will crash on INSERT
+    → INSERT INTO observations (id,tenant_id,child_id,notes,category,eylf_links,created_at)
+  server/ai-assistant.js:253
+    Column "created_at" does not exist in table "observations" — will crash on INSERT
+    → INSERT INTO observations (id,tenant_id,child_id,notes,category,eylf_links,created_at)
+  server/checklists.js:196
+    Column "checklist_id" does not exist in table "checklist_completions" — will crash on INSERT
+    → INSERT INTO checklist_completions (id, checklist_id, tenant_id, completed_date, completed_by, notes,
+  server/checklists.js:196
+    Column "completed_date" does not exist in table "checklist_completions" — will crash on INSERT
+    → INSERT INTO checklist_completions (id, checklist_id, tenant_id, completed_date, completed_by, notes,
+  server/checklists.js:196
+    Column "items_data" does not exist in table "checklist_completions" — will crash on INSERT
+    → INSERT INTO checklist_completions (id, checklist_id, tenant_id, completed_date, completed_by, notes,
+  server/children.js:294
+    Column "sign_in_collector" does not exist in table "attendance_sessions" — will crash on UPDATE
+    → db.prepare('UPDATE attendance_sessions SET sign_in=?, sign_in_collector=?, absent=0 WHERE id=?').run
+  server/children.js:297
+    Column "sign_in_collector" does not exist in table "attendance_sessions" — will crash on INSERT
+    → db.prepare('INSERT INTO attendance_sessions (id,tenant_id,child_id,date,sign_in,sign_in_collector,ab
+  server/children.js:322
+    Column "sign_out_collector" does not exist in table "attendance_sessions" — will crash on UPDATE
+    → db.prepare('UPDATE attendance_sessions SET sign_out=?, sign_out_collector=?, hours=? WHERE id=?').ru
+  server/children.js:325
+    Column "sign_out_collector" does not exist in table "attendance_sessions" — will crash on INSERT
+    → db.prepare('INSERT INTO attendance_sessions (id,tenant_id,child_id,date,sign_out,sign_out_collector,
+  server/children.js:530
+    Column "photo_id_type" does not exist in table "authorised_pickups" — will crash on INSERT
+    → D().prepare(`INSERT INTO authorised_pickups (id,child_id,tenant_id,name,relationship,phone,photo_id_
+  server/educators.js:149
+    Column "data_url" does not exist in table "educator_documents" — will crash on INSERT
+    → D().prepare(`INSERT INTO educator_documents (id,tenant_id,educator_id,category,document_type,label,f
+  server/educators.js:161
+    Column "data_url" does not exist in table "educator_documents" — will crash on UPDATE
+    → D().prepare('UPDATE educator_documents SET label=COALESCE(?,label), category=COALESCE(?,category), e
+  server/educators.js:270
+    Column "termination_reason" does not exist in table "educators" — will crash on UPDATE
+    → D().prepare(`UPDATE educators SET status='inactive', termination_date=?, termination_reason=?, termi
+  server/educators.js:270
+    Column "termination_notes" does not exist in table "educators" — will crash on UPDATE
+    → D().prepare(`UPDATE educators SET status='inactive', termination_date=?, termination_reason=?, termi
+  server/educators.js:280
+    Column "termination_reason" does not exist in table "educators" — will crash on UPDATE
+    → D().prepare(`UPDATE educators SET status='active', termination_date=NULL, termination_reason=NULL, t
+  server/educators.js:280
+    Column "termination_notes" does not exist in table "educators" — will crash on UPDATE
+    → D().prepare(`UPDATE educators SET status='active', termination_date=NULL, termination_reason=NULL, t
+  server/educators.js:429
+    Column "necwr_submitted_by" does not exist in table "educators" — will crash on UPDATE
+    → const stmt = D().prepare(`UPDATE educators SET necwr_status=?, necwr_submitted_at=?, necwr_submitted
+  server/educators.js:446
+    Column "updated_at" does not exist in table "leave_requests" — will crash on UPDATE
+    → D().prepare('UPDATE leave_requests SET status=?, approved_by=?, approved_at=datetime(\'now\'), updat
+  server/incidents.js:44
+    Column "date" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/incidents.js:44
+    Column "time" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/incidents.js:44
+    Column "action_taken" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/incidents.js:44
+    Column "first_aid_by" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/incidents.js:44
+    Column "parent_notified_method" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/incidents.js:44
+    Column "witness" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/incidents.js:44
+    Column "regulatory_report_required" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/incidents.js:44
+    Column "regulatory_reported_at" does not exist in table "incidents" — will crash on INSERT
+    → D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,
+  server/parent.js:25
+    Column "parent_email" does not exist in table "parent_messages" — will crash on INSERT
+    → r.post('/messages',(req,res)=>{try{const{child_id,subject,body}=req.body;const user=D().prepare('SEL
+  server/parent.js:25
+    Column "parent_name" does not exist in table "parent_messages" — will crash on INSERT
+    → r.post('/messages',(req,res)=>{try{const{child_id,subject,body}=req.body;const user=D().prepare('SEL
+  server/parent.js:25
+    Column "direction" does not exist in table "parent_messages" — will crash on INSERT
+    → r.post('/messages',(req,res)=>{try{const{child_id,subject,body}=req.body;const user=D().prepare('SEL
+  server/register.js:206
+    Column "medication_name" does not exist in table "medications" — will crash on INSERT
+    → D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescri
+  server/register.js:206
+    Column "prescribing_doctor" does not exist in table "medications" — will crash on INSERT
+    → D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescri
+  server/register.js:206
+    Column "start_date" does not exist in table "medications" — will crash on INSERT
+    → D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescri
+  server/register.js:206
+    Column "end_date" does not exist in table "medications" — will crash on INSERT
+    → D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescri
+  server/register.js:206
+    Column "notes" does not exist in table "medications" — will crash on INSERT
+    → D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescri
+  server/register.js:206
+    Column "active" does not exist in table "medications" — will crash on INSERT
+    → D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescri
+  server/register.js:215
+    Column "medication_name" does not exist in table "medications" — will crash on UPDATE
+    → D().prepare(`UPDATE medications SET medication_name=COALESCE(?,medication_name), dosage=COALESCE(?,d
+  server/register.js:246
+    Column "given_at" does not exist in table "medication_log" — will crash on INSERT
+    → D().prepare(`INSERT INTO medication_log (id,tenant_id,medication_id,child_id,given_at,given_by,dose_
+  server/register.js:246
+    Column "given_by" does not exist in table "medication_log" — will crash on INSERT
+    → D().prepare(`INSERT INTO medication_log (id,tenant_id,medication_id,child_id,given_at,given_by,dose_
+  server/reports.js:23
+    Column "email" does not exist in table "report_schedules" — will crash on INSERT
+    → D().prepare('INSERT INTO report_schedules (id,tenant_id,report_type,frequency,day_of_week,time,email
+  server/reports.js:23
+    Column "format" does not exist in table "report_schedules" — will crash on INSERT
+    → D().prepare('INSERT INTO report_schedules (id,tenant_id,report_type,frequency,day_of_week,time,email
+  server/retell.js:271
+    Column "retell_agent_id" does not exist in table "voice_settings" — will crash on UPDATE
+    → D().prepare("UPDATE voice_settings SET retell_agent_id=?, updated_at=datetime('now') WHERE tenant_id
+  server/retell.js:293
+    Column "retell_phone_number_id" does not exist in table "voice_settings" — will crash on UPDATE
+    → D().prepare("UPDATE voice_settings SET retell_phone_number_id=?, updated_at=datetime('now') WHERE te
+  server/roster-enhancements.js:597
+    Column "requester_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → D().prepare(`INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_
+  server/roster-enhancements.js:597
+    Column "requester_entry_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → D().prepare(`INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_
+  server/roster-enhancements.js:597
+    Column "target_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → D().prepare(`INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_
+  server/roster-enhancements.js:597
+    Column "target_entry_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → D().prepare(`INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_
+  server/roster-enhancements.js:597
+    Column "compliance_check_passed" does not exist in table "shift_swaps" — will crash on INSERT
+    → D().prepare(`INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_
+  server/roster-enhancements.js:597
+    Column "compliance_notes" does not exist in table "shift_swaps" — will crash on INSERT
+    → D().prepare(`INSERT INTO shift_swaps (id,tenant_id,requester_id,requester_entry_id,target_id,target_
+  server/roster-enhancements.js:631
+    Column "decline_reason" does not exist in table "shift_swaps" — will crash on UPDATE
+    → D().prepare("UPDATE shift_swaps SET status='declined', decline_reason=?, responded_at=datetime('now'
+  server/roster-enhancements.js:631
+    Column "responded_at" does not exist in table "shift_swaps" — will crash on UPDATE
+    → D().prepare("UPDATE shift_swaps SET status='declined', decline_reason=?, responded_at=datetime('now'
+  server/roster-enhancements.js:705
+    Column "region" does not exist in table "public_holidays" — will crash on INSERT
+    → D().prepare('INSERT INTO public_holidays (id,tenant_id,region,state,name,date,centre_open,notes) VAL
+  server/roster-enhancements.js:705
+    Column "state" does not exist in table "public_holidays" — will crash on INSERT
+    → D().prepare('INSERT INTO public_holidays (id,tenant_id,region,state,name,date,centre_open,notes) VAL
+  server/roster-enhancements.js:705
+    Column "centre_open" does not exist in table "public_holidays" — will crash on INSERT
+    → D().prepare('INSERT INTO public_holidays (id,tenant_id,region,state,name,date,centre_open,notes) VAL
+  server/roster-enhancements.js:705
+    Column "notes" does not exist in table "public_holidays" — will crash on INSERT
+    → D().prepare('INSERT INTO public_holidays (id,tenant_id,region,state,name,date,centre_open,notes) VAL
+  server/roster-enhancements.js:866
+    Column "hourly_rate_cents" does not exist in table "staffing_agencies" — will crash on INSERT
+    → D().prepare('INSERT INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hourly_rate_c
+  server/roster-enhancements.js:866
+    Column "agency_fee_pct" does not exist in table "staffing_agencies" — will crash on INSERT
+    → D().prepare('INSERT INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hourly_rate_c
+  server/roster-enhancements.js:866
+    Column "qualifications_available" does not exist in table "staffing_agencies" — will crash on INSERT
+    → D().prepare('INSERT INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hourly_rate_c
+  server/roster-enhancements.js:866
+    Column "preferred" does not exist in table "staffing_agencies" — will crash on INSERT
+    → D().prepare('INSERT INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hourly_rate_c
+  server/roster-enhancements.js:896
+    Column "escalation_time" does not exist in table "shift_fill_requests" — will crash on UPDATE
+    → D().prepare("UPDATE shift_fill_requests SET escalated_to_agency=1, agency_booking_id=?, escalation_t
+  server/roster-enhancements.js:901
+    Column "total_bookings" does not exist in table "staffing_agencies" — will crash on UPDATE
+    → D().prepare("UPDATE staffing_agencies SET total_bookings=total_bookings+1, updated_at=datetime('now'
+  server/roster-enhancements.js:901
+    Column "updated_at" does not exist in table "staffing_agencies" — will crash on UPDATE
+    → D().prepare("UPDATE staffing_agencies SET total_bookings=total_bookings+1, updated_at=datetime('now'
+  server/roster-enhancements.js:939
+    Column "agency_educator_name" does not exist in table "agency_bookings" — will crash on UPDATE
+    → D().prepare(`UPDATE agency_bookings SET status='confirmed', agency_educator_name=?, agency_educator_
+  server/roster-enhancements.js:939
+    Column "agency_educator_qualification" does not exist in table "agency_bookings" — will crash on UPDATE
+    → D().prepare(`UPDATE agency_bookings SET status='confirmed', agency_educator_name=?, agency_educator_
+  server/roster-enhancements.js:939
+    Column "agency_educator_wwcc" does not exist in table "agency_bookings" — will crash on UPDATE
+    → D().prepare(`UPDATE agency_bookings SET status='confirmed', agency_educator_name=?, agency_educator_
+  server/roster-enhancements.js:1452
+    Column "location" does not exist in table "room_groups" — will crash on INSERT
+    → D().prepare('INSERT INTO room_groups (id,tenant_id,name,description,location,combined_ratio_strategy
+  server/roster-enhancements.js:1452
+    Column "combined_ratio_strategy" does not exist in table "room_groups" — will crash on INSERT
+    → D().prepare('INSERT INTO room_groups (id,tenant_id,name,description,location,combined_ratio_strategy
+  server/roster-enhancements.js:1467
+    Column "location" does not exist in table "room_groups" — will crash on UPDATE
+    → D().prepare('UPDATE room_groups SET name=COALESCE(?,name), description=COALESCE(?,description), loca
+  server/roster-enhancements.js:1467
+    Column "combined_ratio_strategy" does not exist in table "room_groups" — will crash on UPDATE
+    → D().prepare('UPDATE room_groups SET name=COALESCE(?,name), description=COALESCE(?,description), loca
+  server/roster-enhancements.js:1505
+    Column "room_group_id" does not exist in table "room_group_schedules" — will crash on INSERT
+    → D().prepare('INSERT INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start_time,end
+  server/roster-enhancements.js:1505
+    Column "reason" does not exist in table "room_group_schedules" — will crash on INSERT
+    → D().prepare('INSERT INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start_time,end
+  server/roster-enhancements.js:1505
+    Column "min_educators" does not exist in table "room_group_schedules" — will crash on INSERT
+    → D().prepare('INSERT INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start_time,end
+  server/roster-schema-migration.js:659
+    Column "requester_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → if (e0 && e1) db.prepare('INSERT OR IGNORE INTO shift_swaps (id,tenant_id,requester_id,requester_ent
+  server/roster-schema-migration.js:659
+    Column "requester_entry_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → if (e0 && e1) db.prepare('INSERT OR IGNORE INTO shift_swaps (id,tenant_id,requester_id,requester_ent
+  server/roster-schema-migration.js:659
+    Column "target_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → if (e0 && e1) db.prepare('INSERT OR IGNORE INTO shift_swaps (id,tenant_id,requester_id,requester_ent
+  server/roster-schema-migration.js:659
+    Column "target_entry_id" does not exist in table "shift_swaps" — will crash on INSERT
+    → if (e0 && e1) db.prepare('INSERT OR IGNORE INTO shift_swaps (id,tenant_id,requester_id,requester_ent
+  server/roster-schema-migration.js:679
+    Column "region" does not exist in table "public_holidays" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO public_holidays (id,tenant_id,region,state,name,date,centre_open) 
+  server/roster-schema-migration.js:679
+    Column "state" does not exist in table "public_holidays" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO public_holidays (id,tenant_id,region,state,name,date,centre_open) 
+  server/roster-schema-migration.js:679
+    Column "centre_open" does not exist in table "public_holidays" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO public_holidays (id,tenant_id,region,state,name,date,centre_open) 
+  server/roster-schema-migration.js:721
+    Column "region" does not exist in table "award_classifications" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO award_classifications (id,region,level,sub_level,title,description
+  server/roster-schema-migration.js:721
+    Column "sub_level" does not exist in table "award_classifications" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO award_classifications (id,region,level,sub_level,title,description
+  server/roster-schema-migration.js:721
+    Column "title" does not exist in table "award_classifications" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO award_classifications (id,region,level,sub_level,title,description
+  server/roster-schema-migration.js:721
+    Column "description" does not exist in table "award_classifications" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO award_classifications (id,region,level,sub_level,title,description
+  server/roster-schema-migration.js:721
+    Column "base_hourly_cents" does not exist in table "award_classifications" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO award_classifications (id,region,level,sub_level,title,description
+  server/roster-schema-migration.js:721
+    Column "base_annual_cents" does not exist in table "award_classifications" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO award_classifications (id,region,level,sub_level,title,description
+  server/roster-schema-migration.js:730
+    Column "hourly_rate_cents" does not exist in table "staffing_agencies" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hour
+  server/roster-schema-migration.js:730
+    Column "agency_fee_pct" does not exist in table "staffing_agencies" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hour
+  server/roster-schema-migration.js:730
+    Column "qualifications_available" does not exist in table "staffing_agencies" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hour
+  server/roster-schema-migration.js:730
+    Column "preferred" does not exist in table "staffing_agencies" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hour
+  server/roster-schema-migration.js:730
+    Column "rating" does not exist in table "staffing_agencies" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hour
+  server/roster-schema-migration.js:730
+    Column "total_bookings" does not exist in table "staffing_agencies" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO staffing_agencies (id,tenant_id,name,contact_name,phone,email,hour
+  server/roster-schema-migration.js:750
+    Column "period_type" does not exist in table "pay_periods" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO pay_periods (id,tenant_id,period_type,start_date,end_date,pay_date
+  server/roster-schema-migration.js:750
+    Column "total_hours" does not exist in table "pay_periods" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO pay_periods (id,tenant_id,period_type,start_date,end_date,pay_date
+  server/roster-schema-migration.js:753
+    Column "region" does not exist in table "fatigue_rules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO fatigue_rules (id,tenant_id,region,max_consecutive_days,min_break_
+  server/roster-schema-migration.js:753
+    Column "min_break_between_shifts_hours" does not exist in table "fatigue_rules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO fatigue_rules (id,tenant_id,region,max_consecutive_days,min_break_
+  server/roster-schema-migration.js:753
+    Column "max_hours_per_fortnight" does not exist in table "fatigue_rules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO fatigue_rules (id,tenant_id,region,max_consecutive_days,min_break_
+  server/roster-schema-migration.js:753
+    Column "overtime_daily_threshold" does not exist in table "fatigue_rules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO fatigue_rules (id,tenant_id,region,max_consecutive_days,min_break_
+  server/roster-schema-migration.js:753
+    Column "overtime_weekly_threshold" does not exist in table "fatigue_rules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO fatigue_rules (id,tenant_id,region,max_consecutive_days,min_break_
+  server/roster-schema-migration.js:757
+    Column "roster_role" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET is_nominated_supervisor=1, is_responsible_person=1, roster_role='re
+  server/roster-schema-migration.js:757
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET is_nominated_supervisor=1, is_responsible_person=1, roster_role='re
+  server/roster-schema-migration.js:758
+    Column "roster_role" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET is_educational_leader=1, is_responsible_person=1, roster_role='resp
+  server/roster-schema-migration.js:758
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET is_educational_leader=1, is_responsible_person=1, roster_role='resp
+  server/roster-schema-migration.js:759
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET award_classification='4', award_level='4.3' WHERE id=?").run(edIds[
+  server/roster-schema-migration.js:760
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET award_classification='4', award_level='4.2' WHERE id=?").run(edIds[
+  server/roster-schema-migration.js:761
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET award_classification='3', award_level='3.2' WHERE id=?").run(edIds[
+  server/roster-schema-migration.js:762
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET award_classification='3', award_level='3.1' WHERE id=?").run(edIds[
+  server/roster-schema-migration.js:763
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET award_classification='2', award_level='2.1' WHERE id=?").run(edIds[
+  server/roster-schema-migration.js:764
+    Column "roster_role" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET roster_role='float', award_classification='3', award_level='3.2' WH
+  server/roster-schema-migration.js:764
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET roster_role='float', award_classification='3', award_level='3.2' WH
+  server/roster-schema-migration.js:765
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET award_classification='4', award_level='4.1' WHERE id=?").run(edIds[
+  server/roster-schema-migration.js:766
+    Column "award_level" does not exist in table "educators" — will crash on UPDATE
+    → db.prepare("UPDATE educators SET award_classification='3', award_level='3.1' WHERE id=?").run(edIds[
+  server/roster-schema-migration.js:777
+    Column "location" does not exist in table "room_groups" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_groups (id,tenant_id,name,description,location,combined_ratio
+  server/roster-schema-migration.js:777
+    Column "combined_ratio_strategy" does not exist in table "room_groups" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_groups (id,tenant_id,name,description,location,combined_ratio
+  server/roster-schema-migration.js:783
+    Column "location" does not exist in table "room_groups" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_groups (id,tenant_id,name,description,location,combined_ratio
+  server/roster-schema-migration.js:783
+    Column "combined_ratio_strategy" does not exist in table "room_groups" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_groups (id,tenant_id,name,description,location,combined_ratio
+  server/roster-schema-migration.js:788
+    Column "location" does not exist in table "room_groups" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_groups (id,tenant_id,name,description,location,combined_ratio
+  server/roster-schema-migration.js:788
+    Column "combined_ratio_strategy" does not exist in table "room_groups" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_groups (id,tenant_id,name,description,location,combined_ratio
+  server/roster-schema-migration.js:795
+    Column "room_group_id" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:795
+    Column "reason" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:795
+    Column "min_educators" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:796
+    Column "room_group_id" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:796
+    Column "reason" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:796
+    Column "min_educators" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:797
+    Column "room_group_id" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:797
+    Column "reason" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:797
+    Column "min_educators" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:798
+    Column "room_group_id" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:798
+    Column "reason" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/roster-schema-migration.js:798
+    Column "min_educators" does not exist in table "room_group_schedules" — will crash on INSERT
+    → db.prepare('INSERT OR IGNORE INTO room_group_schedules (id,tenant_id,room_group_id,day_of_week,start
+  server/staff.js:76
+    Column "can_start_earlier_mins" does not exist in table "educator_availability" — will crash on UPDATE
+    → D().prepare('UPDATE educator_availability SET available=?,start_time=?,end_time=?,can_start_earlier_
+  server/staff.js:76
+    Column "can_finish_later_mins" does not exist in table "educator_availability" — will crash on UPDATE
+    → D().prepare('UPDATE educator_availability SET available=?,start_time=?,end_time=?,can_start_earlier_
+  server/staff.js:79
+    Column "can_start_earlier_mins" does not exist in table "educator_availability" — will crash on INSERT
+    → D().prepare('INSERT INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_
+  server/staff.js:79
+    Column "can_finish_later_mins" does not exist in table "educator_availability" — will crash on INSERT
+    → D().prepare('INSERT INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_
+  server/v2-features.js:50
+    Column "category" does not exist in table "activity_log" — will crash on INSERT
+    → D().prepare('INSERT INTO activity_log (id,tenant_id,entity_type,entity_id,action,detail,category,per
+  server/v2-features.js:174
+    Column "audience" does not exist in table "broadcast_queue" — will crash on INSERT
+    → D().prepare(`INSERT INTO broadcast_queue (id,tenant_id,audience,channel,subject,body,recipient_name,
+  server/v2-features.js:174
+    Column "subject" does not exist in table "broadcast_queue" — will crash on INSERT
+    → D().prepare(`INSERT INTO broadcast_queue (id,tenant_id,audience,channel,subject,body,recipient_name,
+  server/v2-features.js:174
+    Column "recipient_name" does not exist in table "broadcast_queue" — will crash on INSERT
+    → D().prepare(`INSERT INTO broadcast_queue (id,tenant_id,audience,channel,subject,body,recipient_name,
+  server/v2-features.js:174
+    Column "recipient_email" does not exist in table "broadcast_queue" — will crash on INSERT
+    → D().prepare(`INSERT INTO broadcast_queue (id,tenant_id,audience,channel,subject,body,recipient_name,
+  server/v2-features.js:174
+    Column "scheduled_at" does not exist in table "broadcast_queue" — will crash on INSERT
+    → D().prepare(`INSERT INTO broadcast_queue (id,tenant_id,audience,channel,subject,body,recipient_name,
+  server/v2-features.js:195
+    Column "reject_reason" does not exist in table "broadcast_queue" — will crash on UPDATE
+    → D().prepare("UPDATE broadcast_queue SET status='rejected', approved_by=?, approved_at=datetime('now'
+  server/v2-features.js:218
+    Column "category" does not exist in table "activity_log" — will crash on INSERT
+    → D().prepare('INSERT INTO activity_log (id,tenant_id,entity_type,entity_id,action,detail,category,per
+  server/v2-features.js:287
+    Column "category" does not exist in table "activity_log" — will crash on INSERT
+    → D().prepare('INSERT INTO activity_log (id,tenant_id,entity_type,entity_id,action,detail,category,per
+  server/v2-features.js:467
+    Column "entity_type" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare('INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:467
+    Column "entity_id" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare('INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:467
+    Column "compliance_type" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare('INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:467
+    Column "resource_url" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare('INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:467
+    Column "resource_label" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare('INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:467
+    Column "regulation" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare('INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:483
+    Column "entity_type" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare("INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:483
+    Column "entity_id" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare("INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:483
+    Column "compliance_type" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare("INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:483
+    Column "resource_url" does not exist in table "compliance_todo" — will crash on INSERT
+    → db.prepare("INSERT INTO compliance_todo (id,tenant_id,entity_type,entity_id,compliance_type,title,de
+  server/v2-features.js:536
+    Column "resolution_note" does not exist in table "compliance_todo" — will crash on UPDATE
+    → D().prepare("UPDATE compliance_todo SET status='resolved', resolved_by=?, resolved_at=datetime('now'
+  server/voice.js:1063
+    Column "retell_llm_id" does not exist in table "voice_settings" — will crash on UPDATE
+    → D().prepare("UPDATE voice_settings SET retell_llm_id=?, updated_at=datetime('now') WHERE tenant_id=?
+  server/voice.js:1089
+    Column "retell_agent_id" does not exist in table "voice_settings" — will crash on UPDATE
+    → D().prepare("UPDATE voice_settings SET retell_agent_id=?, updated_at=datetime('now') WHERE tenant_id
+  server/voice.js:1108
+    Column "retell_phone_number_id" does not exist in table "voice_settings" — will crash on UPDATE
+    → D().prepare('UPDATE voice_settings SET retell_phone_number_id=?, updated_at=datetime("now") WHERE te
+  server/waitlist-automation.js:139
+    Column "offer_date" does not exist in table "waitlist" — will crash on UPDATE
+    → UPDATE waitlist SET status='offered', offer_date=date('now'),
+  server/wellbeing.js:43
+    Column "concerns" does not exist in table "staff_wellbeing" — will crash on INSERT
+    → D().prepare(`INSERT INTO staff_wellbeing (id,tenant_id,user_id,date,energy_level,stress_level,worklo
+  server/wellbeing.js:43
+    Column "anonymous" does not exist in table "staff_wellbeing" — will crash on INSERT
+    → D().prepare(`INSERT INTO staff_wellbeing (id,tenant_id,user_id,date,energy_level,stress_level,worklo
+  server/xero.js:308
+    Column "week_start" does not exist in table "educator_availability" — will crash on INSERT
+    → INSERT INTO educator_availability (id,tenant_id,educator_id,week_start,availability,notes)
+  server/xero.js:308
+    Column "availability" does not exist in table "educator_availability" — will crash on INSERT
+    → INSERT INTO educator_availability (id,tenant_id,educator_id,week_start,availability,notes)
+  src/StaffPortalModule.jsx:1
+    Uses React.useState/useEffect/etc but missing "import React" — will crash at runtime
+
+🟠 HIGH (609) — Missing routes or security gaps
+  server/ratio-report.js:0
+    Duplicate route definition: GET /rooms (also in server/api.js)
+  server/ratio-report.js:0
+    Duplicate route definition: GET / (also in server/daily-updates.js)
+  server/weekly-stories.js:0
+    Duplicate route definition: GET / (also in server/daily-updates.js)
+  server/weekly-stories.js:0
+    Duplicate route definition: DELETE /:id (also in server/daily-updates.js)
+  src/AIAssistantModule.jsx:36
+    Missing server route: GET /api/compliance-tasks
+    → API("/api/compliance-tasks").then(r=>setTaskCount(r.summary?.overdue||0)).catch(()=>{});
+  src/AIAssistantModule.jsx:85
+    Missing server route: GET /api/children/simple
+    → API("/api/children/simple"),
+  src/AIAssistantModule.jsx:86
+    Missing server route: GET /api/ai-assistant/history
+    → API("/api/ai-assistant/history"),
+  src/AIAssistantModule.jsx:100
+    Missing server route: POST /api/ai-assistant/generate
+    → const r=await API("/api/ai-assistant/generate",{method:"POST",body:{
+  src/AIAssistantModule.jsx:119
+    Missing server route: POST /api/ai-assistant/save
+    → await API("/api/ai-assistant/save",{method:"POST",body:{ // catch: .catch(e=>console.error('API erro
+  src/AIAssistantModule.jsx:278
+    Missing server route: GET /api/fee-overrides
+    → API("/api/fee-overrides").then(setData);
+  src/AIAssistantModule.jsx:288
+    Missing server route: POST /api/fee-overrides
+    → await API("/api/fee-overrides",{method:"POST",body}).catch(e=>console.error('API error:',e));
+  src/AIAssistantModule.jsx:293
+    Missing server route: DELETE /api/fee-overrides/:id
+    → await API(`/api/fee-overrides/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
+  src/AIAssistantModule.jsx:402
+    Missing server route: GET /api/educators/simple
+    → API("/api/educators/simple"),
+  src/AIAssistantModule.jsx:414
+    Missing server route: POST /api/compliance-tasks/auto-generate
+    → const r=await API("/api/compliance-tasks/auto-generate",{method:"POST"}).catch(e=>console.error('API
+  src/AIAssistantModule.jsx:421
+    Missing server route: PUT /api/compliance-tasks/:id
+    → await API(`/api/compliance-tasks/${id}`,{method:"PUT",body:{status:"completed",completed_by:"Directo
+  src/AIAssistantModule.jsx:427
+    Missing server route: POST /api/compliance-tasks
+    → await API("/api/compliance-tasks",{method:"POST",body:form}).catch(e=>console.error('API error:',e))
+  src/ActivityLogModule.jsx:52
+    Missing server route: GET /api/v2/activity-log
+    → const res = await API(`/api/v2/activity-log?${params}`);
+  src/AdminPowerModule.jsx:77
+    Missing server route: GET /api/admin/recruitment/jobs
+    → API("/api/admin/recruitment/jobs").then(r=>{setJobs(r.jobs||[]);setPipeline(r.pipeline||{});});
+  src/AdminPowerModule.jsx:82
+    Missing server route: GET /api/admin/recruitment/applications
+    → const r=await API(`/api/admin/recruitment/applications?job_id=${jobId}`.catch(e=>console.error('API 
+  src/AdminPowerModule.jsx:88
+    Missing server route: POST /api/admin/recruitment/jobs
+    → await API("/api/admin/recruitment/jobs",{method:"POST",body:{...form,salary_min:form.salary_min?pars
+  src/AdminPowerModule.jsx:94
+    Missing server route: PUT /api/admin/recruitment/applications/:id
+    → await API(`/api/admin/recruitment/applications/${id}`,{method:"PUT",body:{status}}).catch(e=>console
+  src/AdminPowerModule.jsx:228
+    Missing server route: GET /api/admin/appraisals
+    → API("/api/admin/appraisals"),
+  src/AdminPowerModule.jsx:230
+    Missing server route: GET /api/admin/appraisals/templates
+    → API("/api/admin/appraisals/templates"),
+  src/AdminPowerModule.jsx:241
+    Missing server route: POST /api/admin/appraisals
+    → await API("/api/admin/appraisals",{method:"POST",body:{...form,template_id:template?.id}}).catch(e=>
+  src/AdminPowerModule.jsx:250
+    Missing server route: PUT /api/admin/appraisals/:id
+    → await API(`/api/admin/appraisals/${active.id}`,{method:"PUT",body:{ // catch: .catch(e=>console.erro
+  src/AdminPowerModule.jsx:394
+    Missing server route: GET /api/admin/occupancy
+    → API("/api/admin/occupancy?weeks=12").then(setData);
+  src/AdminPowerModule.jsx:400
+    Missing server route: POST /api/admin/occupancy/snapshot
+    → await API("/api/admin/occupancy/snapshot",{method:"POST"}).catch(e=>console.error('API error:',e));
+  src/AdminPowerModule.jsx:492
+    Missing server route: GET /api/admin/debt
+    → API(`/api/admin/debt?status=${filter}&limit=100`).then(r=>{
+  src/AdminPowerModule.jsx:499
+    Missing server route: POST /api/admin/debt/:id/reminder
+    → await API(`/api/admin/debt/${id}/reminder`,{method:"POST",body:{reminder_number:n}}).catch(e=>consol
+  src/AdminPowerModule.jsx:504
+    Missing server route: PUT /api/admin/debt/:id
+    → await API(`/api/admin/debt/${id}`,{method:"PUT",body:{amount_paid_cents:amountCents,status:"paid"}})
+  src/AdminPowerModule.jsx:596
+    Missing server route: GET /api/admin/casual
+    → API("/api/admin/casual?limit=100"),
+  src/AdminPowerModule.jsx:598
+    Missing server route: GET /api/rooms/simple
+    → API("/api/rooms/simple"),
+  src/AdminPowerModule.jsx:610
+    Missing server route: GET /api/admin/casual/availability
+    → API(`/api/admin/casual/availability?from=${from}&to=${to}`).then(r=>setAvailability(r.availability||
+  src/AdminPowerModule.jsx:617
+    Missing server route: PUT /api/admin/casual/:id
+    → await API(`/api/admin/casual/${id}`,{method:"PUT",body:{status,confirmed_by:"Admin"}});
+  src/AdminPowerModule.jsx:623
+    Missing server route: POST /api/admin/casual
+    → const r=await API("/api/admin/casual",{method:"POST",body:form});
+  src/AnalyticsModule.jsx:206
+    Missing server route: GET /api/analytics/forecast
+    → useEffect(()=>{API("/api/analytics/forecast").then(setData);},[]);
+  src/AnalyticsModule.jsx:271
+    Missing server route: GET /api/analytics/revenue
+    → useEffect(()=>{API("/api/analytics/revenue").then(setData);},[]);
+  src/AnalyticsModule.jsx:363
+    Missing server route: GET /api/schedule/current
+    → API(`/api/schedule/current?week_start=${weekStart}`),
+  src/AnalyticsModule.jsx:364
+    Missing server route: GET /api/schedule/medical-alerts
+    → API("/api/schedule/medical-alerts"),
+  src/AnalyticsModule.jsx:375
+    Missing server route: GET /api/schedule/history
+    → API("/api/schedule/history").then(r=>setPublishHistory(r.history||[])).catch(()=>{});
+  src/AnalyticsModule.jsx:381
+    Missing server route: POST /api/schedule/publish
+    → const r=await API("/api/schedule/publish",{method:"POST",body:{week_start:weekStart,message:pubMsg}}
+  src/BulkCommsModule.jsx:80
+    Missing server route: GET /api/bulk-comms/history
+    → API("/api/bulk-comms/history"),
+  src/BulkCommsModule.jsx:100
+    Missing server route: POST /api/bulk-comms/send
+    → const r=await API("/api/bulk-comms/send",{method:"POST",body:{...form,channels:["in_app"]}});
+  src/BulkCommsModule.jsx:247
+    Missing server route: GET /api/bulk-comms/timeline/:id
+    → const r=await API(`/api/bulk-comms/timeline/${id}`.catch(e=>console.error('API error:',e)));
+  src/CCSModule.jsx:52
+    Missing server route: GET /api/ccs/dashboard
+    → API("/api/ccs/dashboard").then(setDashboard).catch(()=>{});
+  src/CCSModule.jsx:111
+    Missing server route: POST /api/ccs/calculate
+    → const r=await API("/api/ccs/calculate",{method:"POST",body:form}).catch(e=>console.error('API error:
+  src/CCSModule.jsx:312
+    Missing server route: GET /api/ccs/families
+    → API("/api/ccs/families"),
+  src/CCSModule.jsx:322
+    Missing server route: POST /api/ccs/families
+    → await API("/api/ccs/families",{method:"POST",body:form}).catch(e=>console.error('API error:',e));
+  src/CCSModule.jsx:464
+    Missing server route: GET /api/ccs/session-reports
+    → API(`/api/ccs/session-reports?status=pending&limit=100`),
+  src/CCSModule.jsx:465
+    Missing server route: GET /api/ccs/fortnightly-summary
+    → API(`/api/ccs/fortnightly-summary?fortnight_start=${fortnight}`),
+  src/CCSModule.jsx:466
+    Missing server route: GET /api/integrations/proda/status
+    → API("/api/integrations/proda/status"),
+  src/CCSModule.jsx:477
+    Missing server route: POST /api/ccs/session-reports/generate-all
+    → await API("/api/ccs/session-reports/generate-all",{method:"POST",body:{fortnight_start:fortnight}}).
+  src/CCSModule.jsx:485
+    Missing server route: PUT /api/ccs/session-reports/:id/submit
+    → await API(`/api/ccs/session-reports/${id}/submit`,{method:"PUT",body:{submission_ref:ref}}).catch(e=
+  src/CCSModule.jsx:633
+    Missing server route: GET /api/integrations/registry
+    → API("/api/integrations/registry").then(r=>setIntegrations(r.integrations||[]));
+  src/CCSModule.jsx:634
+    Missing server route: GET /api/integrations/ner/educators
+    → API("/api/integrations/ner/educators").then(r=>setNerData(r));
+  src/CCSModule.jsx:638
+    Missing server route: GET /api/integrations/credentials/:id
+    → const r=await API(`/api/integrations/credentials/${key}`);
+  src/CCSModule.jsx:645
+    Missing server route: POST /api/integrations/credentials/:id
+    → await API(`/api/integrations/credentials/${key}`,{method:"POST",body:creds});
+  src/CCSModule.jsx:652
+    Missing server route: POST /api/integrations/validate-abn
+    → const r=await API("/api/integrations/validate-abn",{method:"POST",body:{abn:abnInput}});
+  src/CRMModule.jsx:59
+    Missing server route: GET /api/crm/dashboard
+    → useEffect(()=>{API("/api/crm/dashboard").then(setData).catch(()=>{});},[]);
+  src/CRMModule.jsx:145
+    Missing server route: GET /api/crm/enquiries
+    → API(`/api/crm/enquiries?${params}`).then(r=>{
+  src/CRMModule.jsx:154
+    Missing server route: POST /api/crm/enquiries
+    → await API("/api/crm/enquiries",{method:"POST",body:form}).catch(e=>console.error('API error:',e));
+  src/CRMModule.jsx:160
+    Missing server route: PUT /api/crm/enquiries/:id
+    → await API(`/api/crm/enquiries/${id}`,{method:"PUT",body:{status}}).catch(e=>console.error('API error
+  src/CRMModule.jsx:284
+    Missing server route: GET /api/crm/tours
+    → API(`/api/crm/tours?from=${from}&to=${to}`).then(r=>{
+  src/CRMModule.jsx:293
+    Missing server route: POST /api/crm/tours
+    → const r=await API("/api/crm/tours",{method:"POST",body:form});
+  src/ChildDevModule.jsx:81
+    Missing server route: GET /api/childdev/menus/:id
+    → API(`/api/childdev/menus/${weekStart}`),
+  src/ChildDevModule.jsx:82
+    Missing server route: GET /api/childdev/dietary
+    → API("/api/childdev/dietary"),
+  src/ChildDevModule.jsx:106
+    Missing server route: GET /api/childdev/menus/:id/allergen-check
+    → API(`/api/childdev/menus/${weekStart}/allergen-check`)
+  src/ChildDevModule.jsx:124
+    Missing server route: POST /api/childdev/menus/:id
+    → await API(`/api/childdev/menus/${weekStart}`,{method:"POST",body:{plan_name:"Weekly Menu",items}}).c
+  src/ChildDevModule.jsx:133
+    Missing server route: POST /api/childdev/menus/:id/copy-from/:id
+    → await API(`/api/childdev/menus/${weekStart}/copy-from/${prevStr}`,{method:"POST"}).catch(e=>console.
+  src/ChildDevModule.jsx:139
+    Missing server route: POST /api/childdev/dietary
+    → await API("/api/childdev/dietary",{method:"POST",body:dietForm}).catch(e=>console.error('API error:'
+  src/ChildDevModule.jsx:145
+    Missing server route: DELETE /api/childdev/dietary/:id
+    → await API(`/api/childdev/dietary/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
+  src/ChildDevModule.jsx:170
+    Missing server route: PUT /api/childdev/menus/:id/approve
+    → <button onClick={async()=>{await API(`/api/childdev/menus/${weekStart}/approve`,{method:"PUT",body:{
+  src/ChildDevModule.jsx:350
+    Missing server route: GET /api/childdev/milestones/:id
+    → const r=await API(`/api/childdev/milestones/${childId}`.catch(e=>console.error('API error:',e)));
+  src/ChildDevModule.jsx:358
+    Missing server route: POST /api/childdev/milestones/:id
+    → await API(`/api/childdev/milestones/${childId}`,{method:"POST",body:{ // catch: .catch(e=>console.er
+  src/ChildDevModule.jsx:497
+    Missing server route: GET /api/childdev/transitions
+    → API("/api/childdev/transitions"),
+  src/ChildDevModule.jsx:498
+    Missing server route: GET /api/childdev/transitions/upcoming/school-age
+    → API("/api/childdev/transitions/upcoming/school-age"),
+  src/ChildDevModule.jsx:507
+    Missing server route: GET /api/childdev/transitions/:id
+    → const r=await API(`/api/childdev/transitions/${id}`.catch(e=>console.error('API error:',e)));
+  src/ChildDevModule.jsx:513
+    Missing server route: POST /api/childdev/transitions
+    → const r=await API("/api/childdev/transitions",{method:"POST",body:{child_id:childId,prepared_by:"Edu
+  src/ChildDevModule.jsx:521
+    Missing server route: POST /api/childdev/transitions/:id/auto-draft
+    → const r=await API(`/api/childdev/transitions/${active.id}/auto-draft`,{method:"POST"}).catch(e=>cons
+  src/ChildDevModule.jsx:530
+    Missing server route: PUT /api/childdev/transitions/:id
+    → await API(`/api/childdev/transitions/${active.id}`,{method:"PUT",body:active}).catch(e=>console.erro
+  src/ChildrenModule.jsx:57
+    Missing server route: GET /api/children
+    → API("/api/children"),
+  src/ChildrenModule.jsx:58
+    Missing server route: GET /api/rooms
+    → API("/api/rooms"),
+  src/ChildrenModule.jsx:76
+    Missing server route: GET /api/children/${id || selected
+    → const r = await API(`/api/children/${id || selected?.id}`);
+  src/ChildrenModule.jsx:339
+    Missing server route: DELETE /api/children/:id/collection-persons/:id
+    → await API(`/api/children/${childId}/collection-persons/${id}`, { method: "DELETE" });
+  src/ChildrenModule.jsx:1329
+    Missing server route: PUT /api/children/:id/permissions/:id
+    → const r = await API(`/api/children/${child.id}/permissions/${existing.id}`, { method: "PUT", body: {
+  src/ChildrenModule.jsx:1397
+    Missing server route: DELETE /api/children/:id/permissions/:id
+    → await API(`/api/children/${childId}/permissions/${id}`, { method: "DELETE" });
+  src/ChildrenModule.jsx:1626
+    Missing server route: POST /api/children
+    → const r = await API("/api/children", { method: "POST", body: f });
+  src/ChildrenModule.jsx:1669
+    Missing server route: GET /api/register/educator-notes
+    → API(`/api/register/educator-notes?child_id=${child.id}`).then(r => { if (Array.isArray(r)) setNotes(
+  src/ChildrenModule.jsx:1677
+    Missing server route: POST /api/register/educator-notes
+    → try { await API("/api/register/educator-notes", { method: "POST", body: { ...f, child_id: child.id }
+  src/ChildrenModule.jsx:1688
+    Missing server route: DELETE /api/register/educator-notes/:id
+    → await API(`/api/register/educator-notes/${id}`, { method: "DELETE" }).catch(e=>console.error('API er
+  src/ChildrenModule.jsx:1785
+    Missing server route: GET /api/register/parent-messages
+    → API(`/api/register/parent-messages?child_id=${child.id}`).then(r => { if (Array.isArray(r)) setMessa
+  src/ChildrenModule.jsx:1793
+    Missing server route: POST /api/register/parent-messages
+    → try { await API("/api/register/parent-messages", { method: "POST", body: { ...f, child_id: child.id 
+  src/CommsModule.jsx:33
+    Missing server route: GET /api/comms/threads
+    → API("/api/comms/threads").then(r=>setUnread(r.unread_total||0)).catch(()=>{});
+  src/CommsModule.jsx:91
+    Missing server route: GET /api/comms/threads/:id
+    → const r=await API(`/api/comms/threads/${id}`.catch(e=>console.error('API error:',e)));
+  src/CommsModule.jsx:100
+    Missing server route: POST /api/comms/threads/:id/reply
+    → await API(`/api/comms/threads/${active.id}/reply`,{method:"POST",body:{body:reply,sender_type:"admin
+  src/CommsModule.jsx:107
+    Missing server route: POST /api/comms/threads
+    → const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}}).catch
+  src/CommsModule.jsx:189
+    Missing server route: PUT /api/comms/threads/:id/close
+    → <button onClick={async()=>{await API(`/api/comms/threads/${active.id}/close`,{method:"PUT"});setActi
+  src/CommsModule.jsx:240
+    Missing server route: GET /api/comms/health
+    → API("/api/comms/health"),
+  src/CommsModule.jsx:252
+    Missing server route: POST /api/comms/health
+    → await API("/api/comms/health",{method:"POST",body:{...form,symptoms:selSymptoms,temperature:form.tem
+  src/CommsModule.jsx:378
+    Missing server route: GET /api/comms/immunisation-compliance
+    → API("/api/comms/immunisation-compliance"),
+  src/CommsModule.jsx:387
+    Missing server route: GET /api/comms/immunisation/:id
+    → const r=await API(`/api/comms/immunisation/${id}`.catch(e=>console.error('API error:',e)));
+  src/CommsModule.jsx:393
+    Missing server route: POST /api/comms/immunisation/:id
+    → await API(`/api/comms/immunisation/${selChild}`,{method:"POST",body:recForm}).catch(e=>console.error
+  src/ComplianceModule.jsx:168
+    Missing server route: GET /api/documents/child/:id
+    → API(`/api/documents/child/${child.id}`), API(`/api/compliance/child/${child.id}`),
+  src/ComplianceModule.jsx:169
+    Missing server route: GET /api/documents/immunisations/:id
+    → API(`/api/documents/immunisations/${child.id}`), API(`/api/documents/medical-plans/${child.id}`),
+  src/ComplianceModule.jsx:170
+    Missing server route: GET /api/documents/medications/:id
+    → API(`/api/documents/medications/${child.id}`), API(`/api/documents/parents/${child.id}`)
+  src/ComplianceModule.jsx:247
+    Missing server route: POST /api/documents/immunisations/:id
+    → const add = async () => { if(!f.vaccine_name||!f.given_date)return; await API(`/api/documents/immuni
+  src/ComplianceModule.jsx:282
+    Missing server route: POST /api/documents/medical-plans/:id
+    → const add = async () => { await API(`/api/documents/medical-plans/${childId}`,{method:"POST",body:f}
+  src/ComplianceModule.jsx:313
+    Missing server route: POST /api/documents/medications/:id
+    → const add = async () => { await API(`/api/documents/medications/${childId}`,{method:"POST",body:f});
+  src/ComplianceModule.jsx:345
+    Missing server route: POST /api/documents/parents/:id
+    → const add = async () => { await API(`/api/documents/parents/${childId}`,{method:"POST",body:f}); set
+  src/DailyUpdatesModule.jsx:53
+    Missing server route: GET /api/daily-updates
+    → const r = await API(`/api/daily-updates?child_id=${childId}&date=${todayStr()}`);
+  src/DailyUpdatesModule.jsx:225
+    Missing server route: POST /api/daily-updates
+    → return API(`/api/daily-updates`, { method: "POST", body: {...data, child_id: childId} });
+  src/DailyUpdatesModule.jsx:249
+    Missing server route: PUT /api/daily-updates/:id/sleep
+    → if (sleepEntry) await API(`/api/daily-updates/${sleepEntry.id}/sleep`, { method: "PUT", body: { end_
+  src/DashboardWidgets.jsx:28
+    Missing server route: GET /api/operations/necwr-alerts
+    → API("/api/operations/necwr-alerts")
+  src/DashboardWidgets.jsx:87
+    Missing server route: GET /api/operations/attendance-patterns
+    → API("/api/operations/attendance-patterns")
+  src/DashboardWidgets.jsx:146
+    Missing server route: GET /api/v2/todo
+    → API("/api/v2/todo?status=open&limit=5")
+  src/DashboardWidgets.jsx:191
+    Missing server route: GET /api/roster-enhanced/room-groups
+    → API("/api/roster-enhanced/room-groups")
+  src/DocumentsModule.jsx:52
+    Missing server route: GET /api/documents
+    → API("/api/documents?status=pending_review").catch(() => []),
+  src/EducatorsModule.jsx:557
+    Missing server route: DELETE /api/educators/:id/special-availability/:id
+    → try { await API(`/api/educators/${educator.id}/special-availability/${id}`, { method: "DELETE" }); s
+  src/EducatorsModule.jsx:774
+    Missing server route: DELETE /api/educators/:id/documents/:id
+    → try { await API(`/api/educators/${educator.id}/documents/${id}`, { method: "DELETE" }); onSaved(); t
+  src/EducatorsModule.jsx:780
+    Missing server route: PUT /api/educators/:id/documents/:id
+    → const r = await API(`/api/educators/${educator.id}/documents/${editing.id}`, { method: "PUT", body: 
+  src/EducatorsModule.jsx:937
+    Missing server route: PUT /api/educators/:id/leave/:id
+    → <button key={s} onClick={async()=>{ try{ await API(`/api/educators/${educator.id}/leave/${l.id}`,{me
+  src/EducatorsModule.jsx:969
+    Missing server route: POST /api/educators
+    → const r = await API("/api/educators",{method:"POST",body:JSON.stringify(form)});
+  src/EducatorsModule.jsx:1155
+    Missing server route: GET /api/educators
+    → try { const d = await API("/api/educators"); if (Array.isArray(d)) setEducators(d); } catch(e) {}
+  src/EducatorsModule.jsx:1785
+    Missing server route: DELETE /api/educators/:id/termination-documents/:id
+    → await API(`/api/educators/${educator.id}/termination-documents/${id}`, { method: "DELETE" });
+  src/EngagementModule.jsx:75
+    Missing server route: GET /api/engagement/events
+    → API(`/api/engagement/events?${params}`).then(r=>setEvents(r.events||[]));
+  src/EngagementModule.jsx:80
+    Missing server route: GET /api/engagement/events/:id
+    → const r=await API(`/api/engagement/events/${id}`.catch(e=>console.error('API error:',e)));
+  src/EngagementModule.jsx:87
+    Missing server route: POST /api/engagement/events
+    → await API("/api/engagement/events",{method:"POST",body:{...form,rsvp_required:form.rsvp_required?1:0
+  src/EngagementModule.jsx:95
+    Missing server route: DELETE /api/engagement/events/:id
+    → await API(`/api/engagement/events/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
+  src/EngagementModule.jsx:270
+    Missing server route: GET /api/engagement/posts
+    → API("/api/engagement/posts").then(r=>setPosts(r.posts||[]));
+  src/EngagementModule.jsx:276
+    Missing server route: POST /api/engagement/posts
+    → await API("/api/engagement/posts",{method:"POST",body:{...form,author_user_id:"admin"}}).catch(e=>co
+  src/EngagementModule.jsx:282
+    Missing server route: DELETE /api/engagement/posts/:id
+    → await API(`/api/engagement/posts/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));l
+  src/EngagementModule.jsx:286
+    Missing server route: PUT /api/engagement/posts/:id/pin
+    → await API(`/api/engagement/posts/${id}/pin`,{method:"PUT",body:{pinned:!pinned}}).catch(e=>console.e
+  src/EngagementModule.jsx:290
+    Missing server route: GET /api/engagement/comments/:id
+    → const r=await API(`/api/engagement/comments/${id}`.catch(e=>console.error('API error:',e)));
+  src/EngagementModule.jsx:297
+    Missing server route: POST /api/engagement/comments
+    → await API("/api/engagement/comments",{method:"POST",body:{story_id:postId,story_type:"community",bod
+  src/EngagementModule.jsx:304
+    Missing server route: POST /api/engagement/reactions
+    → const r=await API("/api/engagement/reactions",{method:"POST",body:{story_id:postId,story_type:"commu
+  src/EngagementModule.jsx:429
+    Missing server route: GET /api/engagement/policies
+    → API("/api/engagement/policies").then(r=>setDocs(r.documents||[]));
+  src/EngagementModule.jsx:434
+    Missing server route: GET /api/engagement/policies/:id/acknowledgements
+    → const r=await API(`/api/engagement/policies/${id}/acknowledgements`.catch(e=>console.error('API erro
+  src/EngagementModule.jsx:440
+    Missing server route: POST /api/engagement/policies
+    → await API("/api/engagement/policies",{method:"POST",body:{...form,requires_acknowledgement:form.requ
+  src/EngagementModule.jsx:447
+    Missing server route: PUT /api/engagement/policies/:id
+    → await API(`/api/engagement/policies/${id}`,{method:"PUT",body:{status:"archived"}}).catch(e=>console
+  src/EngagementModule.jsx:592
+    Missing server route: GET /api/engagement/checklists
+    → API("/api/engagement/checklists"),
+  src/EngagementModule.jsx:593
+    Missing server route: GET /api/engagement/checklists/status/today
+    → API("/api/engagement/checklists/status/today"),
+  src/EngagementModule.jsx:611
+    Missing server route: POST /api/engagement/checklists
+    → await API("/api/engagement/checklists",{method:"POST",body:{...form,created_by:"Admin"}}).catch(e=>c
+  src/EngagementModule.jsx:626
+    Missing server route: POST /api/engagement/checklists/:id/complete
+    → await API(`/api/engagement/checklists/${active.id}/complete`,{method:"POST",body:{responses:r,comple
+  src/EngagementModule.jsx:631
+    Missing server route: DELETE /api/engagement/checklists/:id
+    → await API(`/api/engagement/checklists/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',
+  src/EnrolmentModule.jsx:65
+    Missing server route: GET /api/waitlist
+    → API("/api/waitlist"),
+  src/EnrolmentModule.jsx:484
+    Missing server route: POST /api/waitlist/:id/convert
+    → await API(`/api/waitlist/${id}/convert`, { method: "POST" });
+  src/EnrolmentModule.jsx:491
+    Missing server route: DELETE /api/waitlist/:id
+    → try { await API(`/api/waitlist/${id}`, { method: "DELETE" }); }
+  src/EnrolmentModule.jsx:497
+    Missing server route: PUT /api/waitlist/:id
+    → try { await API(`/api/waitlist/${id}`, { method: "PUT", body: { priority } }); }
+  src/EnrolmentModule.jsx:597
+    Missing server route: POST /api/waitlist
+    → const r = await API("/api/waitlist", { method: "POST", body: f });
+  src/ExcursionsModule.jsx:56
+    Missing server route: GET /api/excursions
+    → API("/api/excursions"),
+  src/ExcursionsModule.jsx:82
+    Missing server route: POST /api/excursions
+    → const d = await API("/api/excursions", { method: "POST", body: JSON.stringify(form) });
+  src/ExcursionsModule.jsx:96
+    Missing server route: GET /api/excursions/:id/children
+    → await API(`/api/excursions/${selected}/children`, {
+  src/ExcursionsModule.jsx:108
+    Missing server route: DELETE /api/excursions/:id/children/:id
+    → await API(`/api/excursions/${selected}/children/${childId}`, { method: "DELETE" });
+  src/IncidentModule.jsx:64
+    Missing server route: GET /api/incidents
+    → API(`/api/incidents?${params}`),
+  src/IncidentModule.jsx:94
+    Missing server route: PUT /api/incidents/:id
+    → ? await API(`/api/incidents/${editId}`, { method: "PUT", body: form })
+  src/IncidentModule.jsx:95
+    Missing server route: POST /api/incidents
+    → : await API("/api/incidents", { method: "POST", body: form });
+  src/IncidentModule.jsx:107
+    Missing server route: DELETE /api/incidents/:id
+    → try { await API(`/api/incidents/${id}`, { method: "DELETE" }); toast("Deleted"); load(); }
+  src/InvoicingFullModule.jsx:48
+    Missing server route: GET /api/invoicing-full/summary
+    → API("/api/invoicing-full/summary").then(setSummary).catch(()=>{});
+  src/InvoicingFullModule.jsx:136
+    Missing server route: GET /api/invoicing-full/invoices/:id
+    → const r=await API(`/api/invoicing-full/invoices/${id}`);
+  src/InvoicingFullModule.jsx:141
+    Missing server route: POST /api/invoicing-full/invoices/:id/issue
+    → await API(`/api/invoicing-full/invoices/${id}/issue`,{method:"POST"});
+  src/InvoicingFullModule.jsx:146
+    Missing server route: POST /api/invoicing-full/invoices/:id/pay
+    → const r=await API(`/api/invoicing-full/invoices/${id}/pay`,{method:"POST",body:{amount,method}});
+  src/InvoicingFullModule.jsx:152
+    Missing server route: POST /api/invoicing-full/invoices
+    → const r=await API("/api/invoicing-full/invoices",{method:"POST",body:newForm});
+  src/InvoicingFullModule.jsx:436
+    Missing server route: POST /api/invoicing-full/bulk-generate
+    → const r=await API("/api/invoicing-full/bulk-generate",{method:"POST",body:form}).catch(e=>console.er
+  src/InvoicingFullModule.jsx:523
+    Missing server route: GET /api/invoicing-full/payment-plans
+    → API("/api/invoicing-full/payment-plans"),
+  src/InvoicingFullModule.jsx:524
+    Missing server route: GET /api/invoicing-full/credit-notes
+    → API("/api/invoicing-full/credit-notes"),
+  src/InvoicingFullModule.jsx:534
+    Missing server route: POST /api/invoicing-full/payment-plans
+    → const r=await API("/api/invoicing-full/payment-plans",{method:"POST",body:planForm}).catch(e=>consol
+  src/InvoicingFullModule.jsx:539
+    Missing server route: PUT /api/invoicing-full/payment-plans/:id/pay
+    → const r=await API(`/api/invoicing-full/payment-plans/${id}/pay`,{method:"PUT"}).catch(e=>console.err
+  src/InvoicingFullModule.jsx:544
+    Missing server route: POST /api/invoicing-full/credit-notes
+    → const r=await API("/api/invoicing-full/credit-notes",{method:"POST",body:creditForm}).catch(e=>conso
+  src/InvoicingFullModule.jsx:709
+    Missing server route: GET /api/invoicing-full/fee-schedules
+    → API("/api/invoicing-full/fee-schedules"),
+  src/InvoicingFullModule.jsx:719
+    Missing server route: POST /api/invoicing-full/fee-schedules
+    → await API("/api/invoicing-full/fee-schedules",{method:"POST",body:form}).catch(e=>console.error('API
+  src/InvoicingFullModule.jsx:796
+    Missing server route: GET /api/invoicing-full/statements/:id
+    → const r=await API(`/api/invoicing-full/statements/${id}`.catch(e=>console.error('API error:',e)));
+  src/InvoicingFullModule.jsx:883
+    Missing server route: GET /api/invoicing-full/templates
+    → API("/api/invoicing-full/templates").then(r=>{
+  src/InvoicingFullModule.jsx:892
+    Missing server route: POST /api/invoicing-full/templates
+    → await API("/api/invoicing-full/templates",{method:"POST",body:{...template,is_default:1}}).catch(e=>
+  src/KioskModule.jsx:88
+    Missing server route: GET /api/kiosk/today
+    → API("/api/kiosk/today"),
+  src/KioskModule.jsx:89
+    Missing server route: GET /api/kiosk/pins
+    → API("/api/kiosk/pins"),
+  src/KioskModule.jsx:102
+    Missing server route: POST /api/kiosk/pins/auto-generate
+    → const r = await API("/api/kiosk/pins/auto-generate", { method: "POST" });
+  src/KioskModule.jsx:109
+    Missing server route: POST /api/kiosk/pins
+    → const r = await API("/api/kiosk/pins", { method: "POST", body: { child_id: editPin, pin: pinInput } 
+  src/KioskModule.jsx:115
+    Missing server route: DELETE /api/kiosk/pins/:id
+    → await API(`/api/kiosk/pins/${childId}`, { method: "DELETE" });
+  src/LearningJourneyModule.jsx:93
+    Missing server route: GET /api/learning/stories
+    → API(`/api/learning/stories?${p}`),
+  src/LearningJourneyModule.jsx:94
+    Missing server route: GET /api/learning/albums
+    → API("/api/learning/albums"),
+  src/LearningJourneyModule.jsx:95
+    Missing server route: GET /api/learning/families
+    → API("/api/learning/families"),
+  src/LearningJourneyModule.jsx:107
+    Missing server route: POST /api/learning/families/sync
+    → useEffect(() => { API("/api/learning/families/sync", { method:"POST" }).catch(() => {}); }, []);
+  src/LearningJourneyModule.jsx:173
+    Missing server route: GET /api/learning/stories/:id
+    → {view === "story"   && openStory && <StoryDetailView story={openStory} children={children} onClose={
+  src/LearningJourneyModule.jsx:249
+    Missing server route: POST /api/learning/ai/enhance
+    → const r = await API("/api/learning/ai/enhance", {method:"POST", body:{
+  src/LearningJourneyModule.jsx:300
+    Missing server route: PUT /api/learning/stories/:id
+    → const sr = await API(`/api/learning/stories/${editStoryData.id}`, {method:"PUT", body:payload});
+  src/LearningJourneyModule.jsx:304
+    Missing server route: POST /api/learning/stories
+    → const r = await API("/api/learning/stories", {method:"POST", body:payload});
+  src/LearningJourneyModule.jsx:320
+    Missing server route: POST /api/learning/stories/:id/publish
+    → if (publish) await API(`/api/learning/stories/${id}/publish`, {method:"POST"});
+  src/LearningJourneyModule.jsx:754
+    Missing server route: DELETE /api/learning/photos/:id
+    → await API(`/api/learning/photos/${photoId}`, { method:"DELETE" });
+  src/LearningJourneyModule.jsx:772
+    Missing server route: POST /api/learning/progress/:id
+    → await API(`/api/learning/progress/${pChild}`, { method:"POST", body:{ eylf_outcome:parseInt(pOutcome
+  src/LearningJourneyModule.jsx:930
+    Missing server route: POST /api/learning/albums
+    → await API("/api/learning/albums",{method:"POST",body:{name:name.trim()}});
+  src/LearningJourneyModule.jsx:1008
+    Missing server route: GET /api/learning/child/:id/eylf-summary
+    → API(`/api/learning/child/${activeChild}/eylf-summary`).then(r => { setData(r); setLoading(false); })
+  src/LearningJourneyModule.jsx:1098
+    Missing server route: GET /api/learning/weekly/:id
+    → const load = async (cid) => { setLoading(true); const r = await API(`/api/learning/weekly/${cid}`).c
+  src/LearningJourneyModule.jsx:1107
+    Missing server route: POST /api/learning/weekly/:id/generate
+    → const r = await API(`/api/learning/weekly/${selectedChild}/generate`,{method:"POST",body:{week_start
+  src/MessagingModule.jsx:59
+    Missing server route: GET /api/messaging/templates
+    → const d = await API("/api/messaging/templates");
+  src/MessagingModule.jsx:73
+    Missing server route: GET /api/messaging/notifications
+    → const d = await API("/api/messaging/notifications?limit=50");
+  src/MessagingModule.jsx:87
+    Missing server route: POST /api/messaging/templates
+    → try { await API("/api/messaging/templates", { method: "POST", body: JSON.stringify(tmpl) }); } catch
+  src/MessagingModule.jsx:89
+    Missing server route: PUT /api/messaging/templates/:id
+    → await API(`/api/messaging/templates/${tmpl.id}`, { method: "PUT", body: JSON.stringify(tmpl) });
+  src/MessagingModule.jsx:390
+    Missing server route: GET /api/messaging/broadcast
+    → const r = await API("/api/messaging/broadcast", {
+  src/NotificationsPanel.jsx:38
+    Missing server route: GET /api/notifications/inbox
+    → API("/api/notifications/inbox?limit=8").then(r => {
+  src/NotificationsPanel.jsx:58
+    Missing server route: PUT /api/notifications/read-all
+    → await API("/api/notifications/read-all", { method: "PUT" }).catch(e=>console.error('API error:',e));
+  src/NotificationsPanel.jsx:63
+    Missing server route: PUT /api/notifications/:id/read
+    → await API(`/api/notifications/${id}/read`, { method: "PUT" }).catch(e=>console.error('API error:',e)
+  src/NotificationsPanel.jsx:68
+    Missing server route: POST /api/notifications/run
+    → await API("/api/notifications/run", { method: "POST" }).catch(e=>console.error('API error:',e));
+  src/NotificationsPanel.jsx:308
+    Missing server route: GET /api/platform/tenants
+    → API("/api/platform/tenants").then(r => {
+  src/OperationsModule.jsx:86
+    Missing server route: GET /api/operations/visitors
+    → API(`/api/operations/visitors?date=${today()}`)
+  src/OperationsModule.jsx:94
+    Missing server route: POST /api/operations/visitors
+    → await API("/api/operations/visitors", { method:"POST", body: form }).catch(e=>console.error('API err
+  src/OperationsModule.jsx:101
+    Missing server route: PUT /api/operations/visitors/:id/sign-out
+    → await API(`/api/operations/visitors/${id}/sign-out`, { method:"PUT" }).catch(e=>console.error('API e
+  src/OperationsModule.jsx:217
+    Missing server route: GET /api/operations/evacuation
+    → API("/api/operations/evacuation").then(r => setDrills(r.drills||[])).finally(() => setLoading(false)
+  src/OperationsModule.jsx:223
+    Missing server route: POST /api/operations/evacuation
+    → const r = await API("/api/operations/evacuation", { method:"POST", body: { drill_type: type, conduct
+  src/OperationsModule.jsx:230
+    Missing server route: GET /api/operations/evacuation/:id
+    → const r = await API(`/api/operations/evacuation/${id}`.catch(e=>console.error('API error:',e)));
+  src/OperationsModule.jsx:235
+    Missing server route: PUT /api/operations/evacuation/:id/headcount/:id
+    → await API(`/api/operations/evacuation/${drillId}/headcount/${hcId}`, { method:"PUT", body:{ accounte
+  src/OperationsModule.jsx:366
+    Missing server route: GET /api/operations/sleep
+    → API(`/api/operations/sleep?date=${today()}`),
+  src/OperationsModule.jsx:377
+    Missing server route: POST /api/operations/sleep
+    → await API("/api/operations/sleep", { method:"POST", body:{ child_id:childId } }).catch(e=>console.er
+  src/OperationsModule.jsx:382
+    Missing server route: PUT /api/operations/sleep/:id/check
+    → const doCheck = async (id) => { await API(`/api/operations/sleep/${id}/check`, { method:"PUT" }); lo
+  src/OperationsModule.jsx:383
+    Missing server route: PUT /api/operations/sleep/:id/wake
+    → const wakeUp  = async (id) => { await API(`/api/operations/sleep/${id}/wake`,  { method:"PUT" }); lo
+  src/OperationsModule.jsx:489
+    Missing server route: GET /api/operations/hazards
+    → API(`/api/operations/hazards?status=${statusFilter}`)
+  src/OperationsModule.jsx:497
+    Missing server route: POST /api/operations/hazards
+    → await API("/api/operations/hazards", { method:"POST", body:form }).catch(e=>console.error('API error
+  src/OperationsModule.jsx:504
+    Missing server route: PUT /api/operations/hazards/:id
+    → await API(`/api/operations/hazards/${id}`, { method:"PUT", body:{ status } }).catch(e=>console.error
+  src/OperationsModule.jsx:640
+    Missing server route: GET /api/operations/rp-log
+    → API(`/api/operations/rp-log?date=${date}`),
+  src/OperationsModule.jsx:651
+    Missing server route: POST /api/operations/rp-log
+    → await API(`/api/operations/rp-log?date=${date}`, { method:"POST", body:form }).catch(e=>console.erro
+  src/OperationsModule.jsx:658
+    Missing server route: PUT /api/operations/rp-log/:id
+    → await API(`/api/operations/rp-log/${id}`, { method:"PUT", body:{ [field]: 1 } }).catch(e=>console.er
+  src/OperationsModule.jsx:771
+    Missing server route: GET /api/operations/handover
+    → API(`/api/operations/handover?date=${today()}`),
+  src/OperationsModule.jsx:781
+    Missing server route: POST /api/operations/handover
+    → await API("/api/operations/handover", { method:"POST", body:{ ...form, children_present:parseInt(for
+  src/OperationsModule.jsx:788
+    Missing server route: PUT /api/operations/handover/:id/acknowledge
+    → await API(`/api/operations/handover/${id}/acknowledge`, { method:"PUT", body:{ acknowledged_by:"Admi
+  src/OperationsModule.jsx:894
+    Missing server route: GET /api/operations/room-checkins
+    → API(`/api/operations/room-checkins?date=${today()}`),
+  src/OperationsModule.jsx:907
+    Missing server route: POST /api/operations/room-checkins
+    → await API("/api/operations/room-checkins", { method:"POST", body:form }).catch(e=>console.error('API
+  src/OperationsModule.jsx:912
+    Missing server route: PUT /api/operations/room-checkins/:id/checkout
+    → await API(`/api/operations/room-checkins/${id}/checkout`, { method:"PUT" }).catch(e=>console.error('
+  src/OperationsModule.jsx:983
+    Missing server route: GET /api/operations/open-shifts
+    → API("/api/operations/open-shifts"),
+  src/OperationsModule.jsx:993
+    Missing server route: GET /api/operations/shift-bids
+    → const r = await API(`/api/operations/shift-bids?entry_id=${entryId}`.catch(e=>console.error('API err
+  src/OperationsModule.jsx:998
+    Missing server route: POST /api/operations/shift-bids
+    → await API("/api/operations/shift-bids", { method:"POST", body:{ roster_entry_id:entryId, educator_id
+  src/OperationsModule.jsx:1003
+    Missing server route: PUT /api/operations/shift-bids/:id/decide
+    → await API(`/api/operations/shift-bids/${bidId}/decide`, { method:"PUT", body:{ status } }).catch(e=>
+  src/OwnerPortalModule.jsx:92
+    Missing server route: GET /api/platform/metrics/overview
+    → API("/api/platform/metrics/overview"),
+  src/OwnerPortalModule.jsx:94
+    Missing server route: GET /api/platform/metrics/comparison
+    → API("/api/platform/metrics/comparison"),
+  src/OwnerPortalModule.jsx:95
+    Missing server route: GET /api/platform/metrics/revenue
+    → API("/api/platform/metrics/revenue"),
+  src/OwnerPortalModule.jsx:96
+    Missing server route: GET /api/platform/incidents
+    → API("/api/platform/incidents"),
+  src/OwnerPortalModule.jsx:97
+    Missing server route: GET /api/platform/waitlist
+    → API("/api/platform/waitlist").catch(() => ({ waitlist: [] })),
+  src/OwnerPortalModule.jsx:98
+    Missing server route: GET /api/platform/wellbeing
+    → API("/api/platform/wellbeing").catch(() => ({ wellbeing: [] })),
+  src/OwnerPortalModule.jsx:99
+    Missing server route: GET /api/platform/audit
+    → API("/api/platform/audit?limit=100").catch(() => ({ logs: [] })),
+  src/OwnerPortalModule.jsx:118
+    Missing server route: GET /api/platform/tenants/:id
+    → const d = await API(`/api/platform/tenants/${id}`);
+  src/OwnerPortalModule.jsx:127
+    Missing server route: GET /api/platform/incidents/trends
+    → const d = await API("/api/platform/incidents/trends");
+  src/OwnerPortalModule.jsx:130
+    Missing server route: GET /api/platform/nqs/report
+    → const d = await API("/api/platform/nqs/report");
+  src/OwnerPortalModule.jsx:133
+    Missing server route: GET /api/platform/sentiment
+    → const d = await API("/api/platform/sentiment");
+  src/OwnerPortalModule.jsx:136
+    Missing server route: GET /api/platform/occupancy/predict
+    → const d = await API("/api/platform/occupancy/predict");
+  src/OwnerPortalModule.jsx:139
+    Missing server route: GET /api/platform/ccs/overview
+    → const d = await API("/api/platform/ccs/overview");
+  src/OwnerPortalModule.jsx:1266
+    Missing server route: POST /api/platform/ccs/submit/:id
+    → const r = await API(`/api/platform/ccs/submit/${id}`, { method: "POST" });
+  src/OwnerPortalModule.jsx:1275
+    Missing server route: POST /api/platform/ccs/submit-batch
+    → const r = await API("/api/platform/ccs/submit-batch", { method: "POST", body: { ids: draftIds } });
+  src/OwnerPortalModule.jsx:1469
+    Missing server route: POST /api/platform/tenants
+    → try { res = await API("/api/platform/tenants", { method: "POST", body: form }); }
+  src/ParentLearningInputWidget.jsx:55
+    Missing server route: GET /api/v2/parent-learning-input
+    → API(`/api/v2/parent-learning-input?child_id=${childId}&week=${weekStart}`)
+  src/ParentLearningInputWidget.jsx:85
+    Missing server route: POST /api/v2/parent-learning-input
+    → await API("/api/v2/parent-learning-input", { method: "POST", body: { child_id: childId, week_startin
+  src/ParentPortalModule.jsx:425
+    Missing server route: GET /api/parent/children
+    → API("/api/parent/children"),
+  src/ParentPortalModule.jsx:426
+    Missing server route: GET /api/parent/messages
+    → API("/api/parent/messages"),
+  src/ParentPortalModule.jsx:525
+    Missing server route: GET /api/parent/daily-updates/:id
+    → API(`/api/parent/daily-updates/${child.id}?date=${new Date().toISOString().slice(0, 10)}`).then(r =>
+  src/ParentPortalModule.jsx:526
+    Missing server route: GET /api/parent/alerts
+    → API(`/api/parent/alerts`).then(r => { if (Array.isArray(r)) setAlerts(r); }).catch(() => {});
+  src/ParentPortalModule.jsx:619
+    Missing server route: PUT /api/parent/children/:id
+    → await API(`/api/parent/children/${child.id}`, { method: "PUT", body: f });
+  src/ParentPortalModule.jsx:669
+    Missing server route: GET /api/parent/learning/:id
+    → API(`/api/parent/learning/${child.id}?period=${period}`).then(r => { if (Array.isArray(r)) setObserv
+  src/ParentPortalModule.jsx:670
+    Missing server route: GET /api/parent/learning/:id/weekly-report
+    → API(`/api/parent/learning/${child.id}/weekly-report`).then(r => setWeeklyReport(r)).catch(() => {});
+  src/ParentPortalModule.jsx:811
+    Missing server route: GET /api/parent/invoices
+    → API(`/api/parent/invoices`).then(r => { if (Array.isArray(r)) setInvoices(r); }).catch(() => {});
+  src/ParentPortalModule.jsx:878
+    Missing server route: GET /api/parent/documents/:id
+    → API(`/api/parent/documents/${child.id}`).then(r => { if (Array.isArray(r)) setDocs(r); }).catch(() =
+  src/ParentPortalModule.jsx:927
+    Missing server route: POST /api/parent/messages
+    → const r = await API("/api/parent/messages", { method: "POST", body: { subject, body: newMsg } });
+  src/ParentPortalModule.jsx:980
+    Missing server route: GET /api/parent/absences/:id
+    → API(`/api/parent/absences/${child.id}`).then(r => { if (Array.isArray(r)) setAbsences(r); }).catch((
+  src/ParentPortalModule.jsx:986
+    Missing server route: POST /api/parent/absences/:id
+    → await API(`/api/parent/absences/${child.id}`, { method: "POST", body: f });
+  src/ParentStoryPlayer.jsx:135
+    Missing server route: GET /api/stories/parent/:id
+    → API(`/api/stories/parent/${childId}`)
+  src/PaymentsModule.jsx:67
+    Missing server route: GET /api/payments/setup
+    → API("/api/payments/setup"),
+  src/PaymentsModule.jsx:68
+    Missing server route: GET /api/payments/requests
+    → API("/api/payments/requests"),
+  src/PaymentsModule.jsx:69
+    Missing server route: GET /api/payments/summary
+    → API("/api/payments/summary"),
+  src/PaymentsModule.jsx:82
+    Missing server route: POST /api/payments/setup
+    → const r=await API("/api/payments/setup",{method:"POST",body:keys});
+  src/PaymentsModule.jsx:89
+    Missing server route: POST /api/payments/requests
+    → const r=await API("/api/payments/requests",{method:"POST",body:{
+  src/PaymentsModule.jsx:98
+    Missing server route: POST /api/payments/requests/:id/send
+    → const r=await API(`/api/payments/requests/${id}/send`,{method:"POST"}).catch(e=>console.error('API e
+  src/PaymentsModule.jsx:103
+    Missing server route: POST /api/payments/requests/:id/mark-paid
+    → await API(`/api/payments/requests/${id}/mark-paid`,{method:"POST",body:{payment_method:"manual"}}).c
+  src/PaymentsModule.jsx:108
+    Missing server route: POST /api/payments/requests/bulk-from-invoices
+    → const r=await API("/api/payments/requests/bulk-from-invoices",{method:"POST"}).catch(e=>console.erro
+  src/PaymentsModule.jsx:295
+    Missing server route: GET /api/waitlist-auto/queue
+    → API("/api/waitlist-auto/queue"),
+  src/PaymentsModule.jsx:296
+    Missing server route: GET /api/waitlist-auto/availability
+    → API("/api/waitlist-auto/availability"),
+  src/PaymentsModule.jsx:307
+    Missing server route: POST /api/waitlist-auto/offer/:id
+    → const r=await API(`/api/waitlist-auto/offer/${offering.id}`,{method:"POST",body:offerForm});
+  src/PaymentsModule.jsx:313
+    Missing server route: POST /api/waitlist-auto/accept/:id
+    → const r=await API(`/api/waitlist-auto/accept/${id}`,{method:"POST",body:{start_date:new Date(Date.no
+  src/PaymentsModule.jsx:318
+    Missing server route: POST /api/waitlist-auto/decline/:id
+    → await API(`/api/waitlist-auto/decline/${id}`,{method:"POST"}).catch(e=>console.error('API error:',e)
+  src/PaymentsModule.jsx:323
+    Missing server route: POST /api/waitlist-auto/bulk-notify
+    → const r=await API("/api/waitlist-auto/bulk-notify",{method:"POST",body:{message:"A place may be beco
+  src/PayrollModule.jsx:48
+    Missing server route: GET /api/payroll/summary
+    → API(`/api/payroll/summary?from=${from}&to=${to}`),
+  src/PayrollModule.jsx:49
+    Missing server route: GET /api/payroll/exports
+    → API("/api/payroll/exports"),
+  src/PayrollModule.jsx:61
+    Missing server route: POST /api/payroll/export
+    → const r = await API("/api/payroll/export", { method:"POST", body: { from, to, export_type: expType, 
+  src/QualityModule.jsx:43
+    Missing server route: GET /api/quality/alerts
+    → API("/api/quality/alerts").then(r=>setAlertCount(r.count||0)).catch(()=>{});
+  src/QualityModule.jsx:87
+    Missing server route: GET /api/quality/qip
+    → API("/api/quality/qip").then(setData);
+  src/QualityModule.jsx:92
+    Missing server route: POST /api/quality/qip/assessment
+    → await API("/api/quality/qip/assessment",{method:"POST",body:{quality_area:qa,standard,current_rating
+  src/QualityModule.jsx:98
+    Missing server route: POST /api/quality/qip/goals
+    → await API("/api/quality/qip/goals",{method:"POST",body:{quality_area:selQA,...goalForm}}).catch(e=>c
+  src/QualityModule.jsx:104
+    Missing server route: PUT /api/quality/qip/goals/:id
+    → await API(`/api/quality/qip/goals/${id}`,{method:"PUT",body:{status,progress}}).catch(e=>console.err
+  src/QualityModule.jsx:109
+    Missing server route: DELETE /api/quality/qip/goals/:id
+    → await API(`/api/quality/qip/goals/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
+  src/QualityModule.jsx:146
+    Missing server route: GET /api/quality/qip/export
+    → const r=await API("/api/quality/qip/export".catch(e=>console.error('API error:',e)));
+  src/QualityModule.jsx:294
+    Missing server route: GET /api/quality/portfolio/:id
+    → const r=await API(`/api/quality/portfolio/${eduId}`.catch(e=>console.error('API error:',e)));
+  src/QualityModule.jsx:300
+    Missing server route: POST /api/quality/portfolio
+    → await API("/api/quality/portfolio",{method:"POST",body:{educator_id:selEdu,...form}}).catch(e=>conso
+  src/QualityModule.jsx:307
+    Missing server route: DELETE /api/quality/portfolio/:id
+    → await API(`/api/quality/portfolio/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
+  src/QualityModule.jsx:440
+    Missing server route: GET /api/quality/surveys
+    → API("/api/quality/surveys").then(r=>setSurveys(r.surveys||[]));
+  src/QualityModule.jsx:446
+    Missing server route: POST /api/quality/surveys
+    → await API("/api/quality/surveys",{method:"POST",body:{...form,open_date:new Date().toISOString().spl
+  src/QualityModule.jsx:451
+    Missing server route: GET /api/quality/surveys/:id/results
+    → const r=await API(`/api/quality/surveys/${id}/results`.catch(e=>console.error('API error:',e)));
+  src/QualityModule.jsx:650
+    Missing server route: POST /api/quality/alerts/scan
+    → await API("/api/quality/alerts/scan",{method:"POST"}).catch(e=>console.error('API error:',e));
+  src/QualityModule.jsx:655
+    Missing server route: PUT /api/quality/alerts/:id/dismiss
+    → await API(`/api/quality/alerts/${id}/dismiss`,{method:"PUT"}).catch(e=>console.error('API error:',e)
+  src/RatioReportModule.jsx:36
+    Missing server route: GET /api/ratio-report/live
+    → API("/api/ratio-report/live")
+  src/RatioReportModule.jsx:137
+    Missing server route: GET /api/ratio-report/rooms
+    → API("/api/ratio-report/rooms").then(r => setRooms(r.rooms || [])).catch(() => {});
+  src/RatioReportModule.jsx:146
+    Missing server route: GET /api/ratio-report
+    → const r = await API(`/api/ratio-report?${params}`);
+  src/ReportsBuilderModule.jsx:74
+    Missing server route: GET /api/reports-builder/types
+    → API("/api/reports-builder/types"),
+  src/ReportsBuilderModule.jsx:76
+    Missing server route: GET /api/reports-builder/saved
+    → API("/api/reports-builder/saved"),
+  src/ReportsBuilderModule.jsx:88
+    Missing server route: POST /api/reports-builder/run
+    → const r=await API("/api/reports-builder/run",{method:"POST",body:{report_type:selType,config}}).catc
+  src/ReportsBuilderModule.jsx:112
+    Missing server route: POST /api/reports-builder/saved
+    → await API("/api/reports-builder/saved",{method:"POST",body:{name,report_type:selType,config}}).catch
+  src/ReportsBuilderModule.jsx:123
+    Missing server route: DELETE /api/reports-builder/saved/:id
+    → await API(`/api/reports-builder/saved/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',
+  src/ReportsBuilderModule.jsx:272
+    Missing server route: GET /api/reports-builder/emergency
+    → API("/api/reports-builder/emergency").then(r=>{
+  src/ReportsBuilderModule.jsx:387
+    Missing server route: GET /api/risk-assessments
+    → API("/api/risk-assessments"),
+  src/ReportsBuilderModule.jsx:388
+    Missing server route: GET /api/risk-assessments/library
+    → API("/api/risk-assessments/library"),
+  src/ReportsBuilderModule.jsx:414
+    Missing server route: POST /api/risk-assessments
+    → const r=await API("/api/risk-assessments",{method:"POST",body:{
+  src/ReportsBuilderModule.jsx:423
+    Missing server route: PUT /api/risk-assessments/:id
+    → await API(`/api/risk-assessments/${id}`,{method:"PUT",body:{status:"approved",reviewed_by:"Director"
+  src/ReportsBuilderModule.jsx:654
+    Missing server route: GET /api/reports-builder/schedules
+    → API("/api/reports-builder/schedules"),
+  src/ReportsBuilderModule.jsx:662
+    Missing server route: POST /api/reports-builder/schedules
+    → const r=await API("/api/reports-builder/schedules",{method:"POST",body:form}).catch(e=>console.error
+  src/ReportsBuilderModule.jsx:667
+    Missing server route: PUT /api/reports-builder/schedules/:id
+    → await API(`/api/reports-builder/schedules/${id}`,{method:"PUT",body:{enabled}}).catch(e=>console.err
+  src/ReportsBuilderModule.jsx:673
+    Missing server route: DELETE /api/reports-builder/schedules/:id
+    → await API(`/api/reports-builder/schedules/${id}`,{method:"DELETE"}).catch(e=>console.error('API erro
+  src/RoomsModule.jsx:79
+    Missing server route: GET /api/age-groups
+    → const r = await API("/api/age-groups");
+  src/RoomsModule.jsx:106
+    Missing server route: POST /api/age-groups
+    → await API("/api/age-groups", { method: "POST", body: JSON.stringify({
+  src/RoomsModule.jsx:111
+    Missing server route: PUT /api/age-groups/:id
+    → await API(`/api/age-groups/${editing.id}`, { method: "PUT", body: JSON.stringify({
+  src/RoomsModule.jsx:125
+    Missing server route: DELETE /api/age-groups/:id
+    → const r = await API(`/api/age-groups/${g.id}`, { method: "DELETE" });
+  src/RoomsModule.jsx:439
+    Missing server route: GET /api/rooms/:id/stats
+    → API(`/api/rooms/${room.id}/stats`).then(r=>{if(r)setStats(r);}).catch(()=>{});
+  src/RoomsModule.jsx:440
+    Missing server route: GET /api/rooms/:id/educators
+    → API(`/api/rooms/${room.id}/educators`).then(r=>{if(Array.isArray(r))setEducators(r);}).catch(()=>{})
+  src/RoomsModule.jsx:450
+    Missing server route: POST /api/rooms/:id/educators
+    → await API(`/api/rooms/${room.id}/educators`,{method:"POST",body:JSON.stringify({educator_id:educator
+  src/RoomsModule.jsx:456
+    Missing server route: DELETE /api/rooms/:id/educators/:id
+    → try { await API(`/api/rooms/${room.id}/educators/${educatorId}`,{method:"DELETE"}); } catch(e) { ale
+  src/RoomsModule.jsx:758
+    Missing server route: PUT /api/rooms/:id
+    → await API(`/api/rooms/${data.id}`, {method:"PUT", body:JSON.stringify({name:data.name, ageGroup:data
+  src/RoomsModule.jsx:760
+    Missing server route: POST /api/rooms
+    → await API("/api/rooms", {method:"POST", body:JSON.stringify({name:data.name, ageGroup:data.ageGroup|
+  src/RoomsModule.jsx:773
+    Missing server route: DELETE /api/rooms/:id
+    → try{const r=await API(`/api/rooms/${room.id}`,{method:"DELETE"});if(r.error){alert(r.error);}else{se
+  src/RosteringModule.jsx:63
+    Missing server route: GET /api/rostering/stats
+    → API("/api/rostering/stats"), API("/api/rostering/educators"), API("/api/rostering/periods"),
+  src/RosteringModule.jsx:64
+    Missing server route: GET /api/rostering/fill-requests
+    → API("/api/rostering/fill-requests"), API("/api/rostering/ai-config"), API("/api/rostering/change-pro
+  src/RosteringModule.jsx:65
+    Missing server route: GET /api/rostering/templates
+    → API("/api/rostering/templates"),
+  src/RosteringModule.jsx:74
+    Missing server route: GET /api/rostering/periods/
+    → const loadPeriod = async id => { try { const d = await API("/api/rostering/periods/" + id); if (d &&
+  src/RosteringModule.jsx:75
+    Missing server route: GET /api/rostering/educators/
+    → const loadEd = async id => { try { const d = await API("/api/rostering/educators/" + id); setSelEd(d
+  src/RosteringModule.jsx:347
+    Missing server route: POST /api/rostering/educators
+    → if(isNew) await API("/api/rostering/educators",{method:"POST",body}).catch(e=>console.error('API err
+  src/RosteringModule.jsx:348
+    Missing server route: PUT /api/rostering/educators/
+    → else await API("/api/rostering/educators/"+ed.id,{method:"PUT",body}).catch(e=>console.error('API er
+  src/RosteringModule.jsx:697
+    Missing server route: POST /api/rostering/entries
+    → await API("/api/rostering/entries", { method:"POST", body:{
+  src/RosteringModule.jsx:719
+    Missing server route: DELETE /api/rostering/entries/
+    → try { await API("/api/rostering/entries/"+id,{method:"DELETE"}); onReload(); } catch(e){ toast("Remo
+  src/RosteringModule.jsx:1409
+    Missing server route: POST /api/rostering/generate
+    → try{const r=await API("/api/rostering/generate",{method:"POST",body:{...gf,lunch_cover_educator_id:l
+  src/RosteringModule.jsx:1412
+    Missing server route: PUT /api/rostering/periods/
+    → const approve=async id=>{try{const r=await API("/api/rostering/periods/"+id+"/approve",{method:"PUT"
+  src/RosteringModule.jsx:1418
+    Missing server route: PUT /api/rostering/entries/
+    → await API("/api/rostering/entries/"+editShift.id,{method:"PUT",body:{
+  src/RosteringModule.jsx:1431
+    Missing server route: POST /api/rostering/availability-optimise
+    → try{const r=await API("/api/rostering/availability-optimise",{method:"POST",body:{period_id:sp?.peri
+  src/RosteringModule.jsx:1441
+    Missing server route: POST /api/rostering/templates
+    → try{await API("/api/rostering/templates",{method:"POST",body:{name:saveTplName,period_id:sp.period.i
+  src/RosteringModule.jsx:1447
+    Missing server route: POST /api/rostering/templates/:id/apply
+    → const r=await API(`/api/rostering/templates/${tplId}/apply`,{method:"POST",body:{start_date:start}})
+  src/RosteringModule.jsx:1472
+    Missing server route: DELETE /api/rostering/templates/:id
+    → await API(`/api/rostering/templates/${id}`,{method:"DELETE"});
+  src/RosteringModule.jsx:1680
+    Missing server route: DELETE /api/rostering/periods/
+    → {period.status==="draft"&&<button onClick={async()=>{if(!confirm("Delete this draft roster? This can
+  src/RosteringModule.jsx:2253
+    Missing server route: GET /api/rostering/fill-requests/
+    → try { const r = await API("/api/rostering/fill-requests/"+id+"/attempts"); setAttempts(r.attempts||[
+  src/RosteringModule.jsx:2272
+    Missing server route: POST /api/rostering/fill-requests/
+    → try { await API("/api/rostering/fill-requests/"+reqId+"/accept",{method:"POST",body:{educator_id:edI
+  src/RosteringModule.jsx:2277
+    Missing server route: POST /api/rostering/sick-cover-optimise
+    → try { const r = await API("/api/rostering/sick-cover-optimise",{method:"POST",body:optForm}); setOpt
+  src/RosteringModule.jsx:2284
+    Missing server route: POST /api/rostering/fill-requests
+    → const r = await API("/api/rostering/fill-requests",{method:"POST",body:{
+  src/RosteringModule.jsx:2431
+    Missing server route: POST /api/rostering/change-proposals/
+    → const resolve=async(id,opt)=>{try{await API("/api/rostering/change-proposals/"+id+"/resolve",{method
+  src/RosteringModule.jsx:2579
+    Missing server route: GET /api/rostering/email-roster
+    → await API("/api/rostering/email-roster", {
+  src/RosteringModule.jsx:3047
+    Missing server route: GET /api/rostering/timesheet
+    → API(`/api/rostering/timesheet?period_id=${selPeriodId}`).then(d => {
+  src/RunSheetModule.jsx:100
+    Missing server route: GET /api/runsheet
+    → const d = await API(`/api/runsheet?date=${date}`);
+  src/RunSheetModule.jsx:127
+    Missing server route: POST /api/runsheet
+    → const r = await API("/api/runsheet", { method: "POST", body: { room_id: roomId, date } });
+  src/RunSheetModule.jsx:176
+    Missing server route: GET /api/runsheet/child/:id
+    → await API(`/api/runsheet/child/${childId}`, {
+  src/StaffComplianceWidget.jsx:40
+    Missing server route: GET /api/v2/compliance/educator-alerts/:id
+    → API(`/api/v2/compliance/educator-alerts/${educatorId}`).catch(() => ({ alerts: [] })),
+  src/StaffComplianceWidget.jsx:41
+    Missing server route: GET /api/v2/compliance/resource-links
+    → API("/api/v2/compliance/resource-links").catch(() => ({ links: [] })),
+  src/StaffPortalModule.jsx:68
+    Missing server route: GET /api/rostering/periods
+    → API("/api/rostering/periods").then(d => {
+  src/StaffPortalModule.jsx:156
+    Missing server route: GET /api/staff/me
+    → API("/api/staff/me" + qs),
+  src/StaffPortalModule.jsx:157
+    Missing server route: GET /api/staff/my-shifts
+    → API("/api/staff/my-shifts" + qs),
+  src/StaffPortalModule.jsx:190
+    Missing server route: GET /api/staff-features/messages:id
+    → API(`/api/staff-features/messages${qs}`).then(r => { if (!r.error) setMsgUnread(r.unread || 0); }).c
+  src/StaffPortalModule.jsx:568
+    Missing server route: PUT /api/staff/my-availability
+    → await API("/api/staff/my-availability", { method: "PUT", body: JSON.stringify({ availability: avail 
+  src/StaffPortalModule.jsx:578
+    Missing server route: POST /api/staff/my-special-availability
+    → await API("/api/staff/my-special-availability", { method: "POST", body: JSON.stringify(sp) });
+  src/StaffPortalModule.jsx:585
+    Missing server route: DELETE /api/staff/my-special-availability/:id
+    → try { await API(`/api/staff/my-special-availability/${id}`, { method: "DELETE" }); toast("Removed");
+  src/StaffPortalModule.jsx:736
+    Missing server route: POST /api/staff/my-leave
+    → const r = await API("/api/staff/my-leave",{method:"POST",body:JSON.stringify(form)});
+  src/StaffPortalModule.jsx:815
+    Missing server route: PUT /api/staff/me
+    → const r = await API("/api/staff/me", { method: "PUT", body: JSON.stringify(form) });
+  src/StaffPortalModule.jsx:906
+    Missing server route: GET /api/staff-features/staff-list
+    → API("/api/staff-features/staff-list"),
+  src/StaffPortalModule.jsx:918
+    Missing server route: PUT /api/staff-features/messages/:id/read
+    → await API(`/api/staff-features/messages/${msg.id}/read`, { method: "PUT" });
+  src/StaffPortalModule.jsx:1080
+    Missing server route: GET /api/staff-features/cert-links
+    → API("/api/staff-features/cert-links").then(rows => {
+  src/StaffPortalModule.jsx:1106
+    Missing server route: DELETE /api/staff-features/cert-links/:id
+    → await API(`/api/staff-features/cert-links/${id}`, { method: "DELETE" });
+  src/StaffPortalModule.jsx:1257
+    Missing server route: GET /api/staff-features/pd-requests:id
+    → const rows = await API(`/api/staff-features/pd-requests${previewQs()}`);
+  src/StaffPortalModule.jsx:1278
+    Missing server route: PUT /api/staff-features/pd-requests/:id
+    → const r = await API(`/api/staff-features/pd-requests/${id}`, { method: "PUT", body: JSON.stringify(u
+  src/StaffWellbeingModule.jsx:45
+    Missing server route: GET /api/wellbeing/my
+    → API("/api/wellbeing/my?days=30"),
+  src/StaffWellbeingModule.jsx:46
+    Missing server route: GET /api/wellbeing/team-pulse
+    → API("/api/wellbeing/team-pulse"),
+  src/StaffWellbeingModule.jsx:304
+    Missing server route: POST /api/wellbeing/checkin
+    → const r = await API("/api/wellbeing/checkin", { method: "POST", body: { ...f, date: todayStr, concer
+  src/TodoModule.jsx:55
+    Missing server route: PUT /api/v2/todo/:id
+    → await API(`/api/v2/todo/${editing.id}`, { method: "PUT", body: form });
+  src/TodoModule.jsx:58
+    Missing server route: POST /api/v2/todo
+    → await API("/api/v2/todo", { method: "POST", body: form });
+  src/TodoModule.jsx:68
+    Missing server route: POST /api/v2/todo/:id/resolve
+    → await API(`/api/v2/todo/${id}/resolve`, { method: "POST" });
+  src/TodoModule.jsx:76
+    Missing server route: DELETE /api/v2/todo/:id
+    → try { await API(`/api/v2/todo/${id}`, { method: "DELETE" }); toast("Deleted"); load(); }
+  src/WaitlistModule.jsx:85
+    Missing server route: POST /api/waitlist/ai-reenrolment-plan
+    → const r = await API("/api/waitlist/ai-reenrolment-plan", { method: "POST", body: { year: planYear } 
+  src/WeeklyStoryModule.jsx:376
+    Missing server route: GET /api/dashboard
+    → API("/api/dashboard").then(r=>{if(r.centre?.name)setTenantName(r.centre.name);}).catch(()=>{});
+  src/WeeklyStoryModule.jsx:380
+    Missing server route: GET /api/stories
+    → const loadStories=async()=>{setLoadingStories(true);try{const r=await API("/api/stories?limit=30");s
+  src/WeeklyStoryModule.jsx:389
+    Missing server route: GET /api/stories/period-data
+    → try{const r=await API(`/api/stories/period-data?${params}`);setWeekData(r);}
+  server/ai.js:94
+    Route "/catalogue" missing requireAuth/requireTenant
+    → router.get('/catalogue', (req, res) => {
+  server/ai.js:99
+    Route "/providers" missing requireAuth/requireTenant
+    → router.get('/providers', (req, res) => {
+  server/ai.js:120
+    Route "/providers" missing requireAuth/requireTenant
+    → router.post('/providers', (req, res) => {
+  server/ai.js:147
+    Route "/providers/:key" missing requireAuth/requireTenant
+    → router.delete('/providers/:key', (req, res) => {
+  server/ai.js:157
+    Route "/test/:key" missing requireAuth/requireTenant
+    → router.post('/test/:key', async (req, res) => {
+  server/ai.js:190
+    Route "/usage" missing requireAuth/requireTenant
+    → router.get('/usage', (req, res) => {
+  server/ai.js:209
+    Route "/credentials" missing requireAuth/requireTenant
+    → router.get('/credentials', (req, res) => {
+  server/ai.js:220
+    Route "/credentials" missing requireAuth/requireTenant
+    → router.put('/credentials', (req, res) => {
+  server/ai.js:243
+    Route "/credentials/raw/:provider/:key_name" missing requireAuth/requireTenant
+    → router.get('/credentials/raw/:provider/:key_name', (req, res) => {
+  server/api.js:20
+    Route "/tenant" missing requireAuth/requireTenant
+    → router.get('/tenant', (req, res) => {
+  server/api.js:295
+    Route "/me" missing requireAuth/requireTenant
+    → router.get('/me', (req, res) => {
+  server/api.js:303
+    Route "/attendance-peak" missing requireAuth/requireTenant
+    → router.get('/attendance-peak', (req, res) => {
+  server/api.js:359
+    Route "/dashboard/today" missing requireAuth/requireTenant
+    → router.get('/dashboard/today', async (req, res) => {
+  server/audit.js:24
+    Route "/logs" missing requireAuth/requireTenant
+    → router.get('/logs', (req, res) => {
+  server/audit.js:77
+    Route "/logs/export" missing requireAuth/requireTenant
+    → router.get('/logs/export', (req, res) => {
+  server/audit.js:111
+    Route "/actions" missing requireAuth/requireTenant
+    → router.get('/actions', (req, res) => {
+  server/audit.js:126
+    Route "/sessions" missing requireAuth/requireTenant
+    → router.get('/sessions', (req, res) => {
+  server/audit.js:145
+    Route "/sessions/:id" missing requireAuth/requireTenant
+    → router.delete('/sessions/:id', (req, res) => {
+  server/audit.js:155
+    Route "/compliance" missing requireAuth/requireTenant
+    → router.get('/compliance', (req, res) => {
+  server/audit.js:325
+    Route "/manual-entry" missing requireAuth/requireTenant
+    → router.post('/manual-entry', (req, res) => {
+  server/checklists.js:132
+    Route "/templates" missing requireAuth/requireTenant
+    → router.get('/templates', (req, res) => {
+  server/checklists.js:137
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/checklists.js:152
+    Route "/" missing requireAuth/requireTenant
+    → router.post('/', (req, res) => {
+  server/checklists.js:166
+    Route "/:id" missing requireAuth/requireTenant
+    → router.put('/:id', (req, res) => {
+  server/checklists.js:181
+    Route "/:id" missing requireAuth/requireTenant
+    → router.delete('/:id', (req, res) => {
+  server/checklists.js:190
+    Route "/:id/complete" missing requireAuth/requireTenant
+    → router.post('/:id/complete', (req, res) => {
+  server/checklists.js:207
+    Route "/:id/history" missing requireAuth/requireTenant
+    → router.get('/:id/history', (req, res) => {
+  server/children.js:9
+    Route "/debug-count" missing requireAuth/requireTenant
+    → router.get('/debug-count', (req, res) => {
+  server/children.js:19
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/children.js:40
+    Route "/:id" missing requireAuth/requireTenant
+    → router.get('/:id', (req, res) => {
+  server/children.js:64
+    Route "/:id/ai-insights" missing requireAuth/requireTenant
+    → router.get('/:id/ai-insights', (req, res) => {
+  server/children.js:110
+    Route "/:id/attendance-stats" missing requireAuth/requireTenant
+    → router.get('/:id/attendance-stats', (req, res) => {
+  server/children.js:127
+    Route "/:id/event-log" missing requireAuth/requireTenant
+    → router.get('/:id/event-log', (req, res) => {
+  server/children.js:137
+    Route "/:id/permissions" missing requireAuth/requireTenant
+    → router.post('/:id/permissions', (req, res) => {
+  server/children.js:157
+    Route "/:id/dietary" missing requireAuth/requireTenant
+    → router.post('/:id/dietary', (req, res) => {
+  server/children.js:187
+    Route "/:id/dietary/:dietId" missing requireAuth/requireTenant
+    → router.delete('/:id/dietary/:dietId', (req, res) => {
+  server/children.js:197
+    Route "/:id/pickup" missing requireAuth/requireTenant
+    → router.post('/:id/pickup', (req, res) => {
+  server/children.js:210
+    Route "/:id/pickup/:pickupId" missing requireAuth/requireTenant
+    → router.delete('/:id/pickup/:pickupId', (req, res) => {
+  server/children.js:220
+    Route "/:id/requests" missing requireAuth/requireTenant
+    → router.post('/:id/requests', (req, res) => {
+  server/children.js:234
+    Route "/:id/events" missing requireAuth/requireTenant
+    → router.post('/:id/events', (req, res) => {
+  server/children.js:247
+    Route "/:id" missing requireAuth/requireTenant
+    → router.put('/:id', (req, res) => {
+  server/children.js:267
+    Route "/" missing requireAuth/requireTenant
+    → router.post('/', (req, res) => {
+  server/children.js:282
+    Route "/:id/sign-in" missing requireAuth/requireTenant
+    → router.post('/:id/sign-in', (req, res) => {
+  server/children.js:305
+    Route "/:id/sign-out" missing requireAuth/requireTenant
+    → router.post('/:id/sign-out', (req, res) => {
+  server/children.js:333
+    Route "/:id/mark-absent" missing requireAuth/requireTenant
+    → router.post('/:id/mark-absent', (req, res) => {
+  server/children.js:350
+    Route "/attendance-today" missing requireAuth/requireTenant
+    → router.get('/attendance-today', (req, res) => {
+  server/children.js:450
+    Route "/:id/attendance-summary" missing requireAuth/requireTenant
+    → router.get('/:id/attendance-summary', (req, res) => {
+  server/children.js:477
+    Route "/:id/attendance" missing requireAuth/requireTenant
+    → router.get('/:id/attendance', (req, res) => {
+  server/children.js:486
+    Route "/:id/events" missing requireAuth/requireTenant
+    → router.get('/:id/events', (req, res) => {
+  server/children.js:499
+    Route "/:id/educator-notes" missing requireAuth/requireTenant
+    → router.get('/:id/educator-notes', (req, res) => {
+  server/children.js:518
+    Route "/:id/collection-persons" missing requireAuth/requireTenant
+    → router.get('/:id/collection-persons', (req, res) => {
+  server/children.js:638
+    Route "/:id/ccs" missing requireAuth/requireTenant
+    → router.get('/:id/ccs', (req, res) => {
+  server/children.js:646
+    Route "/:id/equipment" missing requireAuth/requireTenant
+    → router.get('/:id/equipment', (req, res) => {
+  server/children.js:654
+    Route "/:id/medical-plans" missing requireAuth/requireTenant
+    → router.get('/:id/medical-plans', (req, res) => {
+  server/children.js:659
+    Route "/:id/medications" missing requireAuth/requireTenant
+    → router.get('/:id/medications', (req, res) => {
+  server/children.js:664
+    Route "/:id/immunisations" missing requireAuth/requireTenant
+    → router.get('/:id/immunisations', (req, res) => {
+  server/children.js:695
+    Route "/:id/parental-requests" missing requireAuth/requireTenant
+    → router.get('/:id/parental-requests', (req, res) => {
+  server/children.js:700
+    Route "/:id/invoices" missing requireAuth/requireTenant
+    → router.get('/:id/invoices', (req, res) => {
+  server/children.js:717
+    Route "/:id/dietary" missing requireAuth/requireTenant
+    → router.get('/:id/dietary', (req, res) => {
+  server/children.js:723
+    Route "/:id/permissions" missing requireAuth/requireTenant
+    → router.get('/:id/permissions', (req, res) => {
+  server/compliance.js:15
+    Route "/overview" missing requireAuth/requireTenant
+    → router.get('/overview', (req, res) => {
+  server/compliance.js:37
+    Route "/child/:childId" missing requireAuth/requireTenant
+    → router.get('/child/:childId', (req, res) => {
+  server/compliance.js:45
+    Route "/can-attend/:childId" missing requireAuth/requireTenant
+    → router.get('/can-attend/:childId', (req, res) => {
+  server/compliance.js:248
+    Route "/notifications" missing requireAuth/requireTenant
+    → router.get('/notifications', (req, res) => {
+  server/compliance.js:274
+    Route "/attendance-report" missing requireAuth/requireTenant
+    → router.get('/attendance-report', (req, res) => {
+  server/daily-updates.js:9
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/daily-updates.js:53
+    Route "/" missing requireAuth/requireTenant
+    → router.post('/', (req, res) => {
+  server/daily-updates.js:86
+    Route "/:id/sleep" missing requireAuth/requireTenant
+    → router.put('/:id/sleep', (req, res) => {
+  server/daily-updates.js:101
+    Route "/:id" missing requireAuth/requireTenant
+    → router.delete('/:id', (req, res) => {
+  server/daily-updates.js:111
+    Route "/feed/:childId" missing requireAuth/requireTenant
+    → router.get('/feed/:childId', (req, res) => {
+  server/documents.js:55
+    Route "/upload/:childId" missing requireAuth/requireTenant
+    → router.post('/upload/:childId', upload.single('file'), (req, res) => {
+  server/documents.js:80
+    Route "/child/:childId" missing requireAuth/requireTenant
+    → router.get('/child/:childId', (req, res) => {
+  server/documents.js:88
+    Route "/file/:docId" missing requireAuth/requireTenant
+    → router.get('/file/:docId', (req, res) => {
+  server/documents.js:108
+    Route "/reanalyse/:docId" missing requireAuth/requireTenant
+    → router.post('/reanalyse/:docId', (req, res) => {
+  server/documents.js:118
+    Route "/immunisations/:childId" missing requireAuth/requireTenant
+    → router.get('/immunisations/:childId', (req, res) => {
+  server/documents.js:129
+    Route "/immunisations/:childId" missing requireAuth/requireTenant
+    → router.post('/immunisations/:childId', (req, res) => {
+  server/documents.js:141
+    Route "/medical-plans/:childId" missing requireAuth/requireTenant
+    → router.get('/medical-plans/:childId', (req, res) => {
+  server/documents.js:150
+    Route "/medical-plans/:childId" missing requireAuth/requireTenant
+    → router.post('/medical-plans/:childId', (req, res) => {
+  server/documents.js:162
+    Route "/medical-plans/:planId" missing requireAuth/requireTenant
+    → router.put('/medical-plans/:planId', (req, res) => {
+  server/documents.js:176
+    Route "/medications/:childId" missing requireAuth/requireTenant
+    → router.get('/medications/:childId', (req, res) => {
+  server/documents.js:181
+    Route "/medications/:childId" missing requireAuth/requireTenant
+    → router.post('/medications/:childId', (req, res) => {
+  server/documents.js:192
+    Route "/medications/:medId" missing requireAuth/requireTenant
+    → router.put('/medications/:medId', (req, res) => {
+  server/documents.js:201
+    Route "/med-log/:childId" missing requireAuth/requireTenant
+    → router.get('/med-log/:childId', (req, res) => {
+  server/documents.js:207
+    Route "/med-log/:childId" missing requireAuth/requireTenant
+    → router.post('/med-log/:childId', (req, res) => {
+  server/documents.js:220
+    Route "/parents/:childId" missing requireAuth/requireTenant
+    → router.get('/parents/:childId', (req, res) => {
+  server/documents.js:225
+    Route "/parents/:childId" missing requireAuth/requireTenant
+    → router.post('/parents/:childId', (req, res) => {
+  server/documents.js:313
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/documents.js:368
+    Route "/:id/download" missing requireAuth/requireTenant
+    → router.get('/:id/download', (req, res) => {
+  server/documents.js:382
+    Route "/:id/approve" missing requireAuth/requireTenant
+    → router.put('/:id/approve', (req, res) => {
+  server/documents.js:392
+    Route "/:id/deny" missing requireAuth/requireTenant
+    → router.put('/:id/deny', (req, res) => {
+  server/educators.js:9
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/educators.js:25
+    Route "/:id" missing requireAuth/requireTenant
+    → router.get('/:id', (req, res) => {
+  server/educators.js:54
+    Route "/:id" missing requireAuth/requireTenant
+    → router.put('/:id', (req, res) => {
+  server/educators.js:75
+    Route "/" missing requireAuth/requireTenant
+    → router.post('/', (req, res) => {
+  server/educators.js:105
+    Route "/:id/ytd-earnings" missing requireAuth/requireTenant
+    → router.get('/:id/ytd-earnings', (req, res) => {
+  server/educators.js:128
+    Route "/:id/availability" missing requireAuth/requireTenant
+    → router.put('/:id/availability', (req, res) => {
+  server/educators.js:144
+    Route "/:id/documents" missing requireAuth/requireTenant
+    → router.post('/:id/documents', (req, res) => {
+  server/educators.js:158
+    Route "/:id/documents/:docId" missing requireAuth/requireTenant
+    → router.put('/:id/documents/:docId', (req, res) => {
+  server/educators.js:168
+    Route "/:id/documents/:docId" missing requireAuth/requireTenant
+    → router.delete('/:id/documents/:docId', (req, res) => {
+  server/educators.js:199
+    Route "/:id/leave" missing requireAuth/requireTenant
+    → router.post('/:id/leave', (req, res) => {
+  server/educators.js:216
+    Route "/:id/leave/:leaveId" missing requireAuth/requireTenant
+    → router.put('/:id/leave/:leaveId', (req, res) => {
+  server/educators.js:228
+    Route "/:id/leave-balance" missing requireAuth/requireTenant
+    → router.get('/:id/leave-balance', (req, res) => {
+  server/educators.js:249
+    Route "/:id" missing requireAuth/requireTenant
+    → router.delete('/:id', (req, res) => {
+  server/educators.js:265
+    Route "/:id/terminate" missing requireAuth/requireTenant
+    → router.post('/:id/terminate', (req, res) => {
+  server/educators.js:278
+    Route "/:id/reinstate" missing requireAuth/requireTenant
+    → router.post('/:id/reinstate', (req, res) => {
+  server/educators.js:287
+    Route "/:id/termination-documents" missing requireAuth/requireTenant
+    → router.get('/:id/termination-documents', (req, res) => {
+  server/educators.js:294
+    Route "/:id/termination-documents" missing requireAuth/requireTenant
+    → router.post('/:id/termination-documents', (req, res) => {
+  server/educators.js:305
+    Route "/:id/termination-documents/:docId" missing requireAuth/requireTenant
+    → router.delete('/:id/termination-documents/:docId', (req, res) => {
+  server/educators.js:313
+    Route "/super-funds" missing requireAuth/requireTenant
+    → router.get('/super-funds', (req, res) => {
+  server/educators.js:320
+    Route "/super-funds" missing requireAuth/requireTenant
+    → router.post('/super-funds', (req, res) => {
+  server/educators.js:332
+    Route "/:id/special-availability" missing requireAuth/requireTenant
+    → router.get('/:id/special-availability', (req, res) => {
+  server/educators.js:339
+    Route "/:id/special-availability" missing requireAuth/requireTenant
+    → router.post('/:id/special-availability', (req, res) => {
+  server/educators.js:350
+    Route "/:id/special-availability/:saId" missing requireAuth/requireTenant
+    → router.delete('/:id/special-availability/:saId', (req, res) => {
+  server/excursions.js:8
+    Route "/permission/:token" missing requireAuth/requireTenant
+    → router.get('/permission/:token', (req, res) => {
+  server/excursions.js:18
+    Route "/permission/:token/respond" missing requireAuth/requireTenant
+    → router.post('/permission/:token/respond', (req, res) => {
+  server/excursions.js:40
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/excursions.js:58
+    Route "/:id" missing requireAuth/requireTenant
+    → router.get('/:id', (req, res) => {
+  server/excursions.js:76
+    Route "/" missing requireAuth/requireTenant
+    → router.post('/', (req, res) => {
+  server/excursions.js:90
+    Route "/:id" missing requireAuth/requireTenant
+    → router.put('/:id', (req, res) => {
+  server/excursions.js:104
+    Route "/:id/children" missing requireAuth/requireTenant
+    → router.post('/:id/children', (req, res) => {
+  server/excursions.js:128
+    Route "/:id/children/:childId" missing requireAuth/requireTenant
+    → router.delete('/:id/children/:childId', (req, res) => {
+  server/excursions.js:138
+    Route "/:id/educators" missing requireAuth/requireTenant
+    → router.post('/:id/educators', (req, res) => {
+  server/excursions.js:154
+    Route "/:id/send-permission" missing requireAuth/requireTenant
+    → router.post('/:id/send-permission', (req, res) => {
+  server/excursions.js:166
+    Route "/:id" missing requireAuth/requireTenant
+    → router.delete('/:id', (req, res) => {
+  server/invoicing.js:38
+    Route "/fee-schedules" missing requireAuth/requireTenant
+    → router.get('/fee-schedules', (req, res) => {
+  server/invoicing.js:51
+    Route "/ccs/:childId" missing requireAuth/requireTenant
+    → router.get('/ccs/:childId', (req, res) => {
+  server/invoicing.js:56
+    Route "/ccs/:childId" missing requireAuth/requireTenant
+    → router.post('/ccs/:childId', (req, res) => {
+  server/invoicing.js:71
+    Route "/ccs-calculate" missing requireAuth/requireTenant
+    → router.post('/ccs-calculate', (req, res) => {
+  server/invoicing.js:90
+    Route "/attendance" missing requireAuth/requireTenant
+    → router.get('/attendance', (req, res) => {
+  server/invoicing.js:100
+    Route "/attendance" missing requireAuth/requireTenant
+    → router.post('/attendance', (req, res) => {
+  server/invoicing.js:141
+    Route "/invoices" missing requireAuth/requireTenant
+    → router.get('/invoices', (req, res) => {
+  server/invoicing.js:153
+    Route "/payments" missing requireAuth/requireTenant
+    → router.post('/payments', (req, res) => {
+  server/invoicing.js:168
+    Route "/payment-methods" missing requireAuth/requireTenant
+    → router.get('/payment-methods', (req, res) => {
+  server/invoicing.js:172
+    Route "/payment-methods" missing requireAuth/requireTenant
+    → router.post('/payment-methods', (req, res) => {
+  server/invoicing.js:183
+    Route "/summary" missing requireAuth/requireTenant
+    → router.get('/summary', (req, res) => {
+  server/ratio-report.js:66
+    Route "/rooms" missing requireAuth/requireTenant
+    → router.get('/rooms', (req, res) => {
+  server/ratio-report.js:81
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/ratio-report.js:266
+    Route "/live" missing requireAuth/requireTenant
+    → router.get('/live', (req, res) => {
+  server/retell.js:197
+    Route "/status" missing requireAuth/requireTenant
+    → router.get('/status', async (req, res) => {
+  server/retell.js:221
+    Route "/agent" missing requireAuth/requireTenant
+    → router.post('/agent', async (req, res) => {
+  server/retell.js:282
+    Route "/link-number" missing requireAuth/requireTenant
+    → router.post('/link-number', async (req, res) => {
+  server/retell.js:300
+    Route "/test-call" missing requireAuth/requireTenant
+    → router.post('/test-call', async (req, res) => {
+  server/retell.js:329
+    Route "/llm-url" missing requireAuth/requireTenant
+    → router.get('/llm-url', (req, res) => {
+  server/roster-enhancements.js:58
+    Route "/rp-coverage" missing requireAuth/requireTenant
+    → router.get('/rp-coverage', (req, res) => {
+  server/roster-enhancements.js:116
+    Route "/rp-coverage" missing requireAuth/requireTenant
+    → router.post('/rp-coverage', (req, res) => {
+  server/roster-enhancements.js:136
+    Route "/rp-coverage/:id" missing requireAuth/requireTenant
+    → router.delete('/rp-coverage/:id', (req, res) => {
+  server/roster-enhancements.js:145
+    Route "/rp-coverage/week" missing requireAuth/requireTenant
+    → router.get('/rp-coverage/week', (req, res) => {
+  server/roster-enhancements.js:180
+    Route "/absence" missing requireAuth/requireTenant
+    → router.post('/absence', (req, res) => {
+  server/roster-enhancements.js:259
+    Route "/attendance-forecast" missing requireAuth/requireTenant
+    → router.get('/attendance-forecast', (req, res) => {
+  server/roster-enhancements.js:338
+    Route "/attendance-forecast/generate" missing requireAuth/requireTenant
+    → router.post('/attendance-forecast/generate', (req, res) => {
+  server/roster-enhancements.js:377
+    Route "/non-contact" missing requireAuth/requireTenant
+    → router.get('/non-contact', (req, res) => {
+  server/roster-enhancements.js:400
+    Route "/non-contact" missing requireAuth/requireTenant
+    → router.post('/non-contact', (req, res) => {
+  server/roster-enhancements.js:450
+    Route "/non-contact/:id" missing requireAuth/requireTenant
+    → router.delete('/non-contact/:id', (req, res) => {
+  server/roster-enhancements.js:462
+    Route "/qualification-check" missing requireAuth/requireTenant
+    → router.get('/qualification-check', (req, res) => {
+  server/roster-enhancements.js:539
+    Route "/shift-swaps" missing requireAuth/requireTenant
+    → router.get('/shift-swaps', (req, res) => {
+  server/roster-enhancements.js:565
+    Route "/shift-swaps" missing requireAuth/requireTenant
+    → router.post('/shift-swaps', (req, res) => {
+  server/roster-enhancements.js:605
+    Route "/shift-swaps/:id/approve" missing requireAuth/requireTenant
+    → router.put('/shift-swaps/:id/approve', (req, res) => {
+  server/roster-enhancements.js:628
+    Route "/shift-swaps/:id/decline" missing requireAuth/requireTenant
+    → router.put('/shift-swaps/:id/decline', (req, res) => {
+  server/roster-enhancements.js:642
+    Route "/movements" missing requireAuth/requireTenant
+    → router.get('/movements', (req, res) => {
+  server/roster-enhancements.js:661
+    Route "/movements" missing requireAuth/requireTenant
+    → router.post('/movements', (req, res) => {
+  server/roster-enhancements.js:675
+    Route "/movements/:id" missing requireAuth/requireTenant
+    → router.delete('/movements/:id', (req, res) => {
+  server/roster-enhancements.js:687
+    Route "/public-holidays" missing requireAuth/requireTenant
+    → router.get('/public-holidays', (req, res) => {
+  server/roster-enhancements.js:700
+    Route "/public-holidays" missing requireAuth/requireTenant
+    → router.post('/public-holidays', (req, res) => {
+  server/roster-enhancements.js:712
+    Route "/penalty-rates" missing requireAuth/requireTenant
+    → router.get('/penalty-rates', (req, res) => {
+  server/roster-enhancements.js:721
+    Route "/cost-calculate" missing requireAuth/requireTenant
+    → router.get('/cost-calculate', (req, res) => {
+  server/roster-enhancements.js:812
+    Route "/award-classifications" missing requireAuth/requireTenant
+    → router.get('/award-classifications', (req, res) => {
+  server/roster-enhancements.js:820
+    Route "/educators/:id/classification" missing requireAuth/requireTenant
+    → router.put('/educators/:id/classification', (req, res) => {
+  server/roster-enhancements.js:853
+    Route "/agencies" missing requireAuth/requireTenant
+    → router.get('/agencies', (req, res) => {
+  server/roster-enhancements.js:861
+    Route "/agencies" missing requireAuth/requireTenant
+    → router.post('/agencies', (req, res) => {
+  server/roster-enhancements.js:873
+    Route "/agency-booking" missing requireAuth/requireTenant
+    → router.post('/agency-booking', (req, res) => {
+  server/roster-enhancements.js:914
+    Route "/agency-bookings" missing requireAuth/requireTenant
+    → router.get('/agency-bookings', (req, res) => {
+  server/roster-enhancements.js:936
+    Route "/agency-bookings/:id/confirm" missing requireAuth/requireTenant
+    → router.put('/agency-bookings/:id/confirm', (req, res) => {
+  server/roster-enhancements.js:950
+    Route "/role-coverage" missing requireAuth/requireTenant
+    → router.get('/role-coverage', (req, res) => {
+  server/roster-enhancements.js:1003
+    Route "/float-assignments" missing requireAuth/requireTenant
+    → router.get('/float-assignments', (req, res) => {
+  server/roster-enhancements.js:1020
+    Route "/float-assignments" missing requireAuth/requireTenant
+    → router.post('/float-assignments', (req, res) => {
+  server/roster-enhancements.js:1036
+    Route "/pay-periods" missing requireAuth/requireTenant
+    → router.get('/pay-periods', (req, res) => {
+  server/roster-enhancements.js:1044
+    Route "/pay-periods/generate" missing requireAuth/requireTenant
+    → router.post('/pay-periods/generate', (req, res) => {
+  server/roster-enhancements.js:1127
+    Route "/pay-periods/:id/detail" missing requireAuth/requireTenant
+    → router.get('/pay-periods/:id/detail', (req, res) => {
+  server/roster-enhancements.js:1164
+    Route "/fatigue-check" missing requireAuth/requireTenant
+    → router.get('/fatigue-check', (req, res) => {
+  server/roster-enhancements.js:1267
+    Route "/compliance-check" missing requireAuth/requireTenant
+    → router.get('/compliance-check', (req, res) => {
+  server/roster-enhancements.js:1378
+    Route "/booked-days" missing requireAuth/requireTenant
+    → router.get('/booked-days', (req, res) => {
+  server/roster-enhancements.js:1399
+    Route "/booked-days" missing requireAuth/requireTenant
+    → router.post('/booked-days', (req, res) => {
+  server/roster-enhancements.js:1411
+    Route "/booked-days/:id" missing requireAuth/requireTenant
+    → router.delete('/booked-days/:id', (req, res) => {
+  server/roster-enhancements.js:1424
+    Route "/room-groups" missing requireAuth/requireTenant
+    → router.get('/room-groups', (req, res) => {
+  server/roster-enhancements.js:1447
+    Route "/room-groups" missing requireAuth/requireTenant
+    → router.post('/room-groups', (req, res) => {
+  server/roster-enhancements.js:1464
+    Route "/room-groups/:id" missing requireAuth/requireTenant
+    → router.put('/room-groups/:id', (req, res) => {
+  server/roster-enhancements.js:1474
+    Route "/room-groups/:id" missing requireAuth/requireTenant
+    → router.delete('/room-groups/:id', (req, res) => {
+  server/roster-enhancements.js:1482
+    Route "/room-groups/:id/members" missing requireAuth/requireTenant
+    → router.post('/room-groups/:id/members', (req, res) => {
+  server/roster-enhancements.js:1492
+    Route "/room-groups/:id/members/:roomId" missing requireAuth/requireTenant
+    → router.delete('/room-groups/:id/members/:roomId', (req, res) => {
+  server/roster-enhancements.js:1500
+    Route "/room-groups/:id/schedules" missing requireAuth/requireTenant
+    → router.post('/room-groups/:id/schedules', (req, res) => {
+  server/roster-enhancements.js:1512
+    Route "/room-groups/:groupId/schedules/:scheduleId" missing requireAuth/requireTenant
+    → router.delete('/room-groups/:groupId/schedules/:scheduleId', (req, res) => {
+  server/roster-enhancements.js:1521
+    Route "/room-groups/active" missing requireAuth/requireTenant
+    → router.get('/room-groups/active', (req, res) => {
+  server/roster-enhancements.js:1575
+    Route "/room-groups/:id/ratio-calc" missing requireAuth/requireTenant
+    → router.get('/room-groups/:id/ratio-calc', (req, res) => {
+  server/roster-enhancements.js:1631
+    Route "/room-groups/:id/roster-entry" missing requireAuth/requireTenant
+    → router.post('/room-groups/:id/roster-entry', (req, res) => {
+  server/roster-enhancements.js:1651
+    Route "/room-groups/roster" missing requireAuth/requireTenant
+    → router.get('/room-groups/roster', (req, res) => {
+  server/stories.js:350
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/stories.js:372
+    Route "/:id" missing requireAuth/requireTenant
+    → router.get('/:id', (req, res) => {
+  server/stories.js:385
+    Route "/generate" missing requireAuth/requireTenant
+    → router.post('/generate', async (req, res) => {
+  server/stories.js:418
+    Route "/:id" missing requireAuth/requireTenant
+    → router.put('/:id', (req, res) => {
+  server/stories.js:437
+    Route "/:id/publish" missing requireAuth/requireTenant
+    → router.post('/:id/publish', (req, res) => {
+  server/stories.js:446
+    Route "/:id/unpublish" missing requireAuth/requireTenant
+    → router.post('/:id/unpublish', (req, res) => {
+  server/stories.js:454
+    Route "/:id" missing requireAuth/requireTenant
+    → router.delete('/:id', (req, res) => {
+  server/stories.js:462
+    Route "/meta/music-tracks" missing requireAuth/requireTenant
+    → router.get('/meta/music-tracks', (req, res) => res.json({ tracks: MUSIC_TRACKS }));
+  server/stories.js:466
+    Route "/parent/:childId" missing requireAuth/requireTenant
+    → router.get('/parent/:childId', (req, res) => {
+  server/stories.js:484
+    Route "/:id/viewed" missing requireAuth/requireTenant
+    → router.post('/:id/viewed', (req, res) => {
+  server/v2-features.js:26
+    Route "/activity-log" missing requireAuth/requireTenant
+    → router.get('/activity-log', (req, res) => {
+  server/v2-features.js:43
+    Route "/activity-log" missing requireAuth/requireTenant
+    → router.post('/activity-log', (req, res) => {
+  server/v2-features.js:61
+    Route "/todo" missing requireAuth/requireTenant
+    → router.get('/todo', (req, res) => {
+  server/v2-features.js:167
+    Route "/broadcast-queue" missing requireAuth/requireTenant
+    → router.post('/broadcast-queue', (req, res) => {
+  server/v2-features.js:184
+    Route "/broadcast-queue/:id/approve" missing requireAuth/requireTenant
+    → router.put('/broadcast-queue/:id/approve', (req, res) => {
+  server/v2-features.js:193
+    Route "/broadcast-queue/:id/reject" missing requireAuth/requireTenant
+    → router.put('/broadcast-queue/:id/reject', (req, res) => {
+  server/v2-features.js:206
+    Route "/learning-plans/:id/publish" missing requireAuth/requireTenant
+    → router.post('/learning-plans/:id/publish', (req, res) => {
+  server/v2-features.js:228
+    Route "/learning-plans/:id/email" missing requireAuth/requireTenant
+    → router.post('/learning-plans/:id/email', (req, res) => {
+  server/v2-features.js:246
+    Route "/learning-plans/published" missing requireAuth/requireTenant
+    → router.get('/learning-plans/published', (req, res) => {
+  server/v2-features.js:269
+    Route "/parent-learning-input" missing requireAuth/requireTenant
+    → router.post('/parent-learning-input', (req, res) => {
+  server/v2-features.js:295
+    Route "/parent-learning-input" missing requireAuth/requireTenant
+    → router.get('/parent-learning-input', (req, res) => {
+  server/v2-features.js:320
+    Route "/necwr/form-data/:educatorId" missing requireAuth/requireTenant
+    → router.get('/necwr/form-data/:educatorId', (req, res) => {
+  server/v2-features.js:421
+    Route "/compliance/resource-links" missing requireAuth/requireTenant
+    → router.get('/compliance/resource-links', (req, res) => {
+  server/v2-features.js:426
+    Route "/compliance/weekly-scan" missing requireAuth/requireTenant
+    → router.post('/compliance/weekly-scan', (req, res) => {
+  server/v2-features.js:497
+    Route "/compliance/educator-alerts/:educatorId" missing requireAuth/requireTenant
+    → router.get('/compliance/educator-alerts/:educatorId', (req, res) => {
+  server/v2-features.js:534
+    Route "/compliance/todo/:id/resolve" missing requireAuth/requireTenant
+    → router.put('/compliance/todo/:id/resolve', (req, res) => {
+  server/voice.js:546
+    Route "/diag" missing requireAuth/requireTenant
+    → router.get('/diag', async (req, res) => {
+  server/weekly-stories.js:113
+    Route "/music" missing requireAuth/requireTenant
+    → router.get('/music', (req, res) => res.json({ tracks: MUSIC_TRACKS }));
+  server/weekly-stories.js:116
+    Route "/terms/:year" missing requireAuth/requireTenant
+    → router.get('/terms/:year', (req, res) => {
+  server/weekly-stories.js:122
+    Route "/period-data" missing requireAuth/requireTenant
+    → router.get('/period-data', (req, res) => {
+  server/weekly-stories.js:178
+    Route "/generate" missing requireAuth/requireTenant
+    → router.post('/generate', async (req, res) => {
+  server/weekly-stories.js:352
+    Route "/" missing requireAuth/requireTenant
+    → router.get('/', (req, res) => {
+  server/weekly-stories.js:374
+    Route "/:id" missing requireAuth/requireTenant
+    → router.get('/:id', (req, res) => {
+  server/weekly-stories.js:391
+    Route "/:id" missing requireAuth/requireTenant
+    → router.put('/:id', (req, res) => {
+  server/weekly-stories.js:412
+    Route "/:id/publish" missing requireAuth/requireTenant
+    → router.post('/:id/publish', (req, res) => {
+  server/weekly-stories.js:418
+    Route "/:id/unpublish" missing requireAuth/requireTenant
+    → router.post('/:id/unpublish', (req, res) => {
+  server/weekly-stories.js:424
+    Route "/:id" missing requireAuth/requireTenant
+    → router.delete('/:id', (req, res) => {
+  server/weekly-stories.js:432
+    Route "/parent/:childId" missing requireAuth/requireTenant
+    → router.get('/parent/:childId', (req, res) => {
+
+🟡 MEDIUM (42) — Error handling issues
+  src/NotificationsPanel.jsx:184
+    .catch() swallows error and returns undefined — "if (r.id)" will throw
+    → const r = await API("/api/notifications/run", { method: "POST" }).catch(e=>console.error('API error:
+  src/OperationsModule.jsx:223
+    .catch() swallows error and returns undefined — "if (r.id)" will throw
+    → const r = await API("/api/operations/evacuation", { method:"POST", body: { drill_type: type, conduct
+  src/OperationsModule.jsx:230
+    .catch() swallows error and returns undefined — "if (r.id)" will throw
+    → const r = await API(`/api/operations/evacuation/${id}`.catch(e=>console.error('API error:',e)));
+  src/OperationsModule.jsx:235
+    .catch() swallows error and returns undefined — "if (r.id)" will throw
+    → await API(`/api/operations/evacuation/${drillId}/headcount/${hcId}`, { method:"PUT", body:{ accounte
+  src/OperationsModule.jsx:236
+    .catch() swallows error and returns undefined — "if (r.id)" will throw
+    → const r = await API(`/api/operations/evacuation/${drillId}`.catch(e=>console.error('API error:',e)))
+  src/OperationsModule.jsx:993
+    .catch() swallows error and returns undefined — "if (r.id)" will throw
+    → const r = await API(`/api/operations/shift-bids?entry_id=${entryId}`.catch(e=>console.error('API err
+  src/PayrollModule.jsx:61
+    .catch() swallows error and returns undefined — "if (r.id)" will throw
+    → const r = await API("/api/payroll/export", { method:"POST", body: { from, to, export_type: expType, 
+  src/AIAssistantModule.jsx:117
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/AIAssistantModule.jsx:282
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/App.jsx:4614
+    Async handler "handleSave" without try/catch
+    → const handleSave = async () => {
+  src/AuthModule.jsx:293
+    Async handler "handleGoogleLogin" without try/catch
+    → const handleGoogleLogin = async () => {
+  src/AuthModule.jsx:297
+    Async handler "handleAppleLogin" without try/catch
+    → const handleAppleLogin = async () => {
+  src/AuthModule.jsx:809
+    Async handler "handleSelect" without try/catch
+    → const handleSelect = async (tenantId) => {
+  src/CCSModule.jsx:321
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/ChildDevModule.jsx:527
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/ChildrenModule.jsx:1424
+    Async handler "save" without try/catch
+    → const save = async () => {
+  src/CommsModule.jsx:250
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/DailyUpdatesModule.jsx:290
+    Async handler "save" without try/catch
+    → const save = async () => { await saveUpdate(child.id, { ...f, summary: `${f.meal} — ate ${f.amount}$
+  src/DailyUpdatesModule.jsx:315
+    Async handler "save" without try/catch
+    → const save = async () => { await saveUpdate(child.id, { ...f, summary: `Diaper change — ${f.content}
+  src/DailyUpdatesModule.jsx:340
+    Async handler "save" without try/catch
+    → const save = async () => { await saveUpdate(child.id, { ...f, summary: `Toilet — ${f.result}` }); on
+  src/DailyUpdatesModule.jsx:360
+    Async handler "save" without try/catch
+    → const save = async () => { await saveUpdate(child.id, { ...f, summary: `Sunscreen applied — ${f.spf}
+  src/DailyUpdatesModule.jsx:389
+    Async handler "save" without try/catch
+    → const save = async () => {
+  src/DailyUpdatesModule.jsx:454
+    Async handler "save" without try/catch
+    → const save = async () => { await saveUpdate(child.id, { ...f, summary: `${f.category}: ${f.notes}` }
+  src/EngagementModule.jsx:85
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/EngagementModule.jsx:274
+    Async handler "submit" without try/catch
+    → const submit=async()=>{
+  src/EngagementModule.jsx:438
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/InvoicingFullModule.jsx:718
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/InvoicingFullModule.jsx:891
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/KioskModule.jsx:364
+    Async handler "handleAction" without try/catch
+    → const handleAction = async (action) => {
+  src/MessageCentreModule.jsx:367
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/OperationsModule.jsx:495
+    Async handler "submit" without try/catch
+    → const submit = async () => {
+  src/OperationsModule.jsx:780
+    Async handler "submit" without try/catch
+    → const submit = async () => {
+  src/ParentPortalModule.jsx:349
+    Async handler "submit" without try/catch
+    → const submit = async () => {
+  src/ParentPortalModule.jsx:983
+    Async handler "submit" without try/catch
+    → const submit = async () => {
+  src/ParentPortalModule.jsx:1066
+    Async handler "submit" without try/catch
+    → const submit = async () => {
+  src/ReportsBuilderModule.jsx:412
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/ReportsBuilderModule.jsx:660
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/RoomsModule.jsx:293
+    Async handler "handleSave" without try/catch
+    → const handleSave = async () => {
+  src/RosteringModule.jsx:343
+    Async handler "save" without try/catch
+    → const save=async()=>{
+  src/SOC2Module.jsx:180
+    Async handler "handleExport" without try/catch
+    → const handleExport = async () => {
+  src/StaffPortalModule.jsx:1265
+    Async handler "submit" without try/catch
+    → const submit = async () => {
+  src/_staff_portal_additions.jsx:389
+    Async handler "submit" without try/catch
+    → const submit = async () => {
+
+🔵 INFO: none ✓
+
+═══════════════════════════════════════════════════════════════
+  Total: 814 issues
+  🔴 163  🟠 609  🟡 42  🔵 0
+═══════════════════════════════════════════════════════════════

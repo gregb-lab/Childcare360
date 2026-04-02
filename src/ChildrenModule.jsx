@@ -1422,8 +1422,10 @@ function PermissionsList({ childId, perms, onRefresh }) {
 function CustomPermissionForm({ childId, onSaved, onClose }) {
   const [f, setF] = useState({ permission_type: "", granted: true, notes: "", expiry_date: "" });
   const save = async () => {
+    try {
     const r = await API(`/api/children/${childId}/permissions`, { method: "POST", body: f });
     if (r.id) onSaved();
+    } catch(e) { console.error('API error:', e); }
   };
   return (
     <div style={{ marginTop: 12, background: lp, borderRadius: 12, padding: 14 }}>

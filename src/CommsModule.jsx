@@ -89,8 +89,8 @@ function MessagesTab({onUnreadChange}) {
 
   const openThread=async(id)=>{
     const r=await API(`/api/comms/threads/${id}`.catch(e=>console.error('API error:',e)));
-    setActive(r.thread);
-    setMessages(r.messages||[]);
+    setActive(r?.thread);
+    setMessages(r?.messages||[]);
     load();
     setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),100);
   };
@@ -107,7 +107,7 @@ function MessagesTab({onUnreadChange}) {
     const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}}).catch(e=>console.error('API error:',e));
     setShowNew(false);setNewForm({child_id:"",subject:"",body:""});
     load();
-    if(r.id)openThread(r.id);
+    if(r?.id)openThread(r?.id);
   };
 
   return (
@@ -248,11 +248,13 @@ function HealthTab() {
   useEffect(()=>{load();},[load]);
 
   const save=async()=>{
+    try {
     if(!form.child_id||!form.event_type)return;
     await API("/api/comms/health",{method:"POST",body:{...form,symptoms:selSymptoms,temperature:form.temperature?parseFloat(form.temperature):null}}).catch(e=>console.error('API error:',e));
     setShowNew(false);
     setForm({child_id:"",event_type:"illness",event_date:new Date().toISOString().split("T")[0],description:"",temperature:"",action_taken:"",parent_notified:false,follow_up_required:false});
     setSelSymptoms([]);load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const TYPE_C={illness:WA,injury:DA,allergy:"#D946EF",medication:IN,other:MU};

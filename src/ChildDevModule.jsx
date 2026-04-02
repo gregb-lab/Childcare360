@@ -505,14 +505,14 @@ function TransitionsTab() {
 
   const loadReport=async(id)=>{
     const r=await API(`/api/childdev/transitions/${id}`.catch(e=>console.error('API error:',e)));
-    setActive(r.report);
-    setMilestones(r.milestones||[]);
+    setActive(r?.report);
+    setMilestones(r?.milestones||[]);
   };
 
   const createReport=async(childId)=>{
     const r=await API("/api/childdev/transitions",{method:"POST",body:{child_id:childId,prepared_by:"Educator"}}).catch(e=>console.error('API error:',e));
     load();
-    loadReport(r.id);
+    loadReport(r?.id);
   };
 
   const autoDraft=async()=>{
@@ -521,14 +521,16 @@ function TransitionsTab() {
     const r=await API(`/api/childdev/transitions/${active.id}/auto-draft`,{method:"POST"}).catch(e=>console.error('API error:',e));
     await loadReport(active.id);
     setDrafting(false);
-    alert(`✓ Auto-drafted ${r.drafted_sections} sections from ${r.milestone_count} milestone records`);
+    alert(`✓ Auto-drafted ${r?.drafted_sections} sections from ${r?.milestone_count} milestone records`);
   };
 
   const save=async()=>{
+    try {
     if(!active)return;
     setSaving(true);
     await API(`/api/childdev/transitions/${active.id}`,{method:"PUT",body:active}).catch(e=>console.error('API error:',e));
     setSaving(false);load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const FIELDS=[

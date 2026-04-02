@@ -221,20 +221,20 @@ function EvacuationTab() {
   const startDrill = async (type) => {
     setStarting(true);
     const r = await API("/api/operations/evacuation", { method:"POST", body: { drill_type: type, conducted_by: "Admin" } }).catch(e=>console.error('API error:',e));
-    if (r.id) loadDrill(r.id);
+    if (r?.id) loadDrill(r.id);
     load();
     setStarting(false);
   };
 
   const loadDrill = async (id) => {
-    const r = await API(`/api/operations/evacuation/${id}`.catch(e=>console.error('API error:',e)));
-    if (r.drill) { setActiveDrill(r.drill); setHeadcounts(r.headcounts||[]); }
+    const r = await API(`/api/operations/evacuation/${id}`).catch(e=>console.error('API error:',e));
+    if (r?.drill) { setActiveDrill(r.drill); setHeadcounts(r.headcounts||[]); }
   };
 
   const toggleAccounted = async (drillId, hcId, val) => {
     await API(`/api/operations/evacuation/${drillId}/headcount/${hcId}`, { method:"PUT", body:{ accounted:val } }).catch(e=>console.error('API error:',e));
-    const r = await API(`/api/operations/evacuation/${drillId}`.catch(e=>console.error('API error:',e)));
-    if (r.drill) { setActiveDrill(r.drill); setHeadcounts(r.headcounts||[]); }
+    const r = await API(`/api/operations/evacuation/${drillId}`).catch(e=>console.error('API error:',e));
+    if (r?.drill) { setActiveDrill(r.drill); setHeadcounts(r.headcounts||[]); }
   };
 
   const completeDrill = async () => {
@@ -494,10 +494,12 @@ function HazardTab() {
 
   const submit = async () => {
     if (!form.title) return;
-    await API("/api/operations/hazards", { method:"POST", body:form }).catch(e=>console.error('API error:',e));
-    setShowForm(false);
-    setForm({ report_type:"hazard", title:"", description:"", location:"", risk_level:"medium", reported_by:"" });
-    load();
+    try {
+      await API("/api/operations/hazards", { method:"POST", body:form });
+      setShowForm(false);
+      setForm({ report_type:"hazard", title:"", description:"", location:"", risk_level:"medium", reported_by:"" });
+      load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const updateStatus = async (id, status) => {
@@ -778,10 +780,12 @@ function HandoverTab() {
   useEffect(() => { load(); }, [load]);
 
   const submit = async () => {
-    await API("/api/operations/handover", { method:"POST", body:{ ...form, children_present:parseInt(form.children_present)||0 } }).catch(e=>console.error('API error:',e));
-    setShowForm(false);
-    setForm({ shift_type:"end_of_day", room_id:"", submitted_by:"", children_present:"", incidents_summary:"", medications_given:"", sleep_notes:"", meals_notes:"", behaviour_notes:"", outstanding_tasks:"", messages_for_families:"", general_notes:"" });
-    load();
+    try {
+      await API("/api/operations/handover", { method:"POST", body:{ ...form, children_present:parseInt(form.children_present)||0 } }).catch(e=>console.error('API error:',e));
+      setShowForm(false);
+      setForm({ shift_type:"end_of_day", room_id:"", submitted_by:"", children_present:"", incidents_summary:"", medications_given:"", sleep_notes:"", meals_notes:"", behaviour_notes:"", outstanding_tasks:"", messages_for_families:"", general_notes:"" });
+      load();
+    } catch(e) { console.error('API error:', e); }
   };
 
   const acknowledge = async (id) => {
@@ -990,8 +994,8 @@ function ShiftBiddingTab() {
   useEffect(() => { load(); }, [load]);
 
   const loadBids = async (entryId) => {
-    const r = await API(`/api/operations/shift-bids?entry_id=${entryId}`.catch(e=>console.error('API error:',e)));
-    setBids(p => ({ ...p, [entryId]: r.bids||[] }));
+    const r = await API(`/api/operations/shift-bids?entry_id=${entryId}`).catch(e=>console.error('API error:',e));
+    setBids(p => ({ ...p, [entryId]: r?.bids||[] }));
   };
 
   const placeBid = async (entryId, educatorId) => {

@@ -292,9 +292,11 @@ function RoomEditModal({ room, ageGroups: ageGroupsProp, onSave, onClose }) {
 
   const handleSave = async () => {
     if (!form.name?.trim()) { alert("Room name is required"); return; }
-    setSaving(true);
-    await onSave(form);
-    setSaving(false);
+    try {
+      setSaving(true);
+      await onSave(form);
+      setSaving(false);
+    } catch(e) { console.error('API error:', e); }
   };
 
   const inp = { width:"100%", padding:"9px 12px", borderRadius:8, border:"1px solid #DDD6EE", fontSize:13, boxSizing:"border-box" };
@@ -442,7 +444,7 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
 
   const loadAllEducators = async () => {
     const r = await API("/api/educators").catch(()=>({}));
-    if(Array.isArray(r)) setAllEducators(r);
+    if(Array.isArray(r)) setAllEducators(r);  // r?.length checked implicitly by isArray
     else if(Array.isArray(r?.educators)) setAllEducators(r.educators);
     setShowAssign(true);
   };

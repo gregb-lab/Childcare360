@@ -1264,13 +1264,15 @@ function PDTab({ me }) {
 
   const submit = async () => {
     if (!form.title) { toast("Title required", "error"); return; }
-    setSaving(true);
-    const r = await API(`/api/staff-features/pd-requests${previewQs()}`, {
-      method: "POST", body: JSON.stringify({ ...form, cost_est: parseFloat(form.cost_est) || 0 })
-    });
-    if (r.ok) { toast("PD request submitted ✓"); setShowForm(false); load(); setForm({ title:"",description:"",provider:"",url:"",start_date:"",end_date:"",location:"",delivery_mode:"in_person",cost_est:"",expected_outcomes:"" }); }
-    else toast(r.error, "error");
-    setSaving(false);
+    try {
+      setSaving(true);
+      const r = await API(`/api/staff-features/pd-requests${previewQs()}`, {
+        method: "POST", body: JSON.stringify({ ...form, cost_est: parseFloat(form.cost_est) || 0 })
+      });
+      if (r.ok) { toast("PD request submitted ✓"); setShowForm(false); load(); setForm({ title:"",description:"",provider:"",url:"",start_date:"",end_date:"",location:"",delivery_mode:"in_person",cost_est:"",expected_outcomes:"" }); }
+      else toast(r.error, "error");
+      setSaving(false);
+    } catch(e) { console.error('API error:', e); }
   };
 
   const saveFeedback = async (id, updates) => {

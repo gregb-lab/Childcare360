@@ -287,7 +287,7 @@ function SleepForm({ child, onSaved }) {
 
 function FoodForm({ child, onSaved }) {
   const [f, setF] = useState({ type: "food", meal: "lunch", amount: "all", items: "", notes: "" });
-  const save = async () => { await saveUpdate(child.id, { ...f, summary: `${f.meal} — ate ${f.amount}${f.items ? ` (${f.items})` : ""}` }); onSaved(child.id); };
+  const save = async () => { try { await saveUpdate(child.id, { ...f, summary: `${f.meal} — ate ${f.amount}${f.items ? ` (${f.items})` : ""}` }); onSaved(child.id); } catch(e) { console.error('API error:', e); } };
   return (
     <div style={{ ...card, background: "#EDFAF3", marginBottom: 12 }}>
       <h4 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#6BA38B" }}>🍽️ Food Log</h4>
@@ -312,7 +312,7 @@ function FoodForm({ child, onSaved }) {
 
 function DiaperForm({ child, onSaved }) {
   const [f, setF] = useState({ type: "diaper", time: now(), content: "wet", rash: false, notes: "" });
-  const save = async () => { await saveUpdate(child.id, { ...f, summary: `Diaper change — ${f.content}${f.rash ? " (nappy rash noted)" : ""}` }); onSaved(child.id); };
+  const save = async () => { try { await saveUpdate(child.id, { ...f, summary: `Diaper change — ${f.content}${f.rash ? " (nappy rash noted)" : ""}` }); onSaved(child.id); } catch(e) { console.error('API error:', e); } };
   return (
     <div style={{ ...card, background: "#FFF6E8", marginBottom: 12 }}>
       <h4 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#D4A26A" }}>👶 Diaper Change</h4>
@@ -337,7 +337,7 @@ function DiaperForm({ child, onSaved }) {
 
 function ToiletForm({ child, onSaved }) {
   const [f, setF] = useState({ type: "toilet", time: now(), result: "success", notes: "" });
-  const save = async () => { await saveUpdate(child.id, { ...f, summary: `Toilet — ${f.result}` }); onSaved(child.id); };
+  const save = async () => { try { await saveUpdate(child.id, { ...f, summary: `Toilet — ${f.result}` }); onSaved(child.id); } catch(e) { console.error('API error:', e); } };
   return (
     <div style={{ ...card, background: "#E8F4FF", marginBottom: 12 }}>
       <h4 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#5B8DB5" }}>🚽 Toilet</h4>
@@ -357,7 +357,7 @@ function ToiletForm({ child, onSaved }) {
 
 function SunscreenForm({ child, onSaved }) {
   const [f, setF] = useState({ type: "sunscreen", time: now(), spf: "SPF 50+", educator: "", notes: "" });
-  const save = async () => { await saveUpdate(child.id, { ...f, summary: `Sunscreen applied — ${f.spf}` }); onSaved(child.id); };
+  const save = async () => { try { await saveUpdate(child.id, { ...f, summary: `Sunscreen applied — ${f.spf}` }); onSaved(child.id); } catch(e) { console.error('API error:', e); } };
   return (
     <div style={{ ...card, background: "#FFF3E0", marginBottom: 12 }}>
       <h4 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#E65100" }}>☀️ Sunscreen Applied</h4>
@@ -387,10 +387,12 @@ function IncidentForm({ child, onSaved }) {
   const toggleArea = (area) => setF(p => ({ ...p, affected_areas: p.affected_areas.includes(area) ? p.affected_areas.filter(a => a !== area) : [...p.affected_areas, area] }));
 
   const save = async () => {
-    await saveUpdate(child.id, { ...f, summary: `${f.injury_type} at ${f.location} — ${f.action_taken}` });
-    // Also log to child event log
-    await API(`/api/children/${child.id}/events`, { method: "POST", body: { event_type: "incident", description: `Incident: ${f.nature || f.injury_type} at ${f.location}`, details: f } }).catch(() => {});
-    onSaved(child.id);
+    try {
+      await saveUpdate(child.id, { ...f, summary: `${f.injury_type} at ${f.location} — ${f.action_taken}` });
+      // Also log to child event log
+      await API(`/api/children/${child.id}/events`, { method: "POST", body: { event_type: "incident", description: `Incident: ${f.nature || f.injury_type} at ${f.location}`, details: f } }).catch(() => {});
+      onSaved(child.id);
+    } catch(e) { console.error('API error:', e); }
   };
 
   return (
@@ -451,7 +453,7 @@ function IncidentForm({ child, onSaved }) {
 
 function OtherForm({ child, onSaved }) {
   const [f, setF] = useState({ type: "other", time: now(), category: "observation", notes: "" });
-  const save = async () => { await saveUpdate(child.id, { ...f, summary: `${f.category}: ${f.notes}` }); onSaved(child.id); };
+  const save = async () => { try { await saveUpdate(child.id, { ...f, summary: `${f.category}: ${f.notes}` }); onSaved(child.id); } catch(e) { console.error('API error:', e); } };
   return (
     <div style={{ ...card, background: "#F8F5F1", marginBottom: 12 }}>
       <h4 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#8A7F96" }}>📝 Other Entry</h4>

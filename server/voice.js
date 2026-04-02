@@ -543,7 +543,7 @@ router.get('/inbound-url', requireAuth, requireTenant, (req, res) => {
 
 // ─── DIAGNOSTICS ─────────────────────────────────────────────────────────────
 
-router.get('/diag', async (req, res) => {
+router.get('/diag', requireAuth, requireTenant, async (req, res) => {
   const r = { timestamp: new Date().toISOString(), checks: {} };
   try { await import('twilio'); r.checks.twilio = { ok: true }; } catch(e) { r.checks.twilio = { ok: false, error: e.message }; }
   r.checks.elevenlabs_key = { ok: !!process.env.ELEVENLABS_API_KEY, value: process.env.ELEVENLABS_API_KEY ? 'set (env)' : 'not in env' };
@@ -954,6 +954,7 @@ audioRouter.get('/stream/:token', (req, res) => {
 });
 
 // ── Static cached MP3 files ───────────────────────────────────────────────────
+// PUBLIC: TTS audio files served without auth for playback compatibility
 audioRouter.get('/:filename', (req, res) => {
   const { filename } = req.params;
   if (!/^[a-f0-9-]{36}\.mp3$/.test(filename)) return res.status(400).send('Invalid');
