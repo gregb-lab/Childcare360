@@ -1,17 +1,17 @@
 [Unit]
-Description=Childcare360 Childcare Platform v1.2.0
+Description=Childcare360 Application Server
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/childcare-roster-app
+WorkingDirectory=/root/childcare360-app
 ExecStart=/usr/bin/node server/index.js
 Restart=always
 RestartSec=5
+StandardOutput=append:/root/childcare360-app/childcare360.log
+StandardError=append:/root/childcare360-app/childcare360.log
 Environment=NODE_ENV=production
-Environment=PORT=3003
-EnvironmentFile=-/root/childcare-roster-app/.env
 
 [Install]
 WantedBy=multi-user.target
