@@ -94,6 +94,21 @@ r.put('/child/:childId', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/runsheet/child/:childId — alias for history
+r.get('/child/:childId', (req, res) => {
+  try {
+    const rows = D().prepare(`
+      SELECT rsc.*, drs.date, r.name as room_name
+      FROM run_sheet_children rsc
+      JOIN daily_run_sheets drs ON drs.id=rsc.run_sheet_id
+      JOIN rooms r ON r.id=drs.room_id
+      WHERE rsc.child_id=? AND drs.tenant_id=?
+      ORDER BY drs.date DESC LIMIT 30
+    `).all(req.params.childId, req.tenantId);
+    res.json(rows.map(r => ({ ...r, activities_completed: JSON.parse(r.activities_completed || '[]') })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/runsheet/history/:childId — last 30 days for a child
 r.get('/history/:childId', (req, res) => {
   try {

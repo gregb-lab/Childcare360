@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Childcare360 — Childcare Management</title>
   <meta name="description" content="Childcare360 — Australian childcare centre management platform" />
-
-  <!-- Preconnect to self (speeds up API calls after load) -->
   <link rel="preconnect" href="/" />
-
-  <!-- Inline critical CSS: shown immediately while JS loads -->
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
@@ -18,114 +14,10 @@
       background: #F5F1F9;
       color: #3D3248;
     }
-
-    /* ── Splash screen — visible immediately, hidden when React mounts ── */
-    #splash {
-      position: fixed;
-      inset: 0;
-      background: linear-gradient(135deg, #F5F1F9 0%, #EDE4F0 100%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      transition: opacity 0.4s ease, visibility 0.4s ease;
-    }
-    #splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-
-    #splash-logo {
-      width: 88px;
-      height: 88px;
-      background: linear-gradient(135deg, #7C3AED, #9D5CF6);
-      border-radius: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 24px;
-      box-shadow: 0 12px 40px rgba(124,58,237,0.35);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 12px 40px rgba(124,58,237,0.35); }
-      50%       { box-shadow: 0 16px 56px rgba(124,58,237,0.55); }
-    }
-
-    #splash-logo svg { width: 48px; height: 48px; fill: white; }
-
-    #splash h1 {
-      font-size: 20px;
-      font-weight: 700;
-      color: #3D3248;
-      margin-bottom: 8px;
-      letter-spacing: -0.02em;
-    }
-
-    #splash-sub {
-      font-size: 13px;
-      color: #8A7F96;
-      margin-bottom: 32px;
-    }
-
-    /* Progress bar */
-    #splash-bar-track {
-      width: 200px;
-      height: 4px;
-      background: rgba(124,58,237,0.15);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    #splash-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #7C3AED, #A78BFA);
-      border-radius: 2px;
-      animation: load-bar 3s cubic-bezier(0.1, 0.05, 0.4, 1) forwards;
-    }
-    @keyframes load-bar {
-      0%   { width: 0%; }
-      30%  { width: 45%; }
-      70%  { width: 75%; }
-      90%  { width: 88%; }
-      100% { width: 95%; } /* stays at 95% until React removes splash */
-    }
   </style>
 </head>
 <body>
-
-  <!-- Splash shown immediately — no JS needed -->
-  <div id="splash">
-    <div id="splash-logo">
-      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-        <!-- Gear/cog icon matching app logo -->
-        <circle cx="24" cy="24" r="8"/>
-        <path d="M24 4a2 2 0 0 1 2 2v3.1a14 14 0 0 1 5.66 2.35l2.19-2.19a2 2 0 0 1 2.83 2.83l-2.19 2.19A14 14 0 0 1 36.9 20H40a2 2 0 0 1 0 4h-3.1a14 14 0 0 1-2.35 5.66l2.19 2.19a2 2 0 0 1-2.83 2.83l-2.19-2.19A14 14 0 0 1 26 34.9V38a2 2 0 0 1-4 0v-3.1a14 14 0 0 1-5.66-2.35l-2.19 2.19a2 2 0 0 1-2.83-2.83l2.19-2.19A14 14 0 0 1 11.1 24H8a2 2 0 0 1 0-4h3.1a14 14 0 0 1 2.35-5.66l-2.19-2.19a2 2 0 0 1 2.83-2.83l2.19 2.19A14 14 0 0 1 22 11.1V6a2 2 0 0 1 2-2z"/>
-      </svg>
-    </div>
-    <h1>Childcare360</h1>
-    <p id="splash-sub">Loading Childcare360...</p>
-    <div id="splash-bar-track">
-      <div id="splash-bar"></div>
-    </div>
-  </div>
-
-  <!-- React mounts here -->
   <div id="root"></div>
-
-  <!-- Main bundle — deferred so HTML renders first -->
   <script type="module" src="/src/main.jsx"></script>
-
-  <!-- Remove splash as soon as React starts rendering -->
-  <script>
-    // React will call window.__c360Ready() when the App component mounts
-    window.__c360Ready = function() {
-      var splash = document.getElementById('splash');
-      if (splash) splash.classList.add('hidden');
-    };
-    // Safety net: force-hide splash after 8 seconds even if something goes wrong
-    setTimeout(function() {
-      var splash = document.getElementById('splash');
-      if (splash) splash.classList.add('hidden');
-    }, 8000);
-  </script>
 </body>
 </html>

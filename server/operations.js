@@ -742,4 +742,14 @@ r.get('/attendance-patterns', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NECWR ALERTS (stub — main logic in v2-features.js)
+// ─────────────────────────────────────────────────────────────────────────────
+
+r.get('/necwr-alerts', (req, res) => {
+  try {
+    res.json([]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default r;

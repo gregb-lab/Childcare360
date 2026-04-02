@@ -245,6 +245,16 @@ r.post('/stories/:id/photos', (req, res) => {
   res.json({ id, ok: true });
 });
 
+r.get('/photos/:id', (req, res) => {
+  try {
+    const photo = D().prepare('SELECT * FROM story_photos WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    if (!photo) return res.status(404).json({ error: 'Photo not found' });
+    res.json({ ...photo, tagged_child_ids: J(photo.tagged_child_ids), tagged_labels: J(photo.tagged_labels), ai_suggested_tags: J(photo.ai_suggested_tags) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch photo' });
+  }
+});
+
 r.put('/photos/:id', (req, res) => {
   const { caption, tagged_child_ids, tagged_labels } = req.body;
   D().prepare('UPDATE story_photos SET caption=COALESCE(?,caption), tagged_child_ids=COALESCE(?,tagged_child_ids), tagged_labels=COALESCE(?,tagged_labels) WHERE id=? AND tenant_id=?')

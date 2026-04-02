@@ -1109,6 +1109,13 @@ r.get('/periods/:id/roster-data', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/rostering/email-roster — stub for email-roster status
+r.get('/email-roster', (req, res) => {
+  try {
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // POST /api/rostering/periods/:id/email-roster — email roster to selected educators
 r.post('/periods/:id/email-roster', async (req, res) => {
   try {

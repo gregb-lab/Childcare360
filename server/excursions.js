@@ -100,6 +100,19 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// GET children assigned to excursion
+router.get('/:id/children', (req, res) => {
+  try {
+    const children = D().prepare(`SELECT ec.*, c.first_name, c.last_name, c.photo_url, r.name as room_name
+      FROM excursion_children ec JOIN children c ON ec.child_id = c.id
+      LEFT JOIN rooms r ON c.room_id = r.id
+      WHERE ec.excursion_id = ? AND ec.tenant_id = ? ORDER BY c.first_name`).all(req.params.id, req.tenantId);
+    res.json(children);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST assign children (bulk by room or array)
 router.post('/:id/children', (req, res) => {
   try {

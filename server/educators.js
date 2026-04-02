@@ -449,4 +449,11 @@ router.put('/leave/:id/decide', requireAuth, requireTenant, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /simple — lightweight educator list for dropdowns
+router.get('/simple', (req, res) => {
+  try {
+    res.json(D().prepare('SELECT id, first_name, last_name, qualification, status FROM educators WHERE tenant_id=?').all(req.tenantId));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

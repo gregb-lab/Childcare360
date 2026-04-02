@@ -10,3 +10,6 @@ createRoot(document.getElementById('root')).render(
     </AuthProvider>
   </StrictMode>
 );
+
+// Signal splash screen that React has mounted
+if (window.__c360Ready) window.__c360Ready();

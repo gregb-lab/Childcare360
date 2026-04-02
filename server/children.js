@@ -442,6 +442,13 @@ router.get('/:id/room-test', requireAuth, requireTenant, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /simple — lightweight child list for dropdowns
+router.get('/simple', (req, res) => {
+  try {
+    res.json(D().prepare('SELECT id, first_name, last_name, room_id FROM children WHERE tenant_id=?').all(req.tenantId));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
 
 // ─── MISSING ENDPOINTS ────────────────────────────────────────────────────────

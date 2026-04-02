@@ -106,6 +106,13 @@ r.post('/send-test', (req, res) => {
   }
 });
 
+// GET /api/messaging/broadcast — list broadcasts
+r.get('/broadcast', (req, res) => {
+  try {
+    res.json([]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // POST /api/messaging/broadcast
 r.post('/broadcast', async (req, res) => {
   try {

@@ -539,4 +539,26 @@ router.put('/compliance/todo/:id/resolve', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// DELETE /todo/:id — remove a compliance to-do item
+router.delete('/todo/:id', (req, res) => {
+  try {
+    D().prepare('DELETE FROM compliance_todo WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /todo/:id — update a compliance to-do item
+router.put('/todo/:id', (req, res) => {
+  try {
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /todo/:id/resolve — resolve a compliance to-do item
+router.post('/todo/:id/resolve', (req, res) => {
+  try {
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

@@ -499,4 +499,17 @@ router.delete('/rooms/:id/educators/:educatorId', requireAuth, requireTenant, re
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── DASHBOARD ─────────────────────────────────────────────────────────────────
+router.get('/dashboard', (req, res) => {
+  try {
+    res.json({});
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── ROOMS SIMPLE ──────────────────────────────────────────────────────────────
+router.get('/rooms/simple', (req, res) => {
+  try {
+    res.json(D().prepare('SELECT id, name, age_group FROM rooms WHERE tenant_id=?').all(req.tenantId));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
