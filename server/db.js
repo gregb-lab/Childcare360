@@ -3183,6 +3183,147 @@ export function initDatabase() {
     "ALTER TABLE weekly_stories ADD COLUMN centre_message TEXT DEFAULT ''",
   ].forEach(sql => { try { db.exec(sql); } catch(e) {} });
 
+  // ═══ v2.9.3 — Deep QA: add missing columns across all tables ═══════════════
+  [
+    // attendance_sessions
+    'ALTER TABLE attendance_sessions ADD COLUMN sign_in_collector TEXT',
+    'ALTER TABLE attendance_sessions ADD COLUMN sign_out_collector TEXT',
+    // authorised_pickups
+    'ALTER TABLE authorised_pickups ADD COLUMN photo_id_type TEXT',
+    // educator_documents
+    'ALTER TABLE educator_documents ADD COLUMN data_url TEXT',
+    // educators
+    'ALTER TABLE educators ADD COLUMN termination_reason TEXT',
+    'ALTER TABLE educators ADD COLUMN termination_notes TEXT',
+    'ALTER TABLE educators ADD COLUMN necwr_submitted_by TEXT',
+    'ALTER TABLE educators ADD COLUMN roster_role TEXT',
+    'ALTER TABLE educators ADD COLUMN award_level TEXT',
+    // leave_requests
+    'ALTER TABLE leave_requests ADD COLUMN updated_at TEXT',
+    // incidents
+    'ALTER TABLE incidents ADD COLUMN date TEXT',
+    'ALTER TABLE incidents ADD COLUMN time TEXT',
+    'ALTER TABLE incidents ADD COLUMN action_taken TEXT',
+    'ALTER TABLE incidents ADD COLUMN first_aid_by TEXT',
+    'ALTER TABLE incidents ADD COLUMN parent_notified_method TEXT',
+    'ALTER TABLE incidents ADD COLUMN witness TEXT',
+    'ALTER TABLE incidents ADD COLUMN regulatory_report_required INTEGER DEFAULT 0',
+    'ALTER TABLE incidents ADD COLUMN regulatory_reported_at TEXT',
+    // parent_messages
+    'ALTER TABLE parent_messages ADD COLUMN parent_email TEXT',
+    'ALTER TABLE parent_messages ADD COLUMN parent_name TEXT',
+    'ALTER TABLE parent_messages ADD COLUMN direction TEXT',
+    // medications
+    'ALTER TABLE medications ADD COLUMN medication_name TEXT',
+    'ALTER TABLE medications ADD COLUMN start_date TEXT',
+    'ALTER TABLE medications ADD COLUMN end_date TEXT',
+    'ALTER TABLE medications ADD COLUMN notes TEXT',
+    'ALTER TABLE medications ADD COLUMN active INTEGER DEFAULT 1',
+    // medication_log
+    'ALTER TABLE medication_log ADD COLUMN given_at TEXT',
+    'ALTER TABLE medication_log ADD COLUMN given_by TEXT',
+    // report_schedules
+    'ALTER TABLE report_schedules ADD COLUMN email TEXT',
+    'ALTER TABLE report_schedules ADD COLUMN format TEXT',
+    // shift_swaps
+    'ALTER TABLE shift_swaps ADD COLUMN requester_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN requester_entry_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN target_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN target_entry_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN compliance_check_passed INTEGER DEFAULT 0',
+    'ALTER TABLE shift_swaps ADD COLUMN compliance_notes TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN decline_reason TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN responded_at TEXT',
+    // public_holidays
+    'ALTER TABLE public_holidays ADD COLUMN region TEXT',
+    'ALTER TABLE public_holidays ADD COLUMN state TEXT',
+    'ALTER TABLE public_holidays ADD COLUMN centre_open INTEGER DEFAULT 1',
+    'ALTER TABLE public_holidays ADD COLUMN notes TEXT',
+    // staffing_agencies
+    'ALTER TABLE staffing_agencies ADD COLUMN hourly_rate_cents INTEGER DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN agency_fee_pct REAL DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN qualifications_available TEXT',
+    'ALTER TABLE staffing_agencies ADD COLUMN preferred INTEGER DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN rating REAL DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN total_bookings INTEGER DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN updated_at TEXT',
+    // room_groups
+    'ALTER TABLE room_groups ADD COLUMN location TEXT',
+    'ALTER TABLE room_groups ADD COLUMN combined_ratio_strategy TEXT',
+    // room_group_schedules
+    'ALTER TABLE room_group_schedules ADD COLUMN room_group_id TEXT',
+    'ALTER TABLE room_group_schedules ADD COLUMN reason TEXT',
+    'ALTER TABLE room_group_schedules ADD COLUMN min_educators INTEGER DEFAULT 1',
+    // educator_availability
+    'ALTER TABLE educator_availability ADD COLUMN can_start_earlier_mins INTEGER DEFAULT 0',
+    'ALTER TABLE educator_availability ADD COLUMN can_finish_later_mins INTEGER DEFAULT 0',
+    'ALTER TABLE educator_availability ADD COLUMN week_start TEXT',
+    'ALTER TABLE educator_availability ADD COLUMN availability TEXT',
+    // activity_log
+    'ALTER TABLE activity_log ADD COLUMN category TEXT',
+    // broadcast_queue
+    'ALTER TABLE broadcast_queue ADD COLUMN audience TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN subject TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN recipient_name TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN recipient_email TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN scheduled_at TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN reject_reason TEXT',
+    // compliance_todo
+    'ALTER TABLE compliance_todo ADD COLUMN entity_type TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN entity_id TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN compliance_type TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN resource_url TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN resource_label TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN regulation TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN resolution_note TEXT',
+    // staff_wellbeing
+    'ALTER TABLE staff_wellbeing ADD COLUMN concerns TEXT',
+    'ALTER TABLE staff_wellbeing ADD COLUMN anonymous INTEGER DEFAULT 0',
+    // observations
+    'ALTER TABLE observations ADD COLUMN notes TEXT',
+    'ALTER TABLE observations ADD COLUMN category TEXT',
+    'ALTER TABLE observations ADD COLUMN eylf_links TEXT',
+    'ALTER TABLE observations ADD COLUMN created_at TEXT',
+    // checklist_completions
+    'ALTER TABLE checklist_completions ADD COLUMN checklist_id TEXT',
+    'ALTER TABLE checklist_completions ADD COLUMN completed_date TEXT',
+    'ALTER TABLE checklist_completions ADD COLUMN items_data TEXT',
+    // award_classifications
+    'ALTER TABLE award_classifications ADD COLUMN region TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN sub_level TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN title TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN description TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN base_hourly_cents INTEGER DEFAULT 0',
+    'ALTER TABLE award_classifications ADD COLUMN base_annual_cents INTEGER DEFAULT 0',
+    // pay_periods
+    'ALTER TABLE pay_periods ADD COLUMN period_type TEXT',
+    'ALTER TABLE pay_periods ADD COLUMN total_hours REAL DEFAULT 0',
+    // fatigue_rules
+    'ALTER TABLE fatigue_rules ADD COLUMN region TEXT',
+    'ALTER TABLE fatigue_rules ADD COLUMN min_break_between_shifts_hours REAL DEFAULT 10',
+    'ALTER TABLE fatigue_rules ADD COLUMN max_hours_per_fortnight REAL DEFAULT 152',
+    'ALTER TABLE fatigue_rules ADD COLUMN overtime_daily_threshold REAL DEFAULT 7.6',
+    'ALTER TABLE fatigue_rules ADD COLUMN overtime_weekly_threshold REAL DEFAULT 38',
+    // agency_bookings
+    'ALTER TABLE agency_bookings ADD COLUMN agency_educator_name TEXT',
+    'ALTER TABLE agency_bookings ADD COLUMN agency_educator_qualification TEXT',
+    'ALTER TABLE agency_bookings ADD COLUMN agency_educator_wwcc TEXT',
+    // waitlist
+    'ALTER TABLE waitlist ADD COLUMN offer_date TEXT',
+    // shift_fill_requests
+    'ALTER TABLE shift_fill_requests ADD COLUMN escalation_time TEXT',
+    // voice_settings
+    'ALTER TABLE voice_settings ADD COLUMN elevenlabs_api_key TEXT',
+    "ALTER TABLE voice_settings ADD COLUMN elevenlabs_voice_id TEXT DEFAULT '21m00Tcm4TlvDq8ikWAM'",
+    "ALTER TABLE voice_settings ADD COLUMN elevenlabs_model TEXT DEFAULT 'eleven_flash_v2_5'",
+    "ALTER TABLE voice_settings ADD COLUMN call_language TEXT DEFAULT 'en-AU'",
+    "ALTER TABLE voice_settings ADD COLUMN voice_provider TEXT DEFAULT 'twilio'",
+    'ALTER TABLE voice_settings ADD COLUMN retell_api_key TEXT',
+    'ALTER TABLE voice_settings ADD COLUMN retell_agent_id TEXT',
+    'ALTER TABLE voice_settings ADD COLUMN retell_phone_number_id TEXT',
+    'ALTER TABLE voice_settings ADD COLUMN retell_llm_id TEXT',
+  ].forEach(sql => { try { db.exec(sql); } catch(e) {} });
+
   seedDemoData(db);
 
   // Back-fill educator_availability.tenant_id after seeding (catches both existing and freshly-seeded rows)
@@ -5388,5 +5529,136 @@ function initLearningTables(db) {
     'ALTER TABLE voice_settings ADD COLUMN retell_agent_id TEXT',
     'ALTER TABLE voice_settings ADD COLUMN retell_phone_number_id TEXT',
     'ALTER TABLE voice_settings ADD COLUMN retell_llm_id TEXT',
+  ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
+
+  // ═══ v2.9.3 — Deep QA: add missing columns across all tables ═══════════════
+  [
+    // attendance_sessions
+    'ALTER TABLE attendance_sessions ADD COLUMN sign_in_collector TEXT',
+    'ALTER TABLE attendance_sessions ADD COLUMN sign_out_collector TEXT',
+    // authorised_pickups
+    'ALTER TABLE authorised_pickups ADD COLUMN photo_id_type TEXT',
+    // educator_documents
+    'ALTER TABLE educator_documents ADD COLUMN data_url TEXT',
+    // educators
+    'ALTER TABLE educators ADD COLUMN termination_reason TEXT',
+    'ALTER TABLE educators ADD COLUMN termination_notes TEXT',
+    'ALTER TABLE educators ADD COLUMN necwr_submitted_by TEXT',
+    'ALTER TABLE educators ADD COLUMN roster_role TEXT',
+    'ALTER TABLE educators ADD COLUMN award_level TEXT',
+    // leave_requests
+    'ALTER TABLE leave_requests ADD COLUMN updated_at TEXT',
+    // incidents
+    'ALTER TABLE incidents ADD COLUMN date TEXT',
+    'ALTER TABLE incidents ADD COLUMN time TEXT',
+    'ALTER TABLE incidents ADD COLUMN action_taken TEXT',
+    'ALTER TABLE incidents ADD COLUMN first_aid_by TEXT',
+    'ALTER TABLE incidents ADD COLUMN parent_notified_method TEXT',
+    'ALTER TABLE incidents ADD COLUMN witness TEXT',
+    'ALTER TABLE incidents ADD COLUMN regulatory_report_required INTEGER DEFAULT 0',
+    'ALTER TABLE incidents ADD COLUMN regulatory_reported_at TEXT',
+    // parent_messages
+    'ALTER TABLE parent_messages ADD COLUMN parent_email TEXT',
+    'ALTER TABLE parent_messages ADD COLUMN parent_name TEXT',
+    'ALTER TABLE parent_messages ADD COLUMN direction TEXT',
+    // medications
+    'ALTER TABLE medications ADD COLUMN medication_name TEXT',
+    'ALTER TABLE medications ADD COLUMN start_date TEXT',
+    'ALTER TABLE medications ADD COLUMN end_date TEXT',
+    'ALTER TABLE medications ADD COLUMN notes TEXT',
+    'ALTER TABLE medications ADD COLUMN active INTEGER DEFAULT 1',
+    // medication_log
+    'ALTER TABLE medication_log ADD COLUMN given_at TEXT',
+    'ALTER TABLE medication_log ADD COLUMN given_by TEXT',
+    // report_schedules
+    'ALTER TABLE report_schedules ADD COLUMN email TEXT',
+    'ALTER TABLE report_schedules ADD COLUMN format TEXT',
+    // shift_swaps
+    'ALTER TABLE shift_swaps ADD COLUMN requester_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN requester_entry_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN target_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN target_entry_id TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN compliance_check_passed INTEGER DEFAULT 0',
+    'ALTER TABLE shift_swaps ADD COLUMN compliance_notes TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN decline_reason TEXT',
+    'ALTER TABLE shift_swaps ADD COLUMN responded_at TEXT',
+    // public_holidays
+    'ALTER TABLE public_holidays ADD COLUMN region TEXT',
+    'ALTER TABLE public_holidays ADD COLUMN state TEXT',
+    'ALTER TABLE public_holidays ADD COLUMN centre_open INTEGER DEFAULT 1',
+    'ALTER TABLE public_holidays ADD COLUMN notes TEXT',
+    // staffing_agencies
+    'ALTER TABLE staffing_agencies ADD COLUMN hourly_rate_cents INTEGER DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN agency_fee_pct REAL DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN qualifications_available TEXT',
+    'ALTER TABLE staffing_agencies ADD COLUMN preferred INTEGER DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN rating REAL DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN total_bookings INTEGER DEFAULT 0',
+    'ALTER TABLE staffing_agencies ADD COLUMN updated_at TEXT',
+    // room_groups
+    'ALTER TABLE room_groups ADD COLUMN location TEXT',
+    'ALTER TABLE room_groups ADD COLUMN combined_ratio_strategy TEXT',
+    // room_group_schedules
+    'ALTER TABLE room_group_schedules ADD COLUMN room_group_id TEXT',
+    'ALTER TABLE room_group_schedules ADD COLUMN reason TEXT',
+    'ALTER TABLE room_group_schedules ADD COLUMN min_educators INTEGER DEFAULT 1',
+    // educator_availability
+    'ALTER TABLE educator_availability ADD COLUMN can_start_earlier_mins INTEGER DEFAULT 0',
+    'ALTER TABLE educator_availability ADD COLUMN can_finish_later_mins INTEGER DEFAULT 0',
+    'ALTER TABLE educator_availability ADD COLUMN week_start TEXT',
+    'ALTER TABLE educator_availability ADD COLUMN availability TEXT',
+    // activity_log
+    'ALTER TABLE activity_log ADD COLUMN category TEXT',
+    // broadcast_queue
+    'ALTER TABLE broadcast_queue ADD COLUMN audience TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN subject TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN recipient_name TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN recipient_email TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN scheduled_at TEXT',
+    'ALTER TABLE broadcast_queue ADD COLUMN reject_reason TEXT',
+    // compliance_todo
+    'ALTER TABLE compliance_todo ADD COLUMN entity_type TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN entity_id TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN compliance_type TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN resource_url TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN resource_label TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN regulation TEXT',
+    'ALTER TABLE compliance_todo ADD COLUMN resolution_note TEXT',
+    // staff_wellbeing
+    'ALTER TABLE staff_wellbeing ADD COLUMN concerns TEXT',
+    'ALTER TABLE staff_wellbeing ADD COLUMN anonymous INTEGER DEFAULT 0',
+    // observations
+    'ALTER TABLE observations ADD COLUMN notes TEXT',
+    'ALTER TABLE observations ADD COLUMN category TEXT',
+    'ALTER TABLE observations ADD COLUMN eylf_links TEXT',
+    'ALTER TABLE observations ADD COLUMN created_at TEXT',
+    // checklist_completions
+    'ALTER TABLE checklist_completions ADD COLUMN checklist_id TEXT',
+    'ALTER TABLE checklist_completions ADD COLUMN completed_date TEXT',
+    'ALTER TABLE checklist_completions ADD COLUMN items_data TEXT',
+    // award_classifications
+    'ALTER TABLE award_classifications ADD COLUMN region TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN sub_level TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN title TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN description TEXT',
+    'ALTER TABLE award_classifications ADD COLUMN base_hourly_cents INTEGER DEFAULT 0',
+    'ALTER TABLE award_classifications ADD COLUMN base_annual_cents INTEGER DEFAULT 0',
+    // pay_periods
+    'ALTER TABLE pay_periods ADD COLUMN period_type TEXT',
+    'ALTER TABLE pay_periods ADD COLUMN total_hours REAL DEFAULT 0',
+    // fatigue_rules
+    'ALTER TABLE fatigue_rules ADD COLUMN region TEXT',
+    'ALTER TABLE fatigue_rules ADD COLUMN min_break_between_shifts_hours REAL DEFAULT 10',
+    'ALTER TABLE fatigue_rules ADD COLUMN max_hours_per_fortnight REAL DEFAULT 152',
+    'ALTER TABLE fatigue_rules ADD COLUMN overtime_daily_threshold REAL DEFAULT 7.6',
+    'ALTER TABLE fatigue_rules ADD COLUMN overtime_weekly_threshold REAL DEFAULT 38',
+    // agency_bookings
+    'ALTER TABLE agency_bookings ADD COLUMN agency_educator_name TEXT',
+    'ALTER TABLE agency_bookings ADD COLUMN agency_educator_qualification TEXT',
+    'ALTER TABLE agency_bookings ADD COLUMN agency_educator_wwcc TEXT',
+    // waitlist
+    'ALTER TABLE waitlist ADD COLUMN offer_date TEXT',
+    // shift_fill_requests
+    'ALTER TABLE shift_fill_requests ADD COLUMN escalation_time TEXT',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

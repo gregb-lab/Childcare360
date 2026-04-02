@@ -193,7 +193,7 @@ r.get('/medications', requireAuth, requireTenant, (req, res) => {
                WHERE m.tenant_id=?`;
     const params = [req.tenantId];
     if (child_id) { sql += ' AND m.child_id=?'; params.push(child_id); }
-    sql += ' ORDER BY m.medication_name';
+    sql += ' ORDER BY m.name';
     res.json(D().prepare(sql).all(...params));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -203,7 +203,7 @@ r.post('/medications', requireAuth, requireTenant, (req, res) => {
     const { child_id, medication_name, dosage, frequency, prescribing_doctor, start_date, end_date, notes } = req.body;
     if (!child_id || !medication_name) return res.status(400).json({ error: 'child_id and medication_name required' });
     const id = uuid();
-    D().prepare(`INSERT INTO medications (id,tenant_id,child_id,medication_name,dosage,frequency,prescribing_doctor,start_date,end_date,notes,active)
+    D().prepare(`INSERT INTO medications (id,tenant_id,child_id,name,dosage,frequency,prescriber,start_date,end_date,notes,active)
       VALUES(?,?,?,?,?,?,?,?,?,?,1)`).run(id,req.tenantId,child_id,medication_name,dosage||'',frequency||'',prescribing_doctor||'',start_date||null,end_date||null,notes||'');
     res.json({ id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -212,8 +212,8 @@ r.post('/medications', requireAuth, requireTenant, (req, res) => {
 r.put('/medications/:id', requireAuth, requireTenant, (req, res) => {
   try {
     const { medication_name, dosage, frequency, prescribing_doctor, end_date, notes, active } = req.body;
-    D().prepare(`UPDATE medications SET medication_name=COALESCE(?,medication_name), dosage=COALESCE(?,dosage),
-      frequency=COALESCE(?,frequency), prescribing_doctor=COALESCE(?,prescribing_doctor),
+    D().prepare(`UPDATE medications SET name=COALESCE(?,name), dosage=COALESCE(?,dosage),
+      frequency=COALESCE(?,frequency), prescriber=COALESCE(?,prescriber),
       end_date=COALESCE(?,end_date), notes=COALESCE(?,notes), active=COALESCE(?,active)
       WHERE id=? AND tenant_id=?`).run(medication_name,dosage,frequency,prescribing_doctor,end_date,notes,active,req.params.id,req.tenantId);
     res.json({ ok: true });
@@ -223,7 +223,7 @@ r.put('/medications/:id', requireAuth, requireTenant, (req, res) => {
 r.get('/medication-log', requireAuth, requireTenant, (req, res) => {
   try {
     const { child_id, date } = req.query;
-    let sql = `SELECT ml.*, m.medication_name, m.dosage, c.first_name, c.last_name,
+    let sql = `SELECT ml.*, m.name AS medication_name, m.dosage, c.first_name, c.last_name,
                e.first_name as given_by_first, e.last_name as given_by_last
                FROM medication_log ml
                JOIN medications m ON m.id=ml.medication_id

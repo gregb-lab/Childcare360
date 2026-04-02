@@ -165,7 +165,7 @@ r.get('/medical-alerts', (req, res) => {
     // Medications due today
     const medsDue = D().prepare(`
       SELECT c.first_name, c.last_name, r.name as room_name,
-             m.medication_name, m.dose, m.frequency, m.instructions
+             m.name AS medication_name, m.dose, m.frequency, m.instructions
       FROM medications m
       JOIN children c ON c.id=m.child_id
       LEFT JOIN rooms r ON r.id=c.room_id
