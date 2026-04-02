@@ -675,7 +675,8 @@ function SmartRosterBuilder({ period, entries, educators, rooms, allDates, onDel
   };
 
   const handleDrop = (roomId) => {
-    if (!dragging || !selDay) return;
+    console.log('Drop fired:', dragging, '->', roomId, 'selDay:', selDay);
+    if (!dragging || !selDay) { console.log('No dragging or selDay'); return; }
     const times = nextShiftTime(roomId);
     const ed = educators.find(e=>e.id===dragging);
     const avail = ed?.availability?.find ? ed.availability.find(a=>a.day_of_week===new Date(selDay+"T12:00:00").getDay()) : null;
@@ -956,8 +957,10 @@ function DragRosterGrid({ entries, allDates, educators, rooms, period, onDelete,
   // All educators with shifts OR all active educators
   const rosterEdIds = [...new Set(entries.map(e=>e.educator_id))];
   const allActiveEds = educators.filter(e=>e.status==="active"||!e.status);
-  // Show all educators who appear in roster + any not yet rostered
-  const displayEds = [...allActiveEds];
+  const rosteredEds = allActiveEds.filter(e => rosterEdIds.includes(e.id));
+  const unrosteredEds = allActiveEds.filter(e => !rosterEdIds.includes(e.id));
+  const [showUnrostered, setShowUnrostered] = React.useState(false);
+  const displayEds = rosteredEds;
 
   const getAvailability = (ed, date) => {
     const dow = new Date(date+"T12:00:00").getDay();
@@ -1079,7 +1082,7 @@ function DragRosterGrid({ entries, allDates, educators, rooms, period, onDelete,
           })}
 
           {/* Footer - totals row */}
-          <div style={{display:"grid",gridTemplateColumns:`160px repeat(${allDates.length},1fr)`,background:"#F8F5FC",borderTop:"2px solid #EDE8F4",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:`160px repeat(${allDates.length},1fr)`,background:"#F8F5FC",borderTop:"2px solid #EDE8F4",borderRadius:showUnrostered?"0":"0 0 10px 10px",overflow:"hidden"}}>
             <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,color:"#8A7F96",borderRight:"1px solid #EDE8F4"}}>DAILY TOTALS</div>
             {allDates.map(date=>{
               const cost=dayCost(date);
@@ -1092,6 +1095,36 @@ function DragRosterGrid({ entries, allDates, educators, rooms, period, onDelete,
               );
             })}
           </div>
+
+          {/* Unrostered educators */}
+          {unrosteredEds.length>0&&(
+            <div style={{borderTop:"1px solid #EDE8F4"}}>
+              <button onClick={()=>setShowUnrostered(!showUnrostered)}
+                style={{width:"100%",padding:"8px 12px",background:"#FAFAFA",border:"none",cursor:"pointer",fontSize:11,fontWeight:600,color:"#8A7F96",textAlign:"left",borderRadius:showUnrostered?"0":"0 0 10px 10px"}}>
+                {showUnrostered?"▾":"▸"} {unrosteredEds.length} unrostered educator{unrosteredEds.length!==1?"s":""}
+              </button>
+              {showUnrostered&&unrosteredEds.map((ed,i)=>(
+                <div key={ed.id} draggable onDragStart={()=>setDragEd(ed.id)} onDragEnd={()=>setDragEd(null)}
+                  style={{display:"grid",gridTemplateColumns:`160px repeat(${allDates.length},1fr)`,borderBottom:"1px solid #F5F0FB",background:i%2===0?"#FEFCFA":"#fff",opacity:0.7}}>
+                  <div style={{padding:"6px 10px",borderRight:"1px solid #EDE8F4",cursor:"grab",display:"flex",alignItems:"center",gap:5}}>
+                    <div style={{width:5,height:5,borderRadius:"50%",background:qColors[ed.qualification]||"#8B6DAF",flexShrink:0}}/>
+                    <span style={{fontSize:11,fontWeight:600,color:"#8A7F96"}}>{ed.first_name} {ed.last_name}</span>
+                  </div>
+                  {allDates.map(date=>(
+                    <div key={date}
+                      onDragOver={e=>{e.preventDefault();if(dragEd)setDragOver({edId:ed.id,date});}}
+                      onDragLeave={()=>setDragOver(null)}
+                      onDrop={e=>{e.preventDefault();if(dragEd)handleDrop(dragEd,date);}}
+                      onClick={()=>onAddShift&&onAddShift(ed.id,date)}
+                      style={{padding:"3px 4px",borderLeft:"1px solid #F0EBF8",minHeight:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+                        background:dragOver?.edId===ed.id&&dragOver?.date===date?"rgba(139,109,175,0.12)":undefined}}>
+                      <span style={{color:"#E0D6E8",fontSize:10}}>＋</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -379,13 +379,31 @@ function FocusTab({ child }) {
     setLoading(true);
     try {
       const r = await API(`/api/children/${child.id}/ai-focus`, { method: "POST" });
-      setData(r);
-    } catch (e) {}
+      if (r && r.error) { toast(r.error, "error"); } else { setData(normaliseFocus(r)); }
+    } catch (e) { toast("Analysis failed — check AI provider settings", "error"); }
     setLoading(false);
   };
 
+  const normaliseFocus = (r) => {
+    if (!r?.focus) return r;
+    const f = r.focus;
+    // Map server {strengths, next_steps} to display format {areas}
+    if (!f.areas && (f.strengths || f.next_steps)) {
+      f.areas = [
+        ...(f.strengths || []).map((s, i) => ({ title: typeof s === 'string' ? s : s.title || s.area || 'Strength', description: typeof s === 'string' ? s : s.description || '', icon: '✨', priority: 'low' })),
+        ...(f.next_steps || []).map((s, i) => ({ title: typeof s === 'string' ? s : s.title || s.area || 'Next Step', description: typeof s === 'string' ? s : s.description || '', icon: '🎯', priority: 'medium' })),
+      ];
+    }
+    // Map eylf_focus array to eylf scores object
+    if (!r.eylf && f.eylf_focus) {
+      r.eylf = {};
+      [1,2,3,4,5].forEach(id => { r.eylf[id] = f.eylf_focus.includes(id) ? 75 : 30; });
+    }
+    return r;
+  };
+
   useEffect(() => {
-    API(`/api/children/${child.id}/focus`).then(r => { if (r.focus) setData(r); }).catch(() => {});
+    API(`/api/children/${child.id}/focus`).then(r => { if (r.focus) setData(normaliseFocus(r)); }).catch(() => {});
     API(`/api/children/${child.id}/educator-notes`).then(r => { if (Array.isArray(r)) setNotes(r); }).catch(() => {});
   }, [child.id]);
 
