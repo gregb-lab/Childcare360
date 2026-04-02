@@ -1397,13 +1397,6 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload 
     API("/api/rooms").then(r=>{ if(Array.isArray(r)) setRooms(r.map(rm=>({...rm, ageGroup: rm.age_group||rm.ageGroup}))); }).catch(()=>{});
   },[]);
 
-  // Auto-select first date when switching to day-based views
-  useEffect(()=>{
-    if((viewMode==="gantt"||viewMode==="grid")&&!selDay&&allDates.length>0){
-      setSelDay(allDates[0]);
-    }
-  },[viewMode,allDates.length]);
-
   // Listen for reload events from DragRosterGrid
   useEffect(()=>{
     const handler = (e) => { if(e.detail?.period_id) loadP(e.detail.period_id); };
@@ -1484,6 +1477,12 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload 
   const period=sp?.period;
   const allDates=[...new Set(entries.map(e=>e.date))].sort();
   const activeDay=selDay||allDates[0]||null;
+  // Auto-select first date when switching to gantt/grid (after allDates is declared)
+  useEffect(()=>{
+    if((viewMode==="gantt"||viewMode==="grid")&&!selDay&&allDates.length>0){
+      setSelDay(allDates[0]);
+    }
+  },[viewMode,allDates.length]);
   const dayEntries=activeDay?entries.filter(e=>e.date===activeDay):[];
   const qColors={ect:"#2E8B57",diploma:"#7E5BA3",cert3:"#D4A26A",working_towards_diploma:"#5B8DB5",working_towards:"#B87D47"};
 
