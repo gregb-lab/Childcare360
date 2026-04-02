@@ -1186,6 +1186,7 @@ function ParentalRequestForm({ childId, onSaved, onClose }) {
 function ImmunisationTab({ child }) {
   const [records, setRecords] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [addVaccine, setAddVaccine] = useState('');
   const [addCustom, setAddCustom] = useState('');
   const [addDate, setAddDate] = useState('');
@@ -1210,7 +1211,19 @@ function ImmunisationTab({ child }) {
   const isGiven = (vaccine) => records.some(r => r.vaccine_name && r.vaccine_name.toLowerCase().includes(vaccine.toLowerCase()));
 
   const handleBadgeClick = (vaccine) => {
-    if (isGiven(vaccine)) return;
+    const existing = records.find(r => r.vaccine_name && r.vaccine_name.toLowerCase().includes(vaccine.toLowerCase()));
+    if (existing) {
+      // Edit existing record
+      setEditingId(existing.id);
+      setAddVaccine(existing.vaccine_name);
+      setAddCustom('');
+      setAddDate(existing.date_given || existing.given_date || '');
+      setAddBatch(existing.batch_number || '');
+      setAddProvider(existing.provider || '');
+      setShowAdd(true);
+      return;
+    }
+    setEditingId(null);
     setAddVaccine(vaccine);
     setAddCustom('');
     setAddDate(new Date().toISOString().split('T')[0]);
@@ -1220,6 +1233,7 @@ function ImmunisationTab({ child }) {
   };
 
   const handleAddOther = () => {
+    setEditingId(null);
     setAddVaccine('other');
     setAddCustom('');
     setAddDate(new Date().toISOString().split('T')[0]);
@@ -1234,14 +1248,16 @@ function ImmunisationTab({ child }) {
     if (!addDate) { alert('Please enter the date given'); return; }
     setSaving(true);
     try {
-      const r = await API(`/api/children/${child.id}/immunisations`, {
-        method: 'POST',
-        body: { vaccine_name: vName, date_given: addDate, given_date: addDate, batch_number: addBatch || null, provider: addProvider || null, status: 'given' }
-      });
+      const body = { vaccine_name: vName, date_given: addDate, given_date: addDate, batch_number: addBatch || null, provider: addProvider || null, status: 'given' };
+      const url = editingId
+        ? `/api/children/${child.id}/immunisations/${editingId}`
+        : `/api/children/${child.id}/immunisations`;
+      const r = await API(url, { method: editingId ? 'PUT' : 'POST', body });
       if (r && r.error) { alert(r.error); setSaving(false); return; }
       await load();
       setShowAdd(false);
       setAddVaccine('');
+      setEditingId(null);
     } catch(e) { alert('Failed to save: ' + e.message); }
     setSaving(false);
   };
@@ -1269,7 +1285,7 @@ function ImmunisationTab({ child }) {
                 return (
                   <button key={v} onClick={() => handleBadgeClick(v)}
                     style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, fontWeight: 600,
-                      cursor: given ? 'default' : 'pointer',
+                      cursor: 'pointer',
                       background: given ? '#E8F5E9' : '#F5F5F5',
                       color: given ? '#2E7D32' : '#8A7F96',
                       border: '1px solid ' + (given ? '#A5D6A7' : '#E0E0E0') }}>
@@ -1292,7 +1308,7 @@ function ImmunisationTab({ child }) {
       {showAdd && (
         <div style={{ background: '#F8F5FF', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid #DDD6EE' }}>
           <h5 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700 }}>
-            Record: {addVaccine === 'other' ? 'Custom Vaccine' : addVaccine}
+            {editingId ? 'Edit' : 'Record'}: {addVaccine === 'other' ? 'Custom Vaccine' : addVaccine}
           </h5>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
             {addVaccine === 'other' && (

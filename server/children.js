@@ -562,11 +562,11 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
     if (!child) return res.status(404).json({ error: 'Not found' });
     const _cl='%'+req.params.id+'%';
     const stories=D().prepare('SELECT content, eylf_outcomes, tags FROM learning_stories WHERE tenant_id=? AND published=1 AND child_ids LIKE ? ORDER BY date DESC LIMIT 10').all(req.tenantId,_cl);
-    const updates = D().prepare('SELECT category, notes, summary FROM daily_updates WHERE child_id=? AND tenant_id=? ORDER BY created_at DESC LIMIT 30').all(req.params.id, req.tenantId);
+    const updates = D().prepare('SELECT category, notes FROM daily_updates WHERE child_id=? AND tenant_id=? ORDER BY created_at DESC LIMIT 30').all(req.params.id, req.tenantId);
     const contextText = [
       `Child: ${child.first_name} ${child.last_name}, DOB: ${child.dob}`,
       stories.length ? `Recent stories: ${stories.slice(0,3).map(s=>s.content?.slice(0,80)).join('; ')}` : '',
-      updates.length ? `Recent updates: ${updates.slice(0,5).map(u=>u.notes||u.summary||'').filter(Boolean).join('; ')}` : '',
+      updates.length ? `Recent updates: ${updates.slice(0,5).map(u=>u.notes||'').filter(Boolean).join('; ')}` : '',
     ].filter(Boolean).join('\n');
     // Try AI call
     const provider = D().prepare('SELECT * FROM ai_providers WHERE tenant_id=? AND enabled=1 AND api_key IS NOT NULL ORDER BY is_default DESC LIMIT 1').get(req.tenantId);
@@ -672,6 +672,16 @@ router.get('/:id/immunisations', (req, res) => {
   try { res.json(D().prepare('SELECT * FROM immunisation_records WHERE child_id=? AND tenant_id=? ORDER BY date_given DESC').all(req.params.id, req.tenantId)); }
   catch { res.json([]); }
 });
+// PUT /:id/immunisations/:rid
+router.put('/:id/immunisations/:rid', requireAuth, requireTenant, (req, res) => {
+  try {
+    const b = req.body;
+    D().prepare('UPDATE immunisation_records SET vaccine_name=COALESCE(?,vaccine_name), date_given=COALESCE(?,date_given), given_date=COALESCE(?,given_date), batch_number=COALESCE(?,batch_number), provider=COALESCE(?,provider), status=COALESCE(?,status) WHERE id=? AND child_id=? AND tenant_id=?')
+      .run(b.vaccine_name||null, b.date_given||null, b.given_date||null, b.batch_number||null, b.provider||null, b.status||null, req.params.rid, req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // DELETE /:id/immunisations/:rid
 router.delete('/:id/immunisations/:rid', requireAuth, requireTenant, (req, res) => {
   try {
