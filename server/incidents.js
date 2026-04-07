@@ -39,11 +39,14 @@ r.get('/:id', (req, res) => {
 r.post('/', (req, res) => {
   try {
     const b = req.body;
-    if (!b.date || !b.type) return res.status(400).json({ error: 'date and type are required' });
+    // Accept alternate field names from different frontends
+    const date = b.date || b.incident_date;
+    const type = b.type || b.incident_type;
+    if (!date || !type) return res.status(400).json({ error: 'date and type are required' });
     const id = uuid();
     D().prepare(`INSERT INTO incidents (id,tenant_id,child_id,date,time,type,severity,title,description,location,action_taken,first_aid_given,first_aid_by,parent_notified,parent_notified_at,parent_notified_method,reported_by,witness,follow_up_required,follow_up_notes,regulatory_report_required,regulatory_reported_at,created_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`
-    ).run(id, req.tenantId, b.child_id||null, b.date, b.time||null, b.type, b.severity||'minor',
+    ).run(id, req.tenantId, b.child_id||null, date, b.time||null, type, b.severity||'minor',
       b.title||null, b.description||null, b.location||null, b.action_taken||null,
       b.first_aid_given?1:0, b.first_aid_by||null,
       b.parent_notified?1:0, b.parent_notified_at||null, b.parent_notified_method||null,

@@ -4,6 +4,19 @@ import { requireAuth, requireTenant, requireRole } from './middleware.js';
 
 const router = Router();
 
+// ── GET / — list enrolment summary (children + counts) ─────────────────────
+router.get('/', requireAuth, requireTenant, (req, res) => {
+  try {
+    const children = D().prepare(
+      'SELECT id, first_name, last_name, dob, room_id, enrolled_date, active FROM children WHERE tenant_id=? ORDER BY first_name, last_name'
+    ).all(req.tenantId);
+    const applications = D().prepare(
+      'SELECT id, status, child_first_name, child_last_name, submitted_at FROM enrolment_applications WHERE tenant_id=? ORDER BY submitted_at DESC LIMIT 50'
+    ).all(req.tenantId);
+    res.json({ children, applications });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── PUBLIC: Parent enrolment (no tenant needed, just auth) ──────────────────
 router.post('/apply', requireAuth, (req, res) => {
   const a = req.body;

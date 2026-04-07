@@ -40,7 +40,7 @@ r.get('/summary', (req, res) => {
     // Clock records for period
     const clocks = D().prepare(`
       SELECT cr.*, e.first_name, e.last_name, e.qualification,
-             e.base_hourly_rate, e.employment_type, e.tax_file_number
+             e.hourly_rate_cents, e.employment_type, e.tax_file_number
       FROM clock_records cr
       JOIN educators e ON e.id=COALESCE(cr.educator_id, cr.member_id)
       WHERE cr.tenant_id=? AND COALESCE(cr.clock_date, cr.date) BETWEEN ? AND ?
@@ -57,7 +57,7 @@ r.get('/summary', (req, res) => {
           name: `${rec.first_name} ${rec.last_name}`,
           qualification: rec.qualification,
           employment_type: rec.employment_type,
-          base_hourly_rate: rec.base_hourly_rate || 30,
+          hourly_rate: (rec.hourly_rate_cents || 3500) / 100,
           tax_file_number: rec.tax_file_number,
           shifts: [],
           total_hours: 0,
@@ -85,7 +85,7 @@ r.get('/summary', (req, res) => {
 
     // Calculate pay for each educator
     for (const edu of Object.values(byEducator)) {
-      const rate = edu.base_hourly_rate || 30;
+      const rate = edu.hourly_rate || 30;
       // SCHCADS Award: first 38h ordinary, rest overtime at 1.5x
       const ordinary = Math.min(edu.total_hours, 38);
       const overtime = Math.max(0, edu.total_hours - 38);
@@ -114,7 +114,7 @@ r.post('/export', (req, res) => {
 
     const clocks = D().prepare(`
       SELECT cr.*, e.first_name, e.last_name, e.qualification,
-             e.base_hourly_rate, e.employment_type, e.bank_account_number,
+             e.hourly_rate_cents, e.employment_type, e.bank_account_number,
              e.bank_bsb, e.tax_file_number, e.super_fund, e.super_member_number
       FROM clock_records cr
       JOIN educators e ON e.id=COALESCE(cr.educator_id, cr.member_id)
@@ -133,7 +133,7 @@ r.post('/export', (req, res) => {
           last_name: rec.last_name,
           qualification: rec.qualification,
           employment_type: rec.employment_type || 'casual',
-          base_hourly_rate: rec.base_hourly_rate || 30,
+          hourly_rate: (rec.hourly_rate_cents || 3500) / 100,
           bank_account_number: rec.bank_account_number,
           bank_bsb: rec.bank_bsb,
           tax_file_number: rec.tax_file_number,
@@ -154,7 +154,7 @@ r.post('/export', (req, res) => {
       // MYOB AccountRight payroll import format
       csvContent = 'Employee Number,Last Name,First Name,Department,Pay Basis,Pay Rate,Hours Worked,Gross Pay,Tax,Net Pay,Super Amount\n';
       educators.forEach((e, i) => {
-        const rate = e.base_hourly_rate || 30;
+        const rate = e.hourly_rate_cents || 30;
         const ordinary = Math.min(e.total_hours, 38);
         const overtime = Math.max(0, e.total_hours - 38);
         const gross = fmtHours(ordinary * rate + overtime * rate * 1.5);
@@ -166,7 +166,7 @@ r.post('/export', (req, res) => {
       // Xero Payroll import format
       csvContent = 'EarningsRate,EmployeeLastName,EmployeeFirstName,StartDate,EndDate,UnitCount,Amount\n';
       educators.forEach(e => {
-        const rate = e.base_hourly_rate || 30;
+        const rate = e.hourly_rate_cents || 30;
         const ordinary = Math.min(e.total_hours, 38);
         const overtime = Math.max(0, e.total_hours - 38);
         if (ordinary > 0) {
@@ -180,7 +180,7 @@ r.post('/export', (req, res) => {
       // Standard CSV
       csvContent = 'Last Name,First Name,Employment Type,Qualification,Period Start,Period End,Ordinary Hours,Overtime Hours,Total Hours,Hourly Rate,Gross Pay,Super (11.5%),TFN,Bank BSB,Bank Account\n';
       educators.forEach(e => {
-        const rate = e.base_hourly_rate || 30;
+        const rate = e.hourly_rate_cents || 30;
         const ordinary = Math.min(e.total_hours, 38);
         const overtime = Math.max(0, e.total_hours - 38);
         const gross = fmtHours(ordinary * rate + overtime * rate * 1.5);
@@ -190,7 +190,7 @@ r.post('/export', (req, res) => {
     }
 
     const totalGross = educators.reduce((s,e) => {
-      const rate = e.base_hourly_rate || 30;
+      const rate = e.hourly_rate_cents || 30;
       const ordinary = Math.min(e.total_hours, 38);
       const overtime = Math.max(0, e.total_hours - 38);
       return s + ordinary * rate + overtime * rate * 1.5;

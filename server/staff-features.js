@@ -105,7 +105,8 @@ r.get('/staff-list', (req, res) => {
              r.name as room_name,
              tm.role
       FROM educators e
-      LEFT JOIN rooms r ON r.id = e.room_id
+      LEFT JOIN educator_room_assignments era ON era.educator_id = e.id AND era.tenant_id = e.tenant_id
+      LEFT JOIN rooms r ON r.id = era.room_id
       LEFT JOIN tenant_members tm ON tm.user_id = e.user_id AND tm.tenant_id = e.tenant_id
       WHERE e.tenant_id=? AND e.status='active'
       ORDER BY e.first_name, e.last_name
@@ -168,7 +169,8 @@ r.get('/pd-requests', (req, res) => {
         SELECT pr.*, e.first_name, e.last_name, e.qualification, r.name as room_name
         FROM pd_requests pr
         JOIN educators e ON e.id = pr.educator_id
-        LEFT JOIN rooms r ON r.id = e.room_id
+        LEFT JOIN educator_room_assignments era ON era.educator_id = e.id AND era.tenant_id = e.tenant_id
+        LEFT JOIN rooms r ON r.id = era.room_id
         WHERE pr.tenant_id=?
         ORDER BY pr.created_at DESC
       `).all(req.tenantId);

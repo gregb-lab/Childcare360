@@ -30,14 +30,14 @@ r.get('/current', (req, res) => {
       FROM roster_entries re
       JOIN educators e ON e.id=re.educator_id
       LEFT JOIN rooms r ON r.id=re.room_id
-      WHERE re.tenant_id=? AND re.shift_date BETWEEN ? AND ?
-      ORDER BY re.shift_date, re.start_time, e.last_name
+      WHERE re.tenant_id=? AND re.date BETWEEN ? AND ?
+      ORDER BY re.date, re.start_time, e.last_name
     `).all(req.tenantId, monday, friday);
 
     // Group by date
     const byDate = {};
     shifts.forEach(s => {
-      (byDate[s.shift_date] = byDate[s.shift_date] || []).push(s);
+      (byDate[s.date] = byDate[s.date] || []).push(s);
     });
 
     const rooms = D().prepare('SELECT * FROM rooms WHERE tenant_id=? ORDER BY name').all(req.tenantId);
@@ -60,22 +60,22 @@ r.post('/publish', (req, res) => {
       FROM roster_entries re
       JOIN educators e ON e.id=re.educator_id
       LEFT JOIN users u ON u.id=e.user_id
-      WHERE re.tenant_id=? AND re.shift_date BETWEEN ? AND ?
+      WHERE re.tenant_id=? AND re.date BETWEEN ? AND ?
     `).all(req.tenantId, week_start, friday);
 
     let notified = 0;
     for (const edu of educators) {
       // Get their specific shifts
       const myShifts = D().prepare(`
-        SELECT re.shift_date, re.start_time, re.end_time, r.name as room_name
+        SELECT re.date, re.start_time, re.end_time, r.name as room_name
         FROM roster_entries re
         LEFT JOIN rooms r ON r.id=re.room_id
-        WHERE re.tenant_id=? AND re.educator_id=? AND re.shift_date BETWEEN ? AND ?
-        ORDER BY re.shift_date, re.start_time
+        WHERE re.tenant_id=? AND re.educator_id=? AND re.date BETWEEN ? AND ?
+        ORDER BY re.date, re.start_time
       `).all(req.tenantId, edu.id, week_start, friday);
 
       const shiftSummary = myShifts.map(s =>
-        `${new Date(s.shift_date+'T12:00').toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'short'})}: ` +
+        `${new Date(s.date+'T12:00').toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'short'})}: ` +
         `${s.start_time||'TBC'} – ${s.end_time||'TBC'}${s.room_name ? ` (${s.room_name})` : ''}`
       ).join('\n');
 
@@ -118,13 +118,13 @@ r.get('/educator/:educatorId', (req, res) => {
     const to   = new Date(Date.now() + 28*86400000).toISOString().split('T')[0];
 
     const shifts = D().prepare(`
-      SELECT re.shift_date, re.start_time, re.end_time, re.status,
+      SELECT re.date, re.start_time, re.end_time, re.status,
              r.name as room_name, r.age_group,
              re.notes
       FROM roster_entries re
       LEFT JOIN rooms r ON r.id=re.room_id
-      WHERE re.tenant_id=? AND re.educator_id=? AND re.shift_date BETWEEN ? AND ?
-      ORDER BY re.shift_date, re.start_time
+      WHERE re.tenant_id=? AND re.educator_id=? AND re.date BETWEEN ? AND ?
+      ORDER BY re.date, re.start_time
     `).all(req.tenantId, req.params.educatorId, from, to);
 
     const totalHours = shifts.reduce((s, shift) => {

@@ -321,7 +321,7 @@ router.get('/', (req, res) => {
         FROM child_documents cd
         LEFT JOIN children c ON cd.child_id = c.id
         WHERE cd.tenant_id = ? AND cd.ai_status = 'review_needed'
-        ORDER BY cd.uploaded_at DESC
+        ORDER BY cd.created_at DESC
       `).all(req.tenantId);
       // educator docs pending
       const edDocs = D().prepare(`
@@ -339,7 +339,7 @@ router.get('/', (req, res) => {
         FROM child_documents cd
         LEFT JOIN children c ON cd.child_id = c.id
         WHERE cd.tenant_id = ?
-        ORDER BY cd.uploaded_at DESC
+        ORDER BY cd.created_at DESC
       `).all(req.tenantId);
     } else if (scope === 'educators') {
       docs = D().prepare(`
@@ -355,7 +355,7 @@ router.get('/', (req, res) => {
         FROM child_documents cd
         LEFT JOIN children c ON cd.child_id = c.id
         WHERE cd.tenant_id = ?
-        ORDER BY cd.uploaded_at DESC LIMIT 100
+        ORDER BY cd.created_at DESC LIMIT 100
       `).all(req.tenantId);
     }
     res.json(docs);

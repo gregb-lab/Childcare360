@@ -156,17 +156,17 @@ r.get('/forecast', (req, res) => {
     const from = daysAgo(56);
 
     const byDow = D().prepare(`
-      SELECT strftime('%w', a.date) as dow,
-        AVG(daily_count) as avg_present
+      SELECT sub.dow,
+        AVG(sub.daily_count) as avg_present
       FROM (
         SELECT a.date, strftime('%w', a.date) as dow,
           COUNT(CASE WHEN a.absent=0 AND a.sign_in IS NOT NULL THEN 1 END) as daily_count
         FROM attendance_sessions a
         WHERE a.tenant_id=? AND a.date >= ?
         GROUP BY a.date
-      )
-      WHERE dow BETWEEN '1' AND '5'
-      GROUP BY dow
+      ) sub
+      WHERE sub.dow BETWEEN '1' AND '5'
+      GROUP BY sub.dow
     `).all(req.tenantId, from);
 
     const avgByDow = {};

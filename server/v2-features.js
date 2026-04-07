@@ -26,14 +26,23 @@ router.use(requireTenant);
 router.get('/activity-log', (req, res) => {
   try {
     const { entity_type, entity_id, limit } = req.query;
-    if (!entity_type || !entity_id) return res.status(400).json({ error: 'entity_type and entity_id required' });
 
-    const rows = D().prepare(`
-      SELECT al.*, u.name as user_name FROM activity_log al
-      LEFT JOIN users u ON u.id=al.performed_by
-      WHERE al.tenant_id=? AND al.entity_type=? AND al.entity_id=?
-      ORDER BY al.created_at DESC LIMIT ?
-    `).all(req.tenantId, entity_type, entity_id, parseInt(limit) || 100);
+    let rows;
+    if (entity_type && entity_id) {
+      rows = D().prepare(`
+        SELECT al.*, u.name as user_name FROM activity_log al
+        LEFT JOIN users u ON u.id=al.performed_by
+        WHERE al.tenant_id=? AND al.entity_type=? AND al.entity_id=?
+        ORDER BY al.performed_at DESC LIMIT ?
+      `).all(req.tenantId, entity_type, entity_id, parseInt(limit) || 100);
+    } else {
+      rows = D().prepare(`
+        SELECT al.*, u.name as user_name FROM activity_log al
+        LEFT JOIN users u ON u.id=al.performed_by
+        WHERE al.tenant_id=?
+        ORDER BY al.performed_at DESC LIMIT ?
+      `).all(req.tenantId, parseInt(limit) || 50);
+    }
 
     res.json({ logs: rows });
   } catch(e) { res.status(500).json({ error: e.message }); }

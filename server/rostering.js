@@ -838,24 +838,32 @@ r.get('/attendance-patterns', (req, res) => {
     const sessions = db.prepare(`
       SELECT a.*, c.room_id FROM attendance_sessions a
       LEFT JOIN children c ON a.child_id = c.id
-      WHERE a.tenant_id=? AND a.sign_in >= ?
-      ORDER BY a.sign_in
-    `).all(req.tenantId, sinceDate.toISOString());
+      WHERE a.tenant_id=? AND a.date >= ?
+      ORDER BY a.date, a.sign_in
+    `).all(req.tenantId, sinceDate.toISOString().split('T')[0]);
 
     const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const byDay = {};
     DAYS.forEach((d,i) => { byDay[i] = { arrivals: [], departures: [], count: 0 }; });
 
     sessions.forEach(s => {
-      if (!s.sign_in) return;
-      const d  = new Date(s.sign_in);
+      if (!s.date) return;
+      const d  = new Date(s.date + 'T12:00:00');
       const dow = d.getDay();
-      const mins = d.getHours() * 60 + d.getMinutes();
-      byDay[dow].arrivals.push(mins);
-      byDay[dow].count++;
+      if (!byDay[dow]) return;
+      if (s.sign_in) {
+        const [h, m] = s.sign_in.split(':').map(Number);
+        if (!isNaN(h)) {
+          const mins = h * 60 + (m || 0);
+          byDay[dow].arrivals.push(mins);
+          byDay[dow].count++;
+        }
+      }
       if (s.sign_out) {
-        const dep = new Date(s.sign_out);
-        byDay[dow].departures.push(dep.getHours() * 60 + dep.getMinutes());
+        const [h, m] = s.sign_out.split(':').map(Number);
+        if (!isNaN(h)) {
+          byDay[dow].departures.push(h * 60 + (m || 0));
+        }
       }
     });
 
