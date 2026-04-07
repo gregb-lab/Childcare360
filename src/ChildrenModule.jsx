@@ -1015,16 +1015,15 @@ function DietaryTab({ child, onSaved }) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 800, fontSize: 13, color: "#3D3248" }}>{r.name}</span>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: "#3D3248" }}>{r.name || r.description}</span>
                         <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: sev.color, color: "#fff" }}>{sev.label}</span>
-                        {r.is_anaphylactic && <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 9, fontWeight: 700, background: "#B71C1C", color: "#fff" }}>⚠ ANAPHYLACTIC</span>}
+                        {r.is_anaphylactic ? <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 9, fontWeight: 700, background: "#B71C1C", color: "#fff" }}>⚠ ANAPHYLACTIC</span> : null}
                       </div>
-                      <div style={{ fontSize: 12, color: "#5C4E6A", marginTop: 4 }}>{r.description || r.notes}</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
-                      <div style={{ fontSize: 10, color: "#8A7F96" }}>{r.category}</div>
-                      {r.mrmp_attached && <div style={{ fontSize: 10, color: "#2E7D32", fontWeight: 700, marginTop: 2 }}>✓ MRMP on file</div>}
-                      {r.mcp_attached && <div style={{ fontSize: 10, color: "#7E5BA3", fontWeight: 700, marginTop: 2 }}>✓ MCP on file</div>}
+                      <div style={{ fontSize: 10, color: "#8A7F96", textTransform: "capitalize" }}>{r.category || r.type || "allergy"}</div>
+                      {r.risk_minimisation_plan_url && <div style={{ fontSize: 10, color: "#2E7D32", fontWeight: 700, marginTop: 2 }}>✓ MRMP on file</div>}
+                      {r.medical_communication_plan_url && <div style={{ fontSize: 10, color: "#7E5BA3", fontWeight: 700, marginTop: 2 }}>✓ MCP on file</div>}
                     </div>
                   </div>
                   {r.action_required && (

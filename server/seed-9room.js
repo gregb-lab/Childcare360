@@ -265,6 +265,24 @@ for (const m of meds) {
 }
 console.log('  ✓', medPlans.length, 'medical plans,', meds.length, 'medications');
 
+// ── STEP 4b: Dietary Records (child_dietary table) ────────────────────────────
+console.log('  → Creating dietary records...');
+const dietaryRecords = [
+  { child:'Oscar Campbell',type:'intolerance',desc:'Dairy intolerance',sev:'moderate',action:'No cows milk, cheese, yoghurt, ice cream, butter. Soy or oat milk alternatives provided by family. Separate utensils not required.',anaph:0 },
+  { child:'Ivy Nakamura',type:'allergy',desc:'Egg allergy',sev:'moderate',action:'No eggs in any form (scrambled, baked goods, mayonnaise, pasta with egg). Family provides egg-free alternatives for baking days. Check all ingredient labels.',anaph:0 },
+  { child:'Jai Kapoor',type:'allergy',desc:'Peanut allergy — ANAPHYLAXIS',sev:'anaphylactic',action:'SEVERE: No peanuts, peanut butter, peanut oil, tree nuts. EpiPen Jr x2 in RED BAG in Ladybirds fridge. Administer immediately if symptoms appear. Call 000.',anaph:1 },
+  { child:'Arjun Nair',type:'allergy',desc:'Egg allergy — ANAPHYLAXIS',sev:'anaphylactic',action:'SEVERE: No eggs in any form. EpiPen Jr in Possums first aid kit. Administer immediately on exposure. Call 000.',anaph:1 },
+  { child:'Archer Davies',type:'allergy',desc:'Asthma (exercise-induced)',sev:'moderate',action:'Ventolin + spacer available in Ladybirds first aid box. Pre-medicate before vigorous outdoor play in cold weather. Sit upright during episodes.',anaph:0 },
+  { child:'Kian O\'Dowd',type:'allergy',desc:'Coeliac disease — strict gluten-free',sev:'severe',action:'STRICT gluten-free diet. No wheat, barley, rye, oats. Separate chopping board and utensils. Do not share food with other children. Kitchen notified.',anaph:0 },
+  { child:'Charlotte Reeves',type:'other',desc:'Atopic eczema — topical treatment',sev:'mild',action:'Apply QV Cream morning and afternoon. Use only fragrance-free soap and sunscreen. Cotton clothing preferred. Notify parent if flare-up occurs.',anaph:0 },
+];
+for (const dr of dietaryRecords) {
+  const cid = childByName[dr.child]; if (!cid) continue;
+  db.prepare('INSERT INTO child_dietary (id,tenant_id,child_id,type,description,severity,action_required,notified_kitchen,is_anaphylactic,created_at) VALUES(?,?,?,?,?,?,?,1,?,?)')
+    .run(uuid(),T,cid,dr.type,dr.desc,dr.sev,dr.action,dr.anaph,now());
+}
+console.log('  ✓', dietaryRecords.length, 'dietary records');
+
 // ── STEP 5: Immunisations ─────────────────────────────────────────────────────
 console.log('\n[5/12] Creating immunisation records...');
 let immCount = 0;
