@@ -407,8 +407,8 @@ export default function ChildcareRosterApp() {
     ];
     return (saved && validTabs.includes(saved)) ? saved : "dashboard";
   });
-  const [educators, setEducators] = useState(INITIAL_EDUCATORS.map((e) => ({ ...e, status: "clocked_out", clockInTime: null, onBreak: false, breakStart: null, totalBreak: 0, todayHours: 0 })));
-  const [rooms, setRooms] = useState(INITIAL_ROOMS);
+  const [educators, setEducators] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [clockRecords, setClockRecords] = useState([]);
   const [rosterEntries, setRosterEntries] = useState([]);
   const [rosterPeriod, setRosterPeriod] = useState("weekly");
@@ -430,23 +430,19 @@ export default function ChildcareRosterApp() {
   const [notifications, setNotifications] = useState([]);
   const [liveEducatorCount, setLiveEducatorCount] = useState(null);
 
-  // Fetch live child count for sidebar
+  // Fetch live centre status (educators with clock status + rooms from DB)
   useEffect(() => {
     const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
     if (!t || !tid) return;
-    fetch("/api/children/debug-count", {
-      headers: { Authorization: "Bearer " + t, "x-tenant-id": tid, "Content-Type": "application/json" }
-    }).then(r => r.json()).then(d => { if (d.childCount != null) setLiveChildCount(d.childCount); }).catch(() => {});
-    // Educator count
-    fetch("/api/educators/all-leave", {
-      headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}), ...(tid ? { "x-tenant-id": tid } : {}) }
-    }).then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setPendingLeaveCount(d.filter(r=>r.status==='pending').length); }).catch(()=>{});
-    fetch("/api/educators", {
-      headers: { Authorization: "Bearer " + t, "x-tenant-id": tid }
-    }).then(r => r.json()).then(d => {
-      const arr = Array.isArray(d) ? d : (d.educators || []);
-      setLiveEducatorCount(arr.filter(e => e.status === 'active').length);
+    const hdrs = { Authorization: "Bearer " + t, "x-tenant-id": tid, "Content-Type": "application/json" };
+    // Load real educators and rooms from DB
+    fetch("/api/live-status", { headers: hdrs }).then(r => r.json()).then(d => {
+      if (d.educators) setEducators(d.educators);
+      if (d.rooms) setRooms(d.rooms);
+      if (d.educators) setLiveEducatorCount(d.educators.filter(e => e.status === 'clocked_in' || e.active).length);
     }).catch(() => {});
+    fetch("/api/children/debug-count", { headers: hdrs }).then(r => r.json()).then(d => { if (d.childCount != null) setLiveChildCount(d.childCount); }).catch(() => {});
+    fetch("/api/educators/all-leave", { headers: hdrs }).then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setPendingLeaveCount(d.filter(r=>r.status==='pending').length); }).catch(()=>{});
   }, []);
   const [observations, setObservations] = useState([]);
   const [dailyPlans, setDailyPlans] = useState([]);

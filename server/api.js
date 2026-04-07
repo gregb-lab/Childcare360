@@ -462,6 +462,45 @@ router.get('/dashboard/today', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ LIVE CENTRE STATUS — educators with clock status + rooms from DB ═════════
+router.get('/live-status', requireAuth, requireTenant, (req, res) => {
+  try {
+    const db = D();
+    const today = new Date().toISOString().split('T')[0];
+    const tid = req.tenantId;
+
+    // Get all active educators with today's clock record
+    const educators = db.prepare(`
+      SELECT e.id, e.first_name || ' ' || e.last_name as name, e.first_name, e.last_name,
+        e.qualification, e.phone, e.email, e.employment_type as employmentType,
+        e.hourly_rate_cents as hourlyRate, e.wwcc_number as wwcc, e.wwcc_expiry as wwccExpiry,
+        e.first_aid as firstAid, e.first_aid_expiry as firstAidExpiry,
+        e.cpr_expiry as cprExpiry, e.anaphylaxis_expiry as anaphylaxisExpiry,
+        e.is_under_18 as isUnder18, e.status,
+        cr.id as clockRecordId, cr.clock_in as clockInTime,
+        cr.break_start as breakStart, cr.clock_out as clockOut
+      FROM educators e
+      LEFT JOIN clock_records cr ON cr.educator_id=e.id AND cr.clock_date=? AND cr.tenant_id=? AND cr.clock_out IS NULL
+      WHERE e.tenant_id=? AND e.status='active'
+      ORDER BY e.first_name
+    `).all(today, tid, tid);
+
+    const mapped = educators.map(e => ({
+      ...e,
+      active: true,
+      status: e.clockInTime && !e.clockOut ? "clocked_in" : "clocked_out",
+      onBreak: !!e.breakStart,
+      totalBreak: 0,
+      todayHours: 0,
+    }));
+
+    // Get rooms from DB
+    const rooms = db.prepare('SELECT id, name, age_group as ageGroup, capacity, current_children as currentChildren FROM rooms WHERE tenant_id=? ORDER BY name').all(tid);
+
+    res.json({ educators: mapped, rooms });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
 
 // ─── ROOM EDUCATOR ASSIGNMENTS v1.9.5 ─────────────────────────────────────────
