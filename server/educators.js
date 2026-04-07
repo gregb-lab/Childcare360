@@ -21,6 +21,40 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET /api/educators/all-leave — all leave requests (must be BEFORE /:id)
+router.get('/all-leave', requireAuth, requireTenant, (req, res) => {
+  try {
+    const rows = D().prepare(`
+      SELECT lr.*, e.first_name || ' ' || e.last_name as educator_name, e.qualification, e.id as educator_id
+      FROM leave_requests lr JOIN educators e ON e.id = lr.educator_id
+      WHERE lr.tenant_id=? ORDER BY lr.status='pending' DESC, lr.created_at DESC LIMIT 100
+    `).all(req.tenantId);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/educators/simple — lightweight list (must be BEFORE /:id)
+router.get('/simple', (req, res) => {
+  try { res.json(D().prepare('SELECT id, first_name, last_name, qualification, status FROM educators WHERE tenant_id=?').all(req.tenantId)); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/educators/super-funds (must be BEFORE /:id)
+router.get('/super-funds', (req, res) => {
+  try {
+    const rows = D().prepare("SELECT DISTINCT super_fund_name, super_fund_usi FROM educators WHERE tenant_id=? AND super_fund_name IS NOT NULL AND super_fund_name != ''").all(req.tenantId);
+    res.json(rows);
+  } catch(e) { res.json([]); }
+});
+
+// GET /api/educators/necwr-status (must be BEFORE /:id)
+router.get('/necwr-status', requireAuth, requireTenant, (req, res) => {
+  try {
+    const rows = D().prepare("SELECT id, first_name, last_name, necwr_status, necwr_number, necwr_submitted_at FROM educators WHERE tenant_id=? AND status='active'").all(req.tenantId);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET single educator with full profile
 router.get('/:id', (req, res) => {
   try {
@@ -182,17 +216,7 @@ router.get('/:id/leave-requests', requireAuth, requireTenant, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/educators/all-leave — all pending leave across all educators (for managers)
-router.get('/all-leave', requireAuth, requireTenant, (req, res) => {
-  try {
-    const rows = D().prepare(`
-      SELECT lr.*, e.first_name || ' ' || e.last_name as educator_name, e.qualification
-      FROM leave_requests lr JOIN educators e ON e.id = lr.educator_id
-      WHERE lr.tenant_id=? ORDER BY lr.status='pending' DESC, lr.created_at DESC LIMIT 100
-    `).all(req.tenantId);
-    res.json(rows);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+// all-leave moved above /:id route
 
 
 // POST create leave request
@@ -310,12 +334,7 @@ router.delete('/:id/termination-documents/:docId', (req, res) => {
 });
 
 // ── Super Fund routes ────────────────────────────────────────────────────────
-router.get('/super-funds', (req, res) => {
-  try {
-    const funds = D().prepare('SELECT * FROM super_funds WHERE tenant_id=? ORDER BY fund_name').all(req.tenantId);
-    res.json(funds);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+// super-funds GET moved above /:id route
 
 router.post('/super-funds', (req, res) => {
   try {
@@ -380,20 +399,7 @@ router.get('/:id/verify-ner', requireAuth, requireTenant, (req, res) => {
 
 // ─── NECWR (National Early Childhood Worker Register) ────────────────────────
 
-// GET /api/educators/necwr-status — list all educators with their NECWR status
-router.get('/necwr-status', requireAuth, requireTenant, (req, res) => {
-  try {
-    const rows = D().prepare(`
-      SELECT id, first_name, last_name, qualification, employment_type,
-             necwr_status, necwr_submitted_at, necwr_confirmation, necwr_submitted_by,
-             wwcc_number, wwcc_expiry, email, active, termination_date
-      FROM educators
-      WHERE tenant_id=? AND active=1 AND (termination_date IS NULL OR termination_date > date('now'))
-      ORDER BY first_name, last_name
-    `).all(req.tenantId);
-    res.json(rows);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+// necwr-status GET moved above /:id route
 
 // PUT /api/educators/:id/necwr — update NECWR submission status
 router.put('/:id/necwr', requireAuth, requireTenant, (req, res) => {
@@ -449,11 +455,6 @@ router.put('/leave/:id/decide', requireAuth, requireTenant, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /simple — lightweight educator list for dropdowns
-router.get('/simple', (req, res) => {
-  try {
-    res.json(D().prepare('SELECT id, first_name, last_name, qualification, status FROM educators WHERE tenant_id=?').all(req.tenantId));
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+// simple GET moved above /:id route
 
 export default router;

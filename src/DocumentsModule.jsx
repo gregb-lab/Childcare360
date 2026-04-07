@@ -37,7 +37,9 @@ function CatBadge({ cat }) {
 }
 
 export default function DocumentsModule() {
-  const [tab, setTab] = useState("pending");
+  const initTab = typeof window !== 'undefined' && localStorage.getItem('c360_docs_tab');
+  const [tab, setTab] = useState(initTab || "pending");
+  if (initTab) localStorage.removeItem('c360_docs_tab');
   const [pending, setPending] = useState([]);
   const [childDocs, setChildDocs] = useState([]);
   const [educatorDocs, setEducatorDocs] = useState([]);
@@ -82,10 +84,15 @@ export default function DocumentsModule() {
     d.educator_name?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const [expiring, setExpiring] = useState({ educator_docs: [], medical_plans: [] });
+  useEffect(() => { API("/api/documents/expiring?days=60").then(d => { if (d && !d.error) setExpiring(d); }).catch(() => {}); }, []);
+  const expiringCount = (expiring.educator_docs?.length || 0) + (expiring.medical_plans?.length || 0);
+
   const tabs = [
     { id: "pending", label: `Pending Review${pending.length > 0 ? ` (${pending.length})` : ""}` },
     { id: "children", label: "Children's Docs" },
     { id: "educators", label: "Educator Docs" },
+    { id: "expiring", label: `Expiring${expiringCount > 0 ? ` (${expiringCount})` : ""}` },
   ];
 
   return (
@@ -192,6 +199,50 @@ export default function DocumentsModule() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Expiring Documents Tab */}
+      {tab === "expiring" && (
+        <div style={cardS}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700 }}>⏰ Expiring & Expired Documents</h3>
+          <p style={{ margin: "0 0 16px", fontSize: 12, color: "#8A7F96" }}>All documents expiring within 60 days or already expired</p>
+          {expiringCount === 0 ? (
+            <div style={{ textAlign: "center", padding: 30, color: "#6BA38B", fontWeight: 600 }}>✅ No expiring documents</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #EDE8F4" }}>
+                  {["Document", "Person", "Expiry Date", "Days Left", "Status"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#8A7F96", textTransform: "uppercase" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...(expiring.educator_docs || []), ...(expiring.medical_plans || [])].sort((a,b) => (a.expiry_date||"").localeCompare(b.expiry_date||"")).map((doc, i) => {
+                  const daysLeft = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date) - new Date()) / 86400000) : null;
+                  const statusColor = daysLeft === null ? "#8A7F96" : daysLeft < 0 ? "#DC2626" : daysLeft < 30 ? "#D97706" : "#E65100";
+                  const statusLabel = daysLeft === null ? "Unknown" : daysLeft < 0 ? "EXPIRED" : daysLeft < 7 ? "URGENT" : "Expiring";
+                  return (
+                    <tr key={i} style={{ borderBottom: "1px solid #F0EBE6" }}>
+                      <td style={{ padding: "10px 12px", fontWeight: 600 }}>{doc.document_type || doc.label || "Document"}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <span>{doc.person_name}</span>
+                        <span style={{ fontSize: 10, color: "#8A7F96", marginLeft: 6 }}>({doc.person_type})</span>
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>{doc.expiry_date || "—"}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 700, color: statusColor }}>
+                        {daysLeft !== null ? (daysLeft < 0 ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days`) : "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 700, color: "#fff", background: statusColor }}>{statusLabel}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       )}

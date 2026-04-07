@@ -501,6 +501,59 @@ router.get('/live-status', requireAuth, requireTenant, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ RATIO INTERVAL — 30-min compliance check for today ═══════════════════════
+router.get('/roster/ratio-interval', requireAuth, requireTenant, (req, res) => {
+  try {
+    const db = D();
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const tid = req.tenantId;
+    const rooms = db.prepare("SELECT id, name, age_group, current_children FROM rooms WHERE tenant_id=? ORDER BY name").all(tid);
+    const entries = db.prepare(`
+      SELECT re.educator_id, re.room_id, re.start_time, re.end_time, re.break_mins, e.qualification
+      FROM roster_entries re
+      JOIN educators e ON e.id = re.educator_id
+      JOIN roster_periods rp ON rp.id = re.period_id
+      WHERE re.date=? AND re.tenant_id=? AND rp.status IN ('published','approved')
+    `).all(date, tid);
+
+    const NQF = {'0-2':4,'2-3':5,'3-4':11,'3-5':11,'4-5':11};
+    const intervals = [];
+    let improvementsNeeded = 0;
+    let totalSlots = 0;
+
+    for (let m = 360; m < 1140; m += 30) { // 6am to 7pm in 30-min slots
+      const slotH = String(Math.floor(m/60)).padStart(2,'0');
+      const slotM = String(m%60).padStart(2,'0');
+      const slot = `${slotH}:${slotM}`;
+      let totalChildren = 0, totalStaff = 0, deficit = 0;
+
+      for (const room of rooms) {
+        const children = room.current_children || 0;
+        if (children === 0) continue;
+        const ratio = NQF[room.age_group] || 11;
+        const required = Math.max(1, Math.ceil(children / ratio));
+        const present = entries.filter(e => {
+          if (e.room_id !== room.id) return false;
+          const sM = parseInt(e.start_time?.split(':')[0]||7)*60 + parseInt(e.start_time?.split(':')[1]||0);
+          const eM = parseInt(e.end_time?.split(':')[0]||15)*60 + parseInt(e.end_time?.split(':')[1]||0);
+          return sM <= m && eM > m;
+        }).length;
+        totalChildren += children;
+        totalStaff += present;
+        if (present < required) deficit += (required - present);
+      }
+
+      if (totalChildren > 0) {
+        totalSlots++;
+        if (deficit > 0) improvementsNeeded++;
+        intervals.push({ slot, children_count: totalChildren, staff_count: totalStaff, deficit });
+      }
+    }
+
+    res.json({ intervals, total_slots: totalSlots, improvements_needed: improvementsNeeded, date });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
 
 // ─── ROOM EDUCATOR ASSIGNMENTS v1.9.5 ─────────────────────────────────────────

@@ -403,7 +403,7 @@ export default function ChildcareRosterApp() {
       "message_centre","comms","bulk_comms","messaging","documents","voice",
       "risk_assessments","reports_builder","admin_power","checklists","notifications","soc2",
       "owner_portal","hq_dashboard",
-      "parent","staff","settings","rostering"
+      "parent","staff","settings","rostering","leave_requests"
     ];
     return (saved && validTabs.includes(saved)) ? saved : "dashboard";
   });
@@ -486,14 +486,7 @@ export default function ChildcareRosterApp() {
     complianceStatus.qualComp.issues.forEach((issue) => {
       newAlerts.push({ type: "warning", message: issue });
     });
-    educators.forEach((e) => {
-      if (e.wwccExpiry) {
-        const expiry = new Date(e.wwccExpiry);
-        const daysUntil = Math.ceil((expiry - now) / 86400000);
-        if (daysUntil < 0) newAlerts.push({ type: "critical", message: `${e.name}: WWCC EXPIRED` });
-        else if (daysUntil < 30) newAlerts.push({ type: "warning", message: `${e.name}: WWCC expires in ${daysUntil} days` });
-      }
-    });
+    // WWCC/cert alerts come from server via today?.expiring_certs — no client-side duplication
     setAlerts(newAlerts);
   }, [complianceStatus, educators, now]);
 
@@ -642,6 +635,7 @@ export default function ChildcareRosterApp() {
         { id: "compliance", label: "Compliance", icon: "shield" },
         { id: "ratio_report", label: "Ratio Report", icon: "chart" },
         { id: "wellbeing", label: "Staff Wellbeing", icon: "people" },
+        { id: "leave_requests", label: "Leave Requests", icon: "calendar" },
         { id: "payroll", label: "💵 Payroll Export", icon: "chart" },
     ]},
     { label: "Finance", items: [
@@ -1006,6 +1000,7 @@ export default function ChildcareRosterApp() {
           {activeTab === "kiosk" && <KioskModule />}
           {activeTab === "payroll" && <PayrollModule />}
           {activeTab === "wellbeing" && <StaffWellbeingModule />}
+          {activeTab === "leave_requests" && <LeaveRequestsView />}
           {activeTab === "parent" && <Suspense fallback={null}><PortalEmulator mode="parent" onClose={() => setActiveTab("dashboard")} ParentModule={ParentPortalModule} StaffModule={StaffPortalModule} /></Suspense>}
           {activeTab === "excursions" && <ExcursionsModule />}
           {activeTab === "incidents" && <IncidentModule />}
@@ -1078,6 +1073,108 @@ function StatCard({ label, value, sub, color = "#8B6DAF", icon, onClick }) {
   );
 }
 
+// ─── LEAVE REQUESTS VIEW ──────────────────────────────────────────────────────
+function LeaveRequestsView() {
+  const [leaves, setLeaves] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+
+  const API2 = (path, opts={}) => {
+    const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+    return fetch(path, { method: opts.method||"GET",
+      headers: { "Content-Type": "application/json", ...(t?{Authorization:`Bearer ${t}`}:{}), ...(tid?{"x-tenant-id":tid}:{}) },
+      ...(opts.body ? { body: JSON.stringify(opts.body) } : {}) }).then(r => r.json());
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    API2("/api/educators/all-leave").then(data => {
+      setLeaves(Array.isArray(data) ? data : []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleAction = (educatorId, leaveId, status) => {
+    API2(`/api/educators/${educatorId}/leave/${leaveId}`, { method: "PUT", body: { status } }).then(() => {
+      setLeaves(prev => prev.map(l => (l.id || l.leave_id) === leaveId ? { ...l, status } : l));
+    });
+  };
+
+  const filtered = filter === "all" ? leaves : leaves.filter(l => l.status === filter);
+
+  const filterBtnStyle = (val) => ({
+    padding: "7px 18px", borderRadius: 8, border: filter === val ? "none" : "1px solid #D9D0C7",
+    background: filter === val ? "linear-gradient(135deg, #8B6DAF, #9B7DC0)" : "#F8F5F1",
+    color: filter === val ? "#fff" : "#5C4E6A", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+  });
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, color: "#3D2C4E", marginBottom: 16 }}>Leave Requests</h2>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {["all","pending","approved","denied"].map(v => (
+          <button key={v} style={filterBtnStyle(v)} onClick={() => setFilter(v)}>
+            {v.charAt(0).toUpperCase() + v.slice(1)}
+          </button>
+        ))}
+      </div>
+      <div style={cardStyle}>
+        {loading ? <div style={{ textAlign: "center", padding: 32, color: "#8A7F96" }}>Loading...</div> : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 32, color: "#8A7F96" }}>No leave requests found.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid #E8E0D8", textAlign: "left" }}>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Educator Name</th>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Leave Type</th>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Start Date</th>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>End Date</th>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Days</th>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Reason</th>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Status</th>
+                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((l, i) => {
+                const leaveId = l.id || l.leave_id;
+                const educatorId = l.educator_id;
+                const start = l.start_date || l.startDate || "";
+                const end = l.end_date || l.endDate || "";
+                const days = l.days || (start && end ? Math.max(1, Math.ceil((new Date(end) - new Date(start)) / 86400000) + 1) : "—");
+                return (
+                  <tr key={leaveId || i} style={{ borderBottom: "1px solid #F0EBE5" }}>
+                    <td style={{ padding: "10px 8px", fontWeight: 600 }}>{l.educator_name || l.educatorName || "—"}</td>
+                    <td style={{ padding: "10px 8px" }}>{l.leave_type || l.leaveType || "—"}</td>
+                    <td style={{ padding: "10px 8px" }}>{start}</td>
+                    <td style={{ padding: "10px 8px" }}>{end}</td>
+                    <td style={{ padding: "10px 8px" }}>{days}</td>
+                    <td style={{ padding: "10px 8px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.reason || "—"}</td>
+                    <td style={{ padding: "10px 8px" }}>
+                      <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        background: l.status === "approved" ? "#DEF7EC" : l.status === "denied" ? "#FDE8E8" : "#FEF3CD",
+                        color: l.status === "approved" ? "#03543F" : l.status === "denied" ? "#9B1C1C" : "#92400E"
+                      }}>{(l.status || "pending").toUpperCase()}</span>
+                    </td>
+                    <td style={{ padding: "10px 8px" }}>
+                      {l.status === "pending" && (
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button style={{ ...btnPrimary, padding: "5px 12px", fontSize: 11 }} onClick={() => handleAction(educatorId, leaveId, "approved")}>Approve</button>
+                          <button style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #E8A0A0", background: "#FFF5F5", color: "#9B1C1C", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => handleAction(educatorId, leaveId, "denied")}>Deny</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── DASHBOARD VIEW ────────────────────────────────────────────────────────────
 function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecords, now, onNavigate }) {
   const [today, setToday] = useState(null);
@@ -1093,13 +1190,17 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
     fetch("/api/dashboard/today", { headers: hdrs }).then(r=>r.json()).then(d=>{
       if (!d.error) setToday(d);
     }).catch(()=>{});
-    // Auto-load ratio compliance
+    // Auto-load ratio compliance with timeout fallback
     const loadRatio = () => {
       const todayStr = new Date().toISOString().split("T")[0];
-      fetch(`/api/roster/ratio-interval?date=${todayStr}`, { headers: hdrs }).then(r=>r.json()).then(d=>{ if(!d.error) setRatioData(d); }).catch(()=>{});
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => { ctrl.abort(); setRatioData({ intervals: [], total_slots: 0, improvements_needed: 0 }); }, 5000);
+      fetch(`/api/roster/ratio-interval?date=${todayStr}`, { headers: hdrs, signal: ctrl.signal })
+        .then(r=>r.json()).then(d=>{ clearTimeout(timer); setRatioData(d.error ? { intervals:[], total_slots:0, improvements_needed:0 } : d); })
+        .catch(()=>{ clearTimeout(timer); setRatioData({ intervals:[], total_slots:0, improvements_needed:0 }); });
     };
     loadRatio();
-    const iv = setInterval(loadRatio, 30*60*1000); // refresh every 30 min
+    const iv = setInterval(loadRatio, 30*60*1000);
     return () => clearInterval(iv);
   }, []);
 
@@ -1117,11 +1218,11 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
     { icon:"📋", label:"Enrolment Forms",     tab:"enrolment",          color:"#0284C7", count: today?.enrolment_forms },
     { icon:"⏳", label:"Waitlist",            tab:"waitlist",           color:"#16A34A" },
     { icon:"🚨", label:"Incidents",           tab:"incidents",          color:"#DC2626", count: today?.active_incidents },
-    { icon:"🏖️", label:"Leave Requests",     tab:"wellbeing",          color:"#D97706", count: today?.pending_leave },
+    { icon:"🏖️", label:"Leave Requests",     tab:"leave_requests",     color:"#D97706", count: today?.pending_leave },
     { icon:"🚪", label:"Sign In/Out",         tab:"clockinout",         color:"#0284C7" },
     { icon:"✅", label:"Checklists",          tab:"checklists",         color:"#16A34A", count: today?.checklists_pending },
     { icon:"💊", label:"Medication Today",    tab:"medication_register", color:"#DC2626", count: today?.medication_today, alert: (today?.medication_today||0) > 0 },
-    { icon:"📁", label:"Expired Docs",        tab:"documents",          color:"#D97706", count: today?.expiring_certs?.length },
+    { icon:"📁", label:"Expired Docs",        tab:"documents",          color:"#D97706", count: today?.expiring_certs?.length, preAction: () => localStorage.setItem('c360_docs_tab','expiring') },
   ];
 
   // FIX 3: Use today API data consistently for KPIs
@@ -1191,7 +1292,7 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:20, padding:"12px 16px",
         background:"#fff", borderRadius:12, border:"1px solid #EDE8F4" }}>
         {quickActions.map(a => (
-          <button key={a.label} onClick={()=>onNavigate(a.tab)}
+          <button key={a.label} onClick={()=>{ if(a.preAction) a.preAction(); onNavigate(a.tab); }}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 13px",
               borderRadius:20, border:`1px solid ${a.color}22`, background:`${a.color}08`,
               color:"#3D3248", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"inherit", position:"relative",

@@ -398,4 +398,62 @@ router.put('/:id/deny', (req, res) => {
   }
 });
 
+// GET /expiring — documents expiring within N days
+router.get('/expiring', requireAuth, requireTenant, (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 60;
+    let educatorDocs = [];
+    try {
+      educatorDocs = D().prepare(`
+        SELECT ed.id, ed.document_type, ed.label, ed.expiry_date, ed.educator_id as person_id,
+          e.first_name || ' ' || e.last_name as person_name, 'educator' as person_type
+        FROM educator_documents ed
+        JOIN educators e ON e.id = ed.educator_id
+        WHERE ed.tenant_id=? AND ed.expiry_date IS NOT NULL
+        AND ed.expiry_date <= date('now', '+' || ? || ' days')
+        ORDER BY ed.expiry_date ASC
+      `).all(req.tenantId, String(days));
+    } catch(e) {}
+
+    // Also include educator cert expiries (WWCC, first aid, etc.)
+    let certExpiries = [];
+    try {
+      certExpiries = D().prepare(`
+        SELECT e.id as person_id, e.first_name || ' ' || e.last_name as person_name, 'educator' as person_type,
+          'WWCC' as document_type, e.wwcc_number as label, e.wwcc_expiry as expiry_date
+        FROM educators e
+        WHERE e.tenant_id=? AND e.status='active' AND e.wwcc_expiry IS NOT NULL
+        AND e.wwcc_expiry <= date('now', '+' || ? || ' days')
+        UNION ALL
+        SELECT e.id, e.first_name || ' ' || e.last_name, 'educator',
+          'First Aid', 'First Aid Certificate', e.first_aid_expiry
+        FROM educators e
+        WHERE e.tenant_id=? AND e.status='active' AND e.first_aid_expiry IS NOT NULL
+        AND e.first_aid_expiry <= date('now', '+' || ? || ' days')
+        UNION ALL
+        SELECT e.id, e.first_name || ' ' || e.last_name, 'educator',
+          'CPR', 'CPR Certificate', e.cpr_expiry
+        FROM educators e
+        WHERE e.tenant_id=? AND e.status='active' AND e.cpr_expiry IS NOT NULL
+        AND e.cpr_expiry <= date('now', '+' || ? || ' days')
+        ORDER BY expiry_date ASC
+      `).all(req.tenantId, String(days), req.tenantId, String(days), req.tenantId, String(days));
+    } catch(e) {}
+
+    let medicalPlans = [];
+    try {
+      medicalPlans = D().prepare(`
+        SELECT mp.id, mp.plan_type as document_type, mp.condition_name as label, mp.review_date as expiry_date,
+          c.first_name || ' ' || c.last_name as person_name, 'child' as person_type, c.id as person_id
+        FROM medical_plans mp JOIN children c ON c.id = mp.child_id
+        WHERE mp.tenant_id=? AND mp.review_date IS NOT NULL
+        AND mp.review_date <= date('now', '+' || ? || ' days')
+        ORDER BY mp.review_date ASC
+      `).all(req.tenantId, String(days));
+    } catch(e) {}
+
+    res.json({ educator_docs: [...educatorDocs, ...certExpiries], medical_plans: medicalPlans });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
