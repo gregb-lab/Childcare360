@@ -3911,6 +3911,68 @@ function CredentialsTab({ tenantId, API2 }) {
   );
 }
 
+function DataManagementPanel() {
+  const [seeding, setSeeding] = useState(false);
+  const [result, setResult] = useState(null);
+  const API3 = (path, opts = {}) => {
+    const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+    return fetch(path, {
+      headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}), ...(tid ? { "x-tenant-id": tid } : {}), ...opts.headers },
+      method: opts.method || "GET", ...(opts.body ? { body: JSON.stringify(opts.body) } : {}),
+    }).then(r => r.json());
+  };
+  const handleReseed = async () => {
+    if (!confirm("This will CLEAR all existing demo data and reseed with 9 rooms, 96 children, 15 educators, and full history. Continue?")) return;
+    setSeeding(true); setResult(null);
+    try {
+      const r = await API3("/api/settings/reseed", { method: "POST" });
+      setResult(r);
+      if (r.ok) window.showToast?.("Demo data reseeded successfully! Refresh the page to see changes.", "success");
+      else window.showToast?.("Reseed failed: " + (r.error || "Unknown error"), "error");
+    } catch (e) { setResult({ error: e.message }); window.showToast?.("Reseed failed", "error"); }
+    setSeeding(false);
+  };
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+        {[{n:"9",l:"Rooms",i:"🏠"},{n:"96",l:"Children",i:"👶"},{n:"15",l:"Educators",i:"👩‍🏫"}].map(s=>(
+          <div key={s.l} style={{textAlign:"center",padding:"12px 16px",borderRadius:10,background:"#F8F5FC",border:"1px solid #EDE8F4"}}>
+            <div style={{fontSize:24}}>{s.i}</div>
+            <div style={{fontSize:20,fontWeight:800,color:"#7C3AED"}}>{s.n}</div>
+            <div style={{fontSize:11,color:"#8A7F96"}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:"#FFF8E1",borderRadius:10,padding:"12px 16px",marginBottom:16,border:"1px solid #FFE082"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#E65100",marginBottom:4}}>⚠️ Warning</div>
+        <div style={{fontSize:11,color:"#5C4E6A"}}>
+          This will <strong>delete all existing data</strong> for this tenant and replace it with fresh demo data including:
+          medical plans, immunisations (3 due soon), WWCC alerts (2 expiring), attendance (30 days), daily updates,
+          observations, incidents, rosters, staff wellbeing, leave requests, and compliance alerts.
+        </div>
+      </div>
+      <button onClick={handleReseed} disabled={seeding}
+        style={{padding:"12px 24px",borderRadius:10,border:"none",background:seeding?"#CCC":"linear-gradient(135deg,#8B6DAF,#7E5BA3)",
+          color:"#fff",fontSize:14,fontWeight:700,cursor:seeding?"wait":"pointer",width:"100%",fontFamily:"inherit"}}>
+        {seeding ? "⏳ Reseeding... (this takes a few seconds)" : "🔄 Reset & Reseed Demo Data"}
+      </button>
+      {result && (
+        <div style={{marginTop:12,padding:"10px 14px",borderRadius:8,background:result.ok?"#E8F5E9":"#FEF2F2",border:"1px solid "+(result.ok?"#A5D6A7":"#FFCDD2"),fontSize:11}}>
+          {result.ok ? (
+            <div>
+              <div style={{fontWeight:700,color:"#2E7D32",marginBottom:4}}>✅ Reseed Complete</div>
+              <pre style={{margin:0,whiteSpace:"pre-wrap",color:"#5C4E6A",fontSize:10}}>{result.output}</pre>
+              <div style={{marginTop:8,fontWeight:600,color:"#7C3AED"}}>Refresh the page (Ctrl+Shift+R) to see the new data.</div>
+            </div>
+          ) : (
+            <div style={{color:"#C06B73"}}>❌ {result.error}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsView() {
   const [stab, setStab] = useState("service");
   const [svc, setSvc]   = useState(null);
@@ -3979,7 +4041,7 @@ function SettingsView() {
     setTesting(null);
   };
 
-    const STABS = [{id:"service",l:"⚙️ Service"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"}];
+    const STABS = [{id:"service",l:"⚙️ Service"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
   const purple2="#8B6DAF", lp2="#F0EBF8";
   const inp2={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:12,width:"100%",boxSizing:"border-box"};
   const lbl2={fontSize:11,color:"#7A6E8A",fontWeight:700,display:"block",marginBottom:4};
@@ -4186,6 +4248,16 @@ function SettingsView() {
         <div>
           <div style={cardStyle}>
             <MfaSettingsPanel />
+          </div>
+        </div>
+      )}
+
+      {stab==="data" && (
+        <div>
+          <div style={cardStyle}>
+            <h3 style={{margin:"0 0 4px",fontSize:14,fontWeight:700}}>🔧 Demo Data Management</h3>
+            <p style={{margin:"0 0 16px",fontSize:12,color:"#A89DB5"}}>Reset the database with comprehensive demo data: 9 rooms, 96 children, 15 educators, medical plans, rosters, attendance history, and more.</p>
+            <DataManagementPanel />
           </div>
         </div>
       )}

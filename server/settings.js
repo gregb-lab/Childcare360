@@ -145,4 +145,19 @@ r.post('/test-email', requireAuth, requireTenant, async (req, res) => {
   } catch(e) { res.json({ error: e.message || 'SMTP failed' }); }
 });
 
+// ═══ RESEED DEMO DATA ═══════════════════════════════════════════════════════
+r.post('/reseed', requireAuth, requireTenant, requireRole('owner', 'admin'), async (req, res) => {
+  try {
+    const { execSync } = await import('child_process');
+    const result = execSync('node server/seed-9room.js', {
+      cwd: process.cwd(),
+      timeout: 30000,
+      encoding: 'utf8',
+    });
+    res.json({ ok: true, output: result.split('\n').filter(l => l.includes('✓') || l.includes('✅')).join('\n') });
+  } catch (e) {
+    res.status(500).json({ error: e.message, output: e.stdout || '' });
+  }
+});
+
 export default r;
