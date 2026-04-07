@@ -1083,54 +1083,76 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
   const [today, setToday] = useState(null);
   const [ratioData, setRatioData] = useState(null);
   const [ratioLoading, setRatioLoading] = useState(false);
-  const [showRatio, setShowRatio] = useState(false);
 
   const tok  = localStorage.getItem("c360_token");
   const tid  = localStorage.getItem("c360_tenant");
   const hdrs = { "Content-Type":"application/json", ...(tok?{Authorization:`Bearer ${tok}`}:{}), ...(tid?{"x-tenant-id":tid}:{}) };
 
+  // Load dashboard data + auto-load ratio on mount
   useEffect(() => {
     fetch("/api/dashboard/today", { headers: hdrs }).then(r=>r.json()).then(d=>{
       if (!d.error) setToday(d);
     }).catch(()=>{});
+    // Auto-load ratio compliance
+    const loadRatio = () => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      fetch(`/api/roster/ratio-interval?date=${todayStr}`, { headers: hdrs }).then(r=>r.json()).then(d=>{ if(!d.error) setRatioData(d); }).catch(()=>{});
+    };
+    loadRatio();
+    const iv = setInterval(loadRatio, 30*60*1000); // refresh every 30 min
+    return () => clearInterval(iv);
   }, []);
-
-  const loadRatioInterval = async () => {
-    setRatioLoading(true); setShowRatio(true);
-    const todayStr = new Date().toISOString().split("T")[0];
-    const d = await fetch(`/api/roster/ratio-interval?date=${todayStr}`, { headers: hdrs }).then(r=>r.json()).catch(()=>({}));
-    setRatioData(d);
-    setRatioLoading(false);
-  };
 
   const P2="#7C3AED",OK2="#16A34A",WA2="#D97706",DA2="#DC2626",IN2="#0284C7",MU2="#8A7F96";
   const card2={background:"#fff",borderRadius:14,border:"1px solid #EDE8F4",padding:"18px 22px"};
-  const QUAL_COLORS = { ect:"#7C3AED", diploma:"#0284C7", cert3:"#16A34A", working_towards:"#D97706" };
-
-  const qualData = [
-    { name:"ECT",     id:"ect",              count:educators.filter(e=>e.qualification==="ect").length,              color:"#7C3AED" },
-    { name:"Diploma", id:"diploma",           count:educators.filter(e=>e.qualification==="diploma").length,           color:"#0284C7" },
-    { name:"Cert 3",  id:"cert3",             count:educators.filter(e=>e.qualification==="cert3").length,             color:"#16A34A" },
-    { name:"Studying",id:"working_towards",   count:educators.filter(e=>e.qualification==="working_towards").length,   color:"#D97706" },
-  ];
 
   const rp = today?.responsible_person;
   const rpName = rp ? `${rp.first_name} ${rp.last_name}` : "Not assigned";
   const rpInitials = rp ? `${rp.first_name?.[0]||""}${rp.last_name?.[0]||""}` : "?";
-  const rpQualColor = QUAL_COLORS[rp?.qualification] || MU2;
+  const rpQualColor = {ect:"#7C3AED",diploma:"#0284C7",cert3:"#16A34A",working_towards:"#D97706"}[rp?.qualification] || MU2;
 
-  // Quick actions config
+  // FIX 1+2: Correct navigation targets
   const quickActions = [
-    { icon:"📝", label:"Write Post",         tab:"message_centre",  color:"#7C3AED" },
-    { icon:"📋", label:"Enrolment Forms",     tab:"enrolment",       color:"#0284C7", count: today?.enrolment_forms },
-    { icon:"⏳", label:"Waitlist",            tab:"waitlist",        color:"#16A34A" },
-    { icon:"🚨", label:"Incidents",           tab:"incidents",       color:"#DC2626", count: today?.active_incidents },
-    { icon:"🏖️", label:"Leave Requests",     tab:"roster",          color:"#D97706", count: today?.pending_leave },
-    { icon:"🚪", label:"Sign In/Out",         tab:"clockinout",      color:"#0284C7" },
-    { icon:"✅", label:"Checklists",          tab:"checklists",      color:"#16A34A", count: today?.checklists_pending },
+    { icon:"📝", label:"Write Post",         tab:"message_centre",     color:"#7C3AED" },
+    { icon:"📋", label:"Enrolment Forms",     tab:"enrolment",          color:"#0284C7", count: today?.enrolment_forms },
+    { icon:"⏳", label:"Waitlist",            tab:"waitlist",           color:"#16A34A" },
+    { icon:"🚨", label:"Incidents",           tab:"incidents",          color:"#DC2626", count: today?.active_incidents },
+    { icon:"🏖️", label:"Leave Requests",     tab:"wellbeing",          color:"#D97706", count: today?.pending_leave },
+    { icon:"🚪", label:"Sign In/Out",         tab:"clockinout",         color:"#0284C7" },
+    { icon:"✅", label:"Checklists",          tab:"checklists",         color:"#16A34A", count: today?.checklists_pending },
     { icon:"💊", label:"Medication Today",    tab:"medication_register", color:"#DC2626", count: today?.medication_today, alert: (today?.medication_today||0) > 0 },
-    { icon:"📁", label:"Expired Docs",        tab:"educators",       color:"#D97706", count: today?.expiring_certs?.length },
+    { icon:"📁", label:"Expired Docs",        tab:"documents",          color:"#D97706", count: today?.expiring_certs?.length },
   ];
+
+  // FIX 3: Use today API data consistently for KPIs
+  const signedIn = today?.signed_in_today ?? educators.filter(e=>e.status==="clocked_in").length;
+  const clockedIn = today?.educators_clocked_in ?? educators.filter(e=>e.status==="clocked_in").length;
+  const enrolled = today?.children_enrolled ?? 0;
+  const attRate = enrolled > 0 ? Math.round(signedIn / enrolled * 100) : 0;
+
+  // FIX 5: Full qualification + compliance data
+  const totalEds = educators.length;
+  const qualRows = [
+    { label:"ECT (Bachelor+)", key:"ect", color:"#7C3AED" },
+    { label:"Diploma", key:"diploma", color:"#0284C7" },
+    { label:"Certificate III", key:"cert3", color:"#16A34A" },
+    { label:"Working Towards Dip", key:"working_towards_diploma", color:"#5B8DB5" },
+    { label:"Working Towards C3", key:"working_towards", color:"#D97706" },
+  ];
+  const certRows = [
+    { label:"First Aid Current", check: e => e.firstAid || e.first_aid, color:"#16A34A" },
+    { label:"WWCC Current", check: e => e.wwccExpiry && new Date(e.wwccExpiry) > new Date(), color:"#16A34A" },
+    { label:"WWCC Expiring Soon", check: e => { const d = e.wwccExpiry ? (new Date(e.wwccExpiry) - new Date()) / 86400000 : 999; return d > 0 && d < 30; }, color:"#D97706" },
+  ];
+
+  // FIX 4: Deduplicate alerts by educator name
+  const deduped = {};
+  (today?.expiring_certs||[]).forEach(c => {
+    const key = `${c.first_name} ${c.last_name}`;
+    if (!deduped[key]) deduped[key] = { ...c, certs: [] };
+    deduped[key].certs.push(c.cert_type);
+  });
+  const dedupedAlerts = Object.values(deduped);
 
   return (
     <div style={{ padding:"24px 28px", maxWidth:1200, margin:"0 auto" }}>
@@ -1169,10 +1191,10 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:20, padding:"12px 16px",
         background:"#fff", borderRadius:12, border:"1px solid #EDE8F4" }}>
         {quickActions.map(a => (
-          <button key={a.tab} onClick={()=>onNavigate(a.tab)}
+          <button key={a.label} onClick={()=>onNavigate(a.tab)}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 13px",
               borderRadius:20, border:`1px solid ${a.color}22`, background:`${a.color}08`,
-              color:"#3D3248", cursor:"pointer", fontSize:12, fontWeight:600, position:"relative",
+              color:"#3D3248", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"inherit", position:"relative",
               outline: a.alert?"2px solid #DC2626":"none" }}>
             <span>{a.icon}</span>
             <span>{a.label}</span>
@@ -1186,15 +1208,16 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
         ))}
       </div>
 
-      {/* ── KPI ROW ── */}
+      {/* ── KPI ROW (FIX 3 + 7: real data) ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
         {[
-          { label:"Children Enrolled", val: today?.children_enrolled ?? rooms.reduce((s,r)=>s+(r.enrolled||0),0), icon:"👶", color:P2 },
-          { label:"Signed In Today",   val: today?.signed_in_today ?? "—",   icon:"🟢", color:OK2 },
-          { label:"Clocked In Staff",  val: today?.educators_clocked_in ?? educators.filter(e=>e.status==="active").length, icon:"👩‍🏫", color:IN2 },
-          { label:"Attendance Rate",   val: today?.attendance_rate != null ? `${today.attendance_rate}%` : "—", icon:"📊", color:WA2 },
+          { label:"Children Enrolled", val: enrolled, icon:"👶", color:P2, click:"children" },
+          { label:"Signed In Today",   val: signedIn, icon:"🟢", color:OK2, click:"clockinout" },
+          { label:"Staff On Duty",     val: clockedIn, icon:"👩‍🏫", color:IN2, click:"clockinout" },
+          { label:"Attendance Rate",   val: `${attRate}%`, icon:"📊", color:attRate>=80?OK2:attRate>=60?WA2:DA2 },
         ].map(k => (
-          <div key={k.label} style={{ ...card2, textAlign:"center", padding:"16px" }}>
+          <div key={k.label} onClick={()=>k.click && onNavigate(k.click)}
+            style={{ ...card2, textAlign:"center", padding:"16px", cursor:k.click?"pointer":undefined }}>
             <div style={{ fontSize:22, marginBottom:4 }}>{k.icon}</div>
             <div style={{ fontSize:26, fontWeight:800, color:k.color }}>{k.val}</div>
             <div style={{ fontSize:11, color:MU2, fontWeight:600 }}>{k.label}</div>
@@ -1202,118 +1225,132 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
         ))}
       </div>
 
-      {/* ── ROOM CARDS + RATIO INTERVAL ── */}
+      {/* ── ROOM CARDS + RATIO COMPLIANCE (FIX 6: auto-loaded) ── */}
       <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:16, marginBottom:20 }}>
-        {/* Rooms */}
         <div style={card2}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
             <div style={{ fontWeight:700, fontSize:14, color:"#3D3248" }}>Rooms</div>
-            <div style={{ fontSize:12, color:MU2 }}>enrolled / capacity</div>
+            <div style={{ fontSize:12, color:MU2 }}>signed in today / enrolled</div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:8 }}>
-            {(today?.room_occupancy || rooms.map(r=>({...r, occupancy_pct:0}))).map(r => {
-              const pct = r.occupancy_pct || 0;
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:8 }}>
+            {(today?.room_occupancy || []).map(r => {
+              const pct = r.capacity > 0 ? Math.round(r.enrolled / r.capacity * 100) : 0;
               const barColor = pct >= 90 ? DA2 : pct >= 75 ? WA2 : OK2;
               return (
-                <div key={r.id} style={{ background:"#F8F5FC", borderRadius:10, padding:"10px 12px", border:"1px solid #EDE8F4" }}>
+                <div key={r.id} onClick={()=>onNavigate("rooms")} style={{ background:"#F8F5FC", borderRadius:10, padding:"10px 12px", border:"1px solid #EDE8F4", cursor:"pointer" }}>
                   <div style={{ fontWeight:700, fontSize:12, color:"#3D3248", marginBottom:4 }}>{r.name}</div>
-                  <div style={{ fontSize:18, fontWeight:800, color:barColor }}>{r.enrolled}<span style={{ fontSize:12, color:MU2 }}>/{r.capacity}</span></div>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:4 }}>
+                    <span style={{ fontSize:20, fontWeight:800, color:OK2 }}>{r.signedIn || 0}</span>
+                    <span style={{ fontSize:12, color:MU2 }}>/ {r.enrolled}</span>
+                    <span style={{ fontSize:10, color:MU2 }}>({r.capacity} cap)</span>
+                  </div>
                   <div style={{ height:4, background:"#EDE8F4", borderRadius:4, marginTop:6 }}>
                     <div style={{ height:"100%", width:`${Math.min(pct,100)}%`, background:barColor, borderRadius:4, transition:"width 0.3s" }} />
                   </div>
-                  <div style={{ fontSize:10, color:MU2, marginTop:3 }}>{pct}% full</div>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Ratio Interval Preview */}
+        {/* FIX 6: Ratio always shown, auto-refreshes */}
         <div style={card2}>
           <div style={{ fontWeight:700, fontSize:14, color:"#3D3248", marginBottom:4 }}>Ratio Compliance</div>
-          <div style={{ fontSize:12, color:MU2, marginBottom:12 }}>30-min interval analysis</div>
-          {!showRatio ? (
-            <div style={{ textAlign:"center", padding:"20px 0" }}>
-              <div style={{ fontSize:36, marginBottom:8 }}>📊</div>
-              <div style={{ fontSize:13, color:MU2, marginBottom:12 }}>View staff:child ratios for each time slot today</div>
-              <button onClick={loadRatioInterval} style={{ ...({padding:"9px 18px",borderRadius:9,border:"none",background:P2,color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13}), width:"100%" }}>
-                View Ratio Interval
-              </button>
-            </div>
-          ) : ratioLoading ? (
-            <div style={{ textAlign:"center", padding:30, color:MU2 }}>Loading...</div>
-          ) : ratioData ? (
+          <div style={{ fontSize:11, color:MU2, marginBottom:10 }}>30-min interval · auto-refreshes</div>
+          {!ratioData ? (
+            <div style={{ textAlign:"center", padding:20, color:MU2, fontSize:12 }}>Loading ratio data...</div>
+          ) : (
             <div>
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                <div style={{ flex:1, background:"#FEF2F2", borderRadius:8, padding:"8px 12px", textAlign:"center" }}>
-                  <div style={{ fontSize:22, fontWeight:800, color:DA2 }}>{ratioData.improvements_needed||0}</div>
-                  <div style={{ fontSize:10, color:DA2, fontWeight:700 }}>SLOTS NON-COMPLIANT</div>
+                <div style={{ flex:1, background:"#FEF2F2", borderRadius:8, padding:"6px 10px", textAlign:"center" }}>
+                  <div style={{ fontSize:20, fontWeight:800, color:DA2 }}>{ratioData.improvements_needed||0}</div>
+                  <div style={{ fontSize:9, color:DA2, fontWeight:700 }}>NON-COMPLIANT</div>
                 </div>
-                <div style={{ flex:1, background:"#F0FDF4", borderRadius:8, padding:"8px 12px", textAlign:"center" }}>
-                  <div style={{ fontSize:22, fontWeight:800, color:OK2 }}>{(ratioData.total_slots||0)-(ratioData.improvements_needed||0)}</div>
-                  <div style={{ fontSize:10, color:OK2, fontWeight:700 }}>COMPLIANT SLOTS</div>
+                <div style={{ flex:1, background:"#F0FDF4", borderRadius:8, padding:"6px 10px", textAlign:"center" }}>
+                  <div style={{ fontSize:20, fontWeight:800, color:OK2 }}>{(ratioData.total_slots||0)-(ratioData.improvements_needed||0)}</div>
+                  <div style={{ fontSize:9, color:OK2, fontWeight:700 }}>COMPLIANT</div>
                 </div>
               </div>
-              <div style={{ maxHeight:180, overflowY:"auto" }}>
+              <div style={{ maxHeight:160, overflowY:"auto" }}>
                 {(ratioData.intervals||[]).filter(i=>i.children_count>0).map(iv=>(
-                  <div key={iv.slot} style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 0",
+                  <div key={iv.slot} style={{ display:"flex", alignItems:"center", gap:6, padding:"2px 0",
                     borderBottom:"1px solid #F5F0FF", fontSize:11 }}>
                     <span style={{ minWidth:38, color:MU2, fontFamily:"monospace" }}>{iv.slot}</span>
                     <span style={{ minWidth:20, color:"#3D3248" }}>👶{iv.children_count}</span>
                     <span style={{ minWidth:20, color:"#3D3248" }}>👩‍🏫{iv.staff_count}</span>
                     {iv.deficit > 0
-                      ? <span style={{ background:DA2, color:"#fff", borderRadius:10, padding:"1px 6px", fontWeight:700 }}>-{iv.deficit}</span>
+                      ? <span style={{ background:DA2, color:"#fff", borderRadius:10, padding:"1px 6px", fontWeight:700, fontSize:10 }}>-{iv.deficit}</span>
                       : <span style={{ color:OK2, fontWeight:700 }}>✓</span>
                     }
                   </div>
                 ))}
               </div>
-              <button onClick={()=>onNavigate("ratio_report")} style={{ ...({padding:"7px 14px",borderRadius:8,border:`1px solid ${P2}`,background:"#fff",color:P2,fontWeight:600,cursor:"pointer",fontSize:12}), marginTop:8, width:"100%" }}>
+              <button onClick={()=>onNavigate("ratio_report")} style={{ padding:"7px 14px",borderRadius:8,border:`1px solid ${P2}`,background:"#fff",color:P2,fontWeight:600,cursor:"pointer",fontSize:12, marginTop:8, width:"100%", fontFamily:"inherit" }}>
                 Full Ratio Report →
               </button>
             </div>
-          ) : null}
+          )}
         </div>
       </div>
 
-      {/* ── ALERTS + EDUCATOR QUALS ── */}
+      {/* ── ALERTS + EDUCATOR QUALS + COMPLIANCE ── */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        {/* FIX 4: Deduplicated alerts, clickable */}
         <div style={card2}>
           <div style={{ fontWeight:700, fontSize:14, color:"#3D3248", marginBottom:12 }}>Alerts & Actions</div>
-          {alerts.length === 0 && !(today?.expiring_certs?.length) ? (
+          {alerts.length === 0 && dedupedAlerts.length === 0 ? (
             <div style={{ color:OK2, fontSize:13, fontWeight:600 }}>✅ No outstanding alerts</div>
           ) : (
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
               {alerts.slice(0,5).map((a,i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
-                  borderRadius:8, background: a.type==="critical"?"#FEF2F2":a.type==="warning"?"#FFFBEB":"#EFF6FF",
-                  border:`1px solid ${a.type==="critical"?"#FCA5A5":a.type==="warning"?"#FDE68A":"#BFDBFE"}`,
-                  fontSize:12, color: a.type==="critical"?DA2:a.type==="warning"?WA2:IN2 }}>
+                <div key={i} onClick={()=>onNavigate("educators")} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
+                  borderRadius:8, cursor:"pointer",
+                  background: a.type==="critical"?"#FEF2F2":"#FFFBEB",
+                  border:`1px solid ${a.type==="critical"?"#FCA5A5":"#FDE68A"}`,
+                  fontSize:12, color: a.type==="critical"?DA2:WA2 }}>
                   {a.type==="critical"?"🔴":"🟡"} {a.message}
                 </div>
               ))}
-              {today?.expiring_certs?.map((c,i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
-                  borderRadius:8, background:"#FFFBEB", border:"1px solid #FDE68A", fontSize:12, color:WA2 }}>
-                  ⚠️ {c.first_name} {c.last_name} — cert expiring soon
+              {dedupedAlerts.map((c,i) => (
+                <div key={"cert-"+i} onClick={()=>onNavigate("educators")} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
+                  borderRadius:8, background:"#FFFBEB", border:"1px solid #FDE68A", fontSize:12, color:WA2, cursor:"pointer" }}>
+                  ⚠️ {c.first_name} {c.last_name} — {c.certs.join(", ")} expiring {c.expires_on ? `(${c.expires_on})` : "soon"}
                 </div>
               ))}
             </div>
           )}
         </div>
 
+        {/* FIX 5: Full qualifications + compliance widget */}
         <div style={card2}>
-          <div style={{ fontWeight:700, fontSize:14, color:"#3D3248", marginBottom:12 }}>Educator Qualifications</div>
-          {qualData.map(q => (
-            <div key={q.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
-              <div style={{ width:10, height:10, borderRadius:2, background:q.color, flexShrink:0 }} />
-              <div style={{ flex:1, fontSize:13, color:"#3D3248" }}>{q.name}</div>
-              <div style={{ fontWeight:700, color:q.color }}>{q.count}</div>
-              <div style={{ width:80, height:6, background:"#EDE8F4", borderRadius:3 }}>
-                <div style={{ height:"100%", width:`${educators.length ? q.count/educators.length*100 : 0}%`, background:q.color, borderRadius:3 }} />
+          <div style={{ fontWeight:700, fontSize:14, color:"#3D3248", marginBottom:10 }}>Staff Qualifications & Compliance</div>
+          <div style={{ fontSize:10, color:MU2, marginBottom:8, fontWeight:600 }}>QUALIFICATIONS ({totalEds} educators)</div>
+          {qualRows.map(q => {
+            const count = educators.filter(e=>e.qualification===q.key).length;
+            if (count === 0) return null;
+            return (
+              <div key={q.key} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                <div style={{ width:8, height:8, borderRadius:2, background:q.color, flexShrink:0 }} />
+                <div style={{ flex:1, fontSize:12, color:"#3D3248" }}>{q.label}</div>
+                <div style={{ fontWeight:700, fontSize:12, color:q.color, minWidth:20, textAlign:"right" }}>{count}</div>
+                <div style={{ width:60, height:5, background:"#EDE8F4", borderRadius:3 }}>
+                  <div style={{ height:"100%", width:`${totalEds?count/totalEds*100:0}%`, background:q.color, borderRadius:3 }} />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+          <div style={{ fontSize:10, color:MU2, margin:"10px 0 6px", fontWeight:600, borderTop:"1px solid #EDE8F4", paddingTop:8 }}>COMPLIANCE STATUS</div>
+          {certRows.map(cr => {
+            const count = educators.filter(cr.check).length;
+            const isWarning = cr.label.includes("Expiring");
+            return (
+              <div key={cr.label} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                <span style={{ fontSize:10 }}>{isWarning ? "⚠️" : count === totalEds ? "✅" : "🟡"}</span>
+                <div style={{ flex:1, fontSize:11, color: isWarning ? WA2 : "#3D3248" }}>{cr.label}</div>
+                <div style={{ fontWeight:700, fontSize:11, color: isWarning ? WA2 : count === totalEds ? OK2 : WA2 }}>{count}/{totalEds}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
