@@ -362,21 +362,37 @@ router.get('/dashboard/today', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const tid = req.tenantId;
 
-    // Children attendance today
-    const attendance = db.prepare(`
-      SELECT c.id, c.first_name, c.last_name, c.room_id, c.dob,
-             a.sign_in_time, a.sign_out_time, a.absent, a.absent_reason
-      FROM children c
-      LEFT JOIN (
-        SELECT child_id, sign_in_time, sign_out_time, absent, absent_reason
-        FROM child_attendance WHERE date=? AND tenant_id=?
-      ) a ON a.child_id=c.id
-      WHERE c.tenant_id=? 
-      ORDER BY c.first_name
-    `).all(today, tid, tid);
+    // Children attendance today (use attendance_sessions table)
+    const allChildren = db.prepare('SELECT id,first_name,last_name,dob,room_id FROM children WHERE tenant_id=?').all(tid);
+    const todaySessions = db.prepare('SELECT child_id, sign_in, sign_out, absent FROM attendance_sessions WHERE date=? AND tenant_id=?').all(today, tid);
+    const sessionMap = {};
+    todaySessions.forEach(s => { sessionMap[s.child_id] = s; });
+
+    const present = todaySessions.filter(s => s.sign_in && !s.sign_out && !s.absent).length;
+    const absent = todaySessions.filter(s => s.absent).length;
+    const signedOut = todaySessions.filter(s => s.sign_out).length;
+    const notYetArrived = allChildren.length - present - absent - signedOut;
+    const totalEnrolled = allChildren.length;
+    const attendanceRate = totalEnrolled > 0 ? Math.round((present + signedOut) / totalEnrolled * 100) : 0;
+
+    // Room occupancy
+    const rooms = db.prepare('SELECT id,name,age_group,capacity,current_children FROM rooms WHERE tenant_id=? ORDER BY name').all(tid);
+    const room_occupancy = rooms.map(r => {
+      const enrolled = allChildren.filter(c => c.room_id === r.id).length;
+      const signedIn = todaySessions.filter(s => {
+        const child = allChildren.find(c => c.id === s.child_id);
+        return child?.room_id === r.id && s.sign_in && !s.sign_out && !s.absent;
+      }).length;
+      return { id: r.id, name: r.name, enrolled, capacity: r.capacity, signedIn, occupancy_pct: r.capacity > 0 ? Math.round(enrolled / r.capacity * 100) : 0 };
+    });
+
+    // Responsible person
+    const rp = db.prepare("SELECT id,first_name,last_name,qualification,role_title FROM educators WHERE tenant_id=? AND is_responsible_person=1 AND status='active' LIMIT 1").get(tid) || null;
+
+    // Educators clocked in today
+    const clockedIn = db.prepare("SELECT COUNT(DISTINCT educator_id) as c FROM clock_records WHERE tenant_id=? AND clock_date=? AND clock_out IS NULL").get(tid, today)?.c || 0;
 
     // Upcoming birthdays (next 14 days)
-    const allChildren = db.prepare(`SELECT id,first_name,last_name,dob FROM children WHERE tenant_id=? `).all(tid);
     const todayD = new Date(); todayD.setHours(0,0,0,0);
     const birthdays = allChildren.filter(c => {
       if (!c.dob) return false;
@@ -387,82 +403,61 @@ router.get('/dashboard/today', async (req, res) => {
     }).map(c => {
       const bday = new Date(c.dob);
       const thisYear = new Date(todayD.getFullYear(), bday.getMonth(), bday.getDate());
-      const diff = Math.round((thisYear - todayD) / (1000*60*60*24));
-      const age = todayD.getFullYear() - bday.getFullYear();
-      return { ...c, days_until: diff, turning: age };
+      return { ...c, days_until: Math.round((thisYear - todayD) / (1000*60*60*24)), turning: todayD.getFullYear() - bday.getFullYear() };
     }).sort((a,b) => a.days_until - b.days_until);
 
-    // Pending enrolment applications
-    const pendingEnrolments = db.prepare(`SELECT COUNT(*) as c FROM enrolment_applications WHERE tenant_id=? AND status IN ('submitted','reviewing')`).get(tid)?.c || 0;
-
     // Expiring certs (next 30 days)
-    const expiring = db.prepare(`
-      SELECT first_name, last_name, 
-        CASE WHEN first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now') THEN 'First Aid' 
-             WHEN cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now') THEN 'CPR'
-             WHEN wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now') THEN 'WWCC'
-        END as cert_type,
-        CASE WHEN first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now') THEN first_aid_expiry
-             WHEN cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now') THEN cpr_expiry
-             WHEN wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now') THEN wwcc_expiry
-        END as expires_on
-      FROM educators WHERE tenant_id=? AND status='active'
-        AND (
-          (first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now')) OR
-          (cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now')) OR
-          (wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now'))
-        )
-      ORDER BY expires_on LIMIT 5
-    `).all(tid);
+    let expiring = [];
+    try { expiring = db.prepare(`
+      SELECT first_name, last_name,
+        CASE WHEN wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now') THEN 'WWCC'
+             WHEN first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now') THEN 'First Aid'
+             WHEN cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now') THEN 'CPR' END as cert_type,
+        CASE WHEN wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now') THEN wwcc_expiry
+             WHEN first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now') THEN first_aid_expiry
+             WHEN cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now') THEN cpr_expiry END as expires_on
+      FROM educators WHERE tenant_id=? AND status='active' AND (
+        (wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now')) OR
+        (first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now')) OR
+        (cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now'))
+      ) ORDER BY expires_on LIMIT 10`).all(tid); } catch(e) {}
 
-    // Overdue invoices
-    let overdueInvoices = 0;
-    try { overdueInvoices = db.prepare(`SELECT COUNT(*) as c FROM invoices WHERE tenant_id=? AND status='overdue'`).get(tid)?.c || 0; } catch(e) {}
+    // Counts
+    let pendingLeave = 0; try { pendingLeave = db.prepare("SELECT COUNT(*) as c FROM leave_requests WHERE tenant_id=? AND status='pending'").get(tid)?.c || 0; } catch(e) {}
+    let pendingEnrolments = 0; try { pendingEnrolments = db.prepare("SELECT COUNT(*) as c FROM enrolment_applications WHERE tenant_id=? AND status IN ('submitted','reviewing')").get(tid)?.c || 0; } catch(e) {}
+    let activeIncidents = 0; try { activeIncidents = db.prepare("SELECT COUNT(*) as c FROM incidents WHERE tenant_id=? AND status IN ('open','investigating')").get(tid)?.c || 0; } catch(e) {}
+    let medicationToday = 0; try { medicationToday = db.prepare("SELECT COUNT(*) as c FROM medications WHERE tenant_id=? AND status='active'").get(tid)?.c || 0; } catch(e) {}
 
-    // Pending leave requests
-    let pendingLeave = 0;
-    try { pendingLeave = db.prepare(`SELECT COUNT(*) as c FROM leave_requests WHERE tenant_id=? AND status='pending'`).get(tid)?.c || 0; } catch(e) {}
-
-    // Today's roster summary
-    const rosterToday = db.prepare(`
-      SELECT COUNT(*) as total_shifts,
-             SUM(CASE WHEN re.status='confirmed' THEN 1 ELSE 0 END) as confirmed,
-             SUM(CASE WHEN re.status='unfilled' THEN 1 ELSE 0 END) as unfilled
-      FROM roster_entries re
-      JOIN roster_periods rp ON rp.id=re.period_id
-      WHERE re.date=? AND re.tenant_id=? AND rp.status='published'
-    `).get(today, tid) || { total_shifts:0, confirmed:0, unfilled:0 };
-
-    const present = attendance.filter(a => a.sign_in_time && !a.sign_out_time).length;
-    const absent = attendance.filter(a => a.absent).length;
-    const notYetArrived = attendance.filter(a => !a.sign_in_time && !a.absent).length;
-    const signedOut = attendance.filter(a => a.sign_out_time).length;
-
-    // Today's educators on roster
-    let todayEducators = [];
+    // Today's roster
+    let todayEducators = []; let rosterToday = { total_shifts: 0, confirmed: 0, unfilled: 0 };
     try {
-      todayEducators = db.prepare(`
-        SELECT e.first_name, e.last_name, e.qualification,
-               re.start_time, re.end_time, r.name as room_name
-        FROM roster_entries re
-        JOIN educators e ON e.id=re.educator_id
-        LEFT JOIN rooms r ON r.id=re.room_id
+      todayEducators = db.prepare(`SELECT e.first_name, e.last_name, e.qualification, re.start_time, re.end_time, r.name as room_name
+        FROM roster_entries re JOIN educators e ON e.id=re.educator_id LEFT JOIN rooms r ON r.id=re.room_id
         JOIN roster_periods rp ON rp.id=re.period_id
-        WHERE re.date=? AND re.tenant_id=? AND rp.status='published'
-        ORDER BY re.start_time
-      `).all(today, tid);
+        WHERE re.date=? AND re.tenant_id=? AND rp.status IN ('published','approved') ORDER BY re.start_time`).all(today, tid);
+      rosterToday = db.prepare(`SELECT COUNT(*) as total_shifts FROM roster_entries re
+        JOIN roster_periods rp ON rp.id=re.period_id WHERE re.date=? AND re.tenant_id=? AND rp.status IN ('published','approved')`).get(today, tid) || rosterToday;
     } catch(e) {}
 
     res.json({
       today,
-      attendance: { present, absent, not_arrived: notYetArrived, signed_out: signedOut, total: attendance.length },
+      children_enrolled: totalEnrolled,
+      signed_in_today: present,
+      educators_clocked_in: clockedIn,
+      attendance_rate: attendanceRate,
+      attendance: { present, absent, not_arrived: notYetArrived, signed_out: signedOut, total: totalEnrolled },
+      room_occupancy,
+      responsible_person: rp,
       birthdays,
       pending_enrolments: pendingEnrolments,
       expiring_certs: expiring,
-      overdue_invoices: overdueInvoices,
       pending_leave: pendingLeave,
+      active_incidents: activeIncidents,
+      medication_today: medicationToday,
       roster_today: rosterToday,
       today_educators: todayEducators,
+      enrolment_forms: pendingEnrolments,
+      checklists_pending: 0,
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

@@ -42,7 +42,7 @@ const clearTables = [
   'parent_contacts', 'compliance_items', 'parent_feedback',
   'enrolment_applications', 'staff_wellbeing', 'educator_absences',
   'educator_availability', 'educator_room_preferences',
-  'leave_requests', 'shift_fill_requests', 'shift_fill_attempts',
+  'leave_requests', 'shift_fill_requests', 'shift_fill_attempts', 'clock_records',
   'children', 'educators', 'rooms',
 ];
 for (const table of clearTables) {
@@ -314,7 +314,7 @@ console.log('  ✓', immCount, 'immunisation records (3 due soon)');
 // ── STEP 6: Attendance ────────────────────────────────────────────────────────
 console.log('\n[6/12] Creating attendance history (last 30 days)...');
 let attCount = 0;
-for (let d = -30; d <= 0; d++) {
+for (let d = -30; d <= -1; d++) { // stop at yesterday — today created separately as live data
   const date = addDays(today, d);
   const dow = new Date(date + 'T12:00:00').getDay();
   if (dow === 0 || dow === 6) continue; // skip weekends
@@ -331,6 +331,44 @@ for (let d = -30; d <= 0; d++) {
   }
 }
 console.log('  ✓', attCount, 'attendance records');
+
+// ── STEP 6b: TODAY's live data (children signed in, educators clocked in) ────
+console.log('  → Creating today\'s live session data...');
+const todayDow = new Date(today + 'T12:00:00').getDay();
+let signedInCount = 0, clockedInCount = 0;
+
+if (todayDow >= 1 && todayDow <= 5) { // weekday
+  // Sign in ~85% of children (realistic morning — some not yet arrived)
+  for (let ci = 0; ci < childIds.length; ci++) {
+    const rand = Math.random();
+    if (rand < 0.05) {
+      // 5% absent
+      db.prepare('INSERT OR IGNORE INTO attendance_sessions (id,tenant_id,child_id,date,absent,absent_reason,created_at) VALUES(?,?,?,?,1,?,?)')
+        .run(uuid(),T,childIds[ci],today,'Unwell',now());
+    } else if (rand < 0.85) {
+      // 80% signed in (arrived between 6:30-8:30)
+      const hr = 6 + Math.floor(Math.random() * 2);
+      const mn = Math.floor(Math.random() * 60);
+      const signIn = `${String(hr).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+      db.prepare('INSERT OR IGNORE INTO attendance_sessions (id,tenant_id,child_id,date,sign_in,absent,created_at) VALUES(?,?,?,?,?,0,?)')
+        .run(uuid(),T,childIds[ci],today,signIn,now());
+      signedInCount++;
+    }
+    // remaining 15% = not yet arrived
+  }
+
+  // Clock in educators who are rostered today (all permanent + most casuals)
+  for (let ei = 0; ei < EDUCATORS.length; ei++) {
+    const ed = EDUCATORS[ei];
+    if (ed.emp === 'casual' && Math.random() < 0.3) continue;
+    if (ed.emp === 'part_time' && todayDow > 4) continue;
+    const clockIn = ei < 5 ? '06:30' : ei < 10 ? '07:00' : '07:30';
+    db.prepare('INSERT OR IGNORE INTO clock_records (id,tenant_id,member_id,educator_id,clock_in,clock_date,date) VALUES(?,?,?,?,?,?,?)')
+      .run(uuid(),T,edIds[ei],edIds[ei],today+'T'+clockIn+':00.000Z',today,today);
+    clockedInCount++;
+  }
+}
+console.log('  ✓', signedInCount, 'children signed in today,', clockedInCount, 'educators clocked in');
 
 // ── STEP 7: Daily Updates ─────────────────────────────────────────────────────
 console.log('\n[7/12] Creating daily updates (last 14 days)...');
@@ -403,7 +441,7 @@ console.log('  ✓', incidents.length, 'incidents');
 console.log('\n[10/12] Creating roster periods & shifts...');
 const rosterPeriods = [
   { start: lastMonday, end: addDays(lastMonday, 4), status: 'published', name: 'Last Week' },
-  { start: monday, end: addDays(monday, 4), status: 'approved', name: 'This Week' },
+  { start: monday, end: addDays(monday, 4), status: 'published', name: 'This Week' },
   { start: nextMonday, end: addDays(nextMonday, 4), status: 'draft', name: 'Next Week' },
 ];
 let shiftCount = 0;
