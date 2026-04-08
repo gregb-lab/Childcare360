@@ -236,13 +236,15 @@ router.post('/:id/leave', (req, res) => {
   }
 });
 
-// PUT approve/deny leave request
+// PUT approve/deny/revert leave request
 router.put('/:id/leave/:leaveId', (req, res) => {
   try {
     const { status, notes } = req.body;
-    D().prepare('UPDATE leave_requests SET status = ?, notes = ?, approved_by = ?, approved_at = datetime(\'now\') WHERE id = ? AND tenant_id = ?')
-      .run(status, notes||null, req.userId, req.params.leaveId);
-    res.json({ success: true });
+    if (!status) return res.status(400).json({ error: 'Status required' });
+    D().prepare("UPDATE leave_requests SET status=?, notes=COALESCE(?,notes), approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+      .run(status, notes||null, req.userId||'admin', req.params.leaveId, req.tenantId);
+    const updated = D().prepare('SELECT lr.*, e.first_name || \' \' || e.last_name as educator_name FROM leave_requests lr JOIN educators e ON e.id=lr.educator_id WHERE lr.id=?').get(req.params.leaveId);
+    res.json(updated || { ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

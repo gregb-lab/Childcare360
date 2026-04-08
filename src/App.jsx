@@ -1078,6 +1078,8 @@ function LeaveRequestsView() {
   const [leaves, setLeaves] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [noteModal, setNoteModal] = useState(null); // { leaveId, educatorId, action, notes }
+  const [processing, setProcessing] = useState(null);
 
   const API2 = (path, opts={}) => {
     const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
@@ -1086,7 +1088,7 @@ function LeaveRequestsView() {
       ...(opts.body ? { body: JSON.stringify(opts.body) } : {}) }).then(r => r.json());
   };
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true);
     API2("/api/educators/all-leave").then(data => {
       setLeaves(Array.isArray(data) ? data : []);
@@ -1094,75 +1096,91 @@ function LeaveRequestsView() {
     }).catch(() => setLoading(false));
   }, []);
 
-  const handleAction = (educatorId, leaveId, status) => {
-    API2(`/api/educators/${educatorId}/leave/${leaveId}`, { method: "PUT", body: { status } }).then(() => {
-      setLeaves(prev => prev.map(l => (l.id || l.leave_id) === leaveId ? { ...l, status } : l));
-    });
+  useEffect(() => { load(); }, [load]);
+
+  const openAction = (educatorId, leaveId, action) => {
+    setNoteModal({ leaveId, educatorId, action, notes: "" });
+  };
+
+  const confirmAction = async () => {
+    if (!noteModal) return;
+    setProcessing(noteModal.leaveId);
+    try {
+      await API2(`/api/educators/${noteModal.educatorId}/leave/${noteModal.leaveId}`, {
+        method: "PUT", body: { status: noteModal.action, notes: noteModal.notes || null }
+      });
+      await load(); // reload from server to get persisted state
+      if (window.showToast) window.showToast(`Leave request ${noteModal.action}`, "success");
+    } catch (e) {
+      if (window.showToast) window.showToast("Action failed", "error");
+    }
+    setProcessing(null);
+    setNoteModal(null);
   };
 
   const filtered = filter === "all" ? leaves : leaves.filter(l => l.status === filter);
+  const counts = { all: leaves.length, pending: leaves.filter(l=>l.status==="pending").length, approved: leaves.filter(l=>l.status==="approved").length, denied: leaves.filter(l=>l.status==="denied").length };
 
-  const filterBtnStyle = (val) => ({
-    padding: "7px 18px", borderRadius: 8, border: filter === val ? "none" : "1px solid #D9D0C7",
-    background: filter === val ? "linear-gradient(135deg, #8B6DAF, #9B7DC0)" : "#F8F5F1",
-    color: filter === val ? "#fff" : "#5C4E6A", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-  });
+  const thS = { padding: "10px 8px", color: "#5C4E6A", fontSize: 11, fontWeight: 700, textTransform: "uppercase", textAlign: "left" };
+  const tdS = { padding: "10px 8px", fontSize: 13 };
+  const actionBtn = (color, bg, border) => ({ padding: "4px 10px", borderRadius: 6, border: `1px solid ${border}`, background: bg, color, fontWeight: 700, fontSize: 10, cursor: "pointer", fontFamily: "inherit" });
 
   return (
     <div>
       <h2 style={{ fontSize: 22, fontWeight: 700, color: "#3D2C4E", marginBottom: 16 }}>Leave Requests</h2>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         {["all","pending","approved","denied"].map(v => (
-          <button key={v} style={filterBtnStyle(v)} onClick={() => setFilter(v)}>
-            {v.charAt(0).toUpperCase() + v.slice(1)}
+          <button key={v} onClick={() => setFilter(v)}
+            style={{ padding: "7px 16px", borderRadius: 8, border: filter === v ? "none" : "1px solid #D9D0C7",
+              background: filter === v ? "linear-gradient(135deg, #8B6DAF, #9B7DC0)" : "#F8F5F1",
+              color: filter === v ? "#fff" : "#5C4E6A", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            {v.charAt(0).toUpperCase() + v.slice(1)} {counts[v] > 0 ? `(${counts[v]})` : ""}
           </button>
         ))}
       </div>
       <div style={cardStyle}>
         {loading ? <div style={{ textAlign: "center", padding: 32, color: "#8A7F96" }}>Loading...</div> : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 32, color: "#8A7F96" }}>No leave requests found.</div>
+          <div style={{ textAlign: "center", padding: 32, color: "#8A7F96" }}>No {filter !== "all" ? filter + " " : ""}leave requests found.</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #E8E0D8", textAlign: "left" }}>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Educator Name</th>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Leave Type</th>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Start Date</th>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>End Date</th>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Days</th>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Reason</th>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Status</th>
-                <th style={{ padding: "10px 8px", color: "#5C4E6A" }}>Actions</th>
+              <tr style={{ borderBottom: "2px solid #E8E0D8" }}>
+                <th style={thS}>Educator</th><th style={thS}>Type</th><th style={thS}>Dates</th>
+                <th style={thS}>Days</th><th style={thS}>Reason</th><th style={thS}>Notes</th>
+                <th style={thS}>Status</th><th style={thS}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((l, i) => {
                 const leaveId = l.id || l.leave_id;
                 const educatorId = l.educator_id;
-                const start = l.start_date || l.startDate || "";
-                const end = l.end_date || l.endDate || "";
-                const days = l.days || (start && end ? Math.max(1, Math.ceil((new Date(end) - new Date(start)) / 86400000) + 1) : "—");
+                const start = l.start_date || "";
+                const end = l.end_date || "";
+                const days = l.days_requested || l.days || (start && end ? Math.max(1, Math.ceil((new Date(end) - new Date(start)) / 86400000) + 1) : "—");
+                const isBusy = processing === leaveId;
                 return (
-                  <tr key={leaveId || i} style={{ borderBottom: "1px solid #F0EBE5" }}>
-                    <td style={{ padding: "10px 8px", fontWeight: 600 }}>{l.educator_name || l.educatorName || "—"}</td>
-                    <td style={{ padding: "10px 8px" }}>{l.leave_type || l.leaveType || "—"}</td>
-                    <td style={{ padding: "10px 8px" }}>{start}</td>
-                    <td style={{ padding: "10px 8px" }}>{end}</td>
-                    <td style={{ padding: "10px 8px" }}>{days}</td>
-                    <td style={{ padding: "10px 8px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.reason || "—"}</td>
-                    <td style={{ padding: "10px 8px" }}>
-                      <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  <tr key={leaveId || i} style={{ borderBottom: "1px solid #F0EBE5", opacity: isBusy ? 0.5 : 1 }}>
+                    <td style={{ ...tdS, fontWeight: 600 }}>{l.educator_name || "—"}</td>
+                    <td style={tdS}><span style={{ textTransform: "capitalize" }}>{(l.leave_type || "—").replace(/_/g," ")}</span></td>
+                    <td style={tdS}>{start}{end && start !== end ? ` → ${end}` : ""}</td>
+                    <td style={tdS}>{days}</td>
+                    <td style={{ ...tdS, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.reason || "—"}</td>
+                    <td style={{ ...tdS, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "#8A7F96" }}>{l.notes || "—"}</td>
+                    <td style={tdS}>
+                      <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700,
                         background: l.status === "approved" ? "#DEF7EC" : l.status === "denied" ? "#FDE8E8" : "#FEF3CD",
                         color: l.status === "approved" ? "#03543F" : l.status === "denied" ? "#9B1C1C" : "#92400E"
                       }}>{(l.status || "pending").toUpperCase()}</span>
                     </td>
-                    <td style={{ padding: "10px 8px" }}>
-                      {l.status === "pending" && (
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button style={{ ...btnPrimary, padding: "5px 12px", fontSize: 11 }} onClick={() => handleAction(educatorId, leaveId, "approved")}>Approve</button>
-                          <button style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #E8A0A0", background: "#FFF5F5", color: "#9B1C1C", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => handleAction(educatorId, leaveId, "denied")}>Deny</button>
-                        </div>
-                      )}
+                    <td style={{ ...tdS, whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {l.status === "pending" && <>
+                          <button style={actionBtn("#03543F","#DEF7EC","#A7F3D0")} onClick={() => openAction(educatorId, leaveId, "approved")}>✓ Approve</button>
+                          <button style={actionBtn("#9B1C1C","#FDE8E8","#FCA5A5")} onClick={() => openAction(educatorId, leaveId, "denied")}>✗ Deny</button>
+                        </>}
+                        {l.status === "approved" && <button style={actionBtn("#92400E","#FEF3CD","#FDE68A")} onClick={() => openAction(educatorId, leaveId, "pending")}>↩ Revert</button>}
+                        {l.status === "denied" && <button style={actionBtn("#92400E","#FEF3CD","#FDE68A")} onClick={() => openAction(educatorId, leaveId, "pending")}>↩ Revert</button>}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1171,6 +1189,34 @@ function LeaveRequestsView() {
           </table>
         )}
       </div>
+
+      {/* Action confirmation modal with notes */}
+      {noteModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 420, width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+            <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 700, color: "#3D3248" }}>
+              {noteModal.action === "approved" ? "✓ Approve Leave" : noteModal.action === "denied" ? "✗ Deny Leave" : "↩ Revert to Pending"}
+            </h3>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#5C4E6A", marginBottom: 4 }}>Notes (optional)</label>
+              <textarea
+                value={noteModal.notes} onChange={e => setNoteModal({ ...noteModal, notes: e.target.value })}
+                placeholder={noteModal.action === "denied" ? "Reason for denial..." : "Add a note..."}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, resize: "vertical", minHeight: 60, boxSizing: "border-box", fontFamily: "inherit" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setNoteModal(null)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #D9D0C7", background: "#F8F5F1", color: "#5C4E6A", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={confirmAction} disabled={!!processing}
+                style={{ padding: "8px 20px", borderRadius: 8, border: "none",
+                  background: noteModal.action === "approved" ? "#16A34A" : noteModal.action === "denied" ? "#DC2626" : "#D97706",
+                  color: "#fff", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: processing ? 0.6 : 1 }}>
+                {processing ? "Processing..." : noteModal.action === "approved" ? "Confirm Approve" : noteModal.action === "denied" ? "Confirm Deny" : "Revert to Pending"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
