@@ -439,17 +439,20 @@ export default function ChildcareRosterApp() {
 
   // Fetch live centre status (educators with clock status + rooms from DB)
   useEffect(() => {
-    const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
-    if (!t || !tid) return;
-    const hdrs = { Authorization: "Bearer " + t, "x-tenant-id": tid, "Content-Type": "application/json" };
-    // Load real educators and rooms from DB
-    fetch("/api/live-status", { headers: hdrs }).then(r => r.json()).then(d => {
+    const getHdrs = () => {
+      const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+      return t && tid ? { Authorization: "Bearer " + t, "x-tenant-id": tid, "Content-Type": "application/json" } : null;
+    };
+    const hdrs = getHdrs();
+    if (!hdrs) return;
+    const safeFetch = (url) => fetch(url, { headers: getHdrs() }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    safeFetch("/api/live-status").then(d => {
       if (d.educators) setEducators(d.educators);
       if (d.rooms) setRooms(d.rooms);
-      if (d.educators) setLiveEducatorCount(d.educators.filter(e => e.status === 'clocked_in' || e.active).length);
+      if (d.educators) setLiveEducatorCount(d.educators.filter(e => e.status === 'clocked_in').length);
     }).catch(() => {});
-    fetch("/api/children/debug-count", { headers: hdrs }).then(r => r.json()).then(d => { if (d.childCount != null) setLiveChildCount(d.childCount); }).catch(() => {});
-    fetch("/api/educators/all-leave", { headers: hdrs }).then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setPendingLeaveCount(d.filter(r=>r.status==='pending').length); }).catch(()=>{});
+    safeFetch("/api/children/debug-count").then(d => { if (d.childCount != null) setLiveChildCount(d.childCount); }).catch(() => {});
+    safeFetch("/api/educators/all-leave").then(d => { if (Array.isArray(d)) setPendingLeaveCount(d.filter(r => r.status === 'pending').length); }).catch(() => {});
   }, []);
   const [observations, setObservations] = useState([]);
   const [dailyPlans, setDailyPlans] = useState([]);

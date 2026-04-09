@@ -485,10 +485,10 @@ router.get('/live-status', requireAuth, requireTenant, (req, res) => {
         cr.id as clockRecordId, cr.clock_in as clockInTime,
         cr.break_start as breakStart, cr.clock_out as clockOut
       FROM educators e
-      LEFT JOIN clock_records cr ON cr.educator_id=e.id AND cr.clock_date=? AND cr.tenant_id=? AND cr.clock_out IS NULL
+      LEFT JOIN clock_records cr ON (cr.educator_id=e.id OR cr.member_id=e.id) AND (cr.clock_date=? OR cr.date=?) AND cr.tenant_id=? AND cr.clock_out IS NULL
       WHERE e.tenant_id=? AND e.status='active'
       ORDER BY e.first_name
-    `).all(today, tid, tid);
+    `).all(today, today, tid, tid);
 
     const mapped = educators.map(e => ({
       ...e,
