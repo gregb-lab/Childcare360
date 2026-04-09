@@ -209,7 +209,7 @@ export default function DocumentsModule() {
 
       {/* Expiring Documents Tab */}
       {tab === "expiring" && (
-        <div style={cardS}>
+        <div style={card}>
           <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700 }}>⏰ Expiring & Expired Documents</h3>
           <p style={{ margin: "0 0 16px", fontSize: 12, color: "#8A7F96" }}>All documents expiring within 60 days or already expired</p>
           {expiringCount === 0 ? (

@@ -170,7 +170,7 @@ function DatePicker({ value, onChange, min, max, disabled, placeholder = "Select
       )}
 
       {open && (
-        <div style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999, background: "#fff", border: "1px solid #DDD6EE", borderRadius: 12, boxShadow: "0 8px 32px rgba(80,60,90,0.18)", width: 260, overflow: "hidden" }}>
+        <div style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999, background: "#fff", border: "1px solid #DDD6EE", borderRadius: 12, boxShadow: "0 8px 32px rgba(80,60,90,0.18)", width: 260 }}>
 
           {/* Day view */}
           {view === "day" && (
@@ -427,7 +427,7 @@ function CertRow({ label, value, expiry }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #F0EBF8" }}>
       <span style={{ fontSize: 11, color: "#8A7F96", flexShrink: 0, whiteSpace: "nowrap", minWidth: 80 }}>{label}</span>
-      <div style={{ flex: 1, textAlign: "right", fontSize: 12, color: "#3D3248", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+      <div style={{ flex: 1, textAlign: "left", fontSize: 12, color: "#3D3248", wordBreak: "break-word", overflowWrap: "anywhere" }}>
         {value && <span style={{ color: "#555", marginRight: 6 }}>{value}</span>}
         <span style={{ color, fontWeight: 700 }}>{icon} {expiry ? fmtDate(expiry) : "Not entered"}</span>
       </div>
@@ -1236,7 +1236,7 @@ export default function EducatorsModule() {
             ))}
           </div>
 
-          <div style={{background:"#fff",borderRadius:14,border:"1px solid #EDE8F4",overflow:"hidden"}}>
+          <div style={{background:"#fff",borderRadius:14,border:"1px solid #EDE8F4"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead>
                 <tr style={{background:"#EDE8F4"}}>
@@ -1406,7 +1406,7 @@ export default function EducatorsModule() {
               )}
 
               {/* Educator NECWR table */}
-              <div style={{ background:"#fff",borderRadius:12,border:"1px solid #EDE8F4",overflow:"hidden" }}>
+              <div style={{ background:"#fff",borderRadius:12,border:"1px solid #EDE8F4" }}>
                 {/* Table header */}
                 <div style={{ display:"grid",gridTemplateColumns:"40px 1fr 100px 120px 140px 160px 80px",gap:0,background:"#F8F5FC",borderBottom:"1px solid #EDE8F4",padding:"10px 16px" }}>
                   <div><input type="checkbox" onChange={e=>{

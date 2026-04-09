@@ -26,7 +26,12 @@ const bs={padding:"9px 18px",borderRadius:9,border:`1px solid ${P}`,background:"
 const inp={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:13,width:"100%",boxSizing:"border-box",fontFamily:"inherit"};
 const lbl={fontSize:11,color:MU,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase"};
 
-const fmtTime = t => t ? new Date(t).toLocaleTimeString("en-AU",{hour:"2-digit",minute:"2-digit"}) : "—";
+const fmtTime = t => {
+  if (!t) return "—";
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(t)) return t;
+  const d = new Date(t);
+  return isNaN(d) ? t : d.toLocaleTimeString("en-AU",{hour:"numeric",minute:"2-digit",hour12:true});
+};
 
 export default function KioskModule() {
   const [mode, setMode] = useState("admin"); // admin | kiosk

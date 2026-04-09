@@ -290,7 +290,9 @@ r.get('/today', (req, res) => {
     const kioskChildIds = new Set(sessions.map(s => s.child_id));
     try {
       const attendanceSessions = D().prepare(`
-        SELECT a.id, a.child_id, a.sign_in as signed_in_at, a.sign_out as signed_out_at,
+        SELECT a.id, a.child_id,
+               a.date || 'T' || CASE WHEN length(a.sign_in) <= 5 THEN printf('%02d',CAST(a.sign_in AS INTEGER)) || substr(a.sign_in,instr(a.sign_in,':')) || ':00' ELSE a.sign_in END as signed_in_at,
+               CASE WHEN a.sign_out IS NOT NULL THEN a.date || 'T' || CASE WHEN length(a.sign_out) <= 5 THEN printf('%02d',CAST(a.sign_out AS INTEGER)) || substr(a.sign_out,instr(a.sign_out,':')) || ':00' ELSE a.sign_out END ELSE NULL END as signed_out_at,
                a.date as session_date,
                c.first_name, c.last_name, c.photo_url, c.room_id, r.name as room_name
         FROM attendance_sessions a
