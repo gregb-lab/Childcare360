@@ -505,17 +505,43 @@ router.get('/:id/attendance', (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /:id/events?type=... (alias for event-log)
+// GET /:id/events?type=... — aggregate events from multiple sources
 router.get('/:id/events', (req, res) => {
   try {
-    const { type, limit=50 } = req.query;
-    let sql = `SELECT * FROM child_events WHERE child_id=?`;
-    const args = [req.params.id];
-    if (type && type!=='all') { sql += ` AND event_type=?`; args.push(type); }
-    sql += ` ORDER BY created_at DESC LIMIT ?`; args.push(parseInt(limit)||50);
-    const rows = tryQuery(()=>D().prepare(sql).all(...args));
-    res.json(rows);
-  } catch(err) { res.json([]); }
+    const { id } = req.params;
+    const { type } = req.query;
+
+    const attendance = tryQuery(() => D().prepare(`
+      SELECT 'attendance' as event_type, id, child_id,
+        date || 'T' || COALESCE(sign_in, '00:00') || ':00' as created_at,
+        CASE WHEN sign_in IS NOT NULL AND sign_out IS NOT NULL
+          THEN 'Signed in at ' || sign_in || ', signed out at ' || sign_out
+          WHEN sign_in IS NOT NULL THEN 'Signed in at ' || sign_in
+          ELSE 'Absent' END as description,
+        sign_in, sign_out, date
+      FROM attendance_sessions WHERE child_id=? AND tenant_id=?
+      ORDER BY date DESC LIMIT 50
+    `).all(id, req.tenantId));
+
+    const medical = tryQuery(() => D().prepare(`
+      SELECT 'medical' as event_type, id, child_id, created_at,
+        'Medical plan: ' || COALESCE(condition_name, plan_type) as description
+      FROM medical_plans WHERE child_id=? AND tenant_id=?
+      ORDER BY created_at DESC LIMIT 20
+    `).all(id, req.tenantId));
+
+    const incidents = tryQuery(() => D().prepare(`
+      SELECT 'incident' as event_type, id, child_id, created_at,
+        'Incident: ' || COALESCE(title, type, 'Unknown') as description
+      FROM incidents WHERE child_id=? AND tenant_id=?
+      ORDER BY created_at DESC LIMIT 20
+    `).all(id, req.tenantId));
+
+    let events = [...attendance, ...medical, ...incidents];
+    if (type && type !== 'all') events = events.filter(e => e.event_type === type);
+    events.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    res.json(events.slice(0, 100));
+  } catch(e) { res.json([]); }
 });
 
 // GET + POST /:id/educator-notes
@@ -585,7 +611,8 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
       updates.length ? `Recent updates: ${updates.slice(0,5).map(u=>u.notes||'').filter(Boolean).join('; ')}` : '',
     ].filter(Boolean).join('\n');
     // Try AI call
-    const provider = D().prepare('SELECT * FROM ai_providers WHERE tenant_id=? AND enabled=1 AND api_key IS NOT NULL ORDER BY is_default DESC LIMIT 1').get(req.tenantId);
+    let provider = null;
+    try { provider = D().prepare('SELECT * FROM ai_providers WHERE tenant_id=? AND enabled=1 AND api_key IS NOT NULL ORDER BY is_default DESC LIMIT 1').get(req.tenantId); } catch(e) {}
     let focusData = { strengths: [], next_steps: [], eylf_focus: [], summary: 'Based on available observations.' };
     if (provider) {
       try {

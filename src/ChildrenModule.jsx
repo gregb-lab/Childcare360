@@ -312,7 +312,9 @@ function ProfileTab({ child, rooms, onSaved }) {
         </div>
 
         <div style={{ ...card, gridColumn: "span 2" }}>
-          <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🔑 Authorised Collection Persons</h4>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>🔑 Authorised Collection Persons</h4>
+          </div>
           <AuthCollectionList childId={child.id} editable={ed} />
         </div>
       </div>
