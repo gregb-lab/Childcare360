@@ -312,10 +312,8 @@ function ProfileTab({ child, rooms, onSaved }) {
         </div>
 
         <div style={{ ...card, gridColumn: "span 2" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>🔑 Authorised Collection Persons</h4>
-          </div>
-          <AuthCollectionList childId={child.id} editable={ed} />
+          <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🔑 Authorised Collection Persons</h4>
+          <AuthCollectionList childId={child.id} editable={true} />
         </div>
       </div>
     </div>
@@ -1443,12 +1441,9 @@ function PermissionsTab({ child }) {
                     {existing?.granted_date && <div style={{ fontSize: 9, color: "#2E7D32" }}>Granted {fmtDate(existing.granted_date)}</div>}
                   </div>
                 </div>
-                <label style={{ cursor: "pointer", position: "relative", flexShrink: 0 }}>
-                  <input type="checkbox" checked={!!granted} onChange={() => toggle(op.id, granted)} style={{ display: "none" }} />
-                  <div style={{ width: 40, height: 22, borderRadius: 11, background: granted ? "#2E7D32" : "#CCC", position: "relative", transition: "background 0.2s" }}>
-                    <div style={{ position: "absolute", top: 3, left: granted ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
-                  </div>
-                </label>
+                <div onClick={() => toggle(op.id, granted)} style={{ cursor: "pointer", flexShrink: 0, width: 40, height: 22, borderRadius: 11, background: granted ? "#2E7D32" : "#CCC", position: "relative", transition: "background 0.2s" }}>
+                  <div style={{ position: "absolute", top: 3, left: granted ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+                </div>
               </div>
             );
           })}
