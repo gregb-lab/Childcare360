@@ -311,57 +311,101 @@ function ProfileTab({ child, rooms, onSaved }) {
           </div>
         </div>
 
-        <div style={{ ...card, gridColumn: "span 2" }}>
-          <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🔑 Authorised Collection Persons</h4>
-          <AuthCollectionList childId={child.id} editable={true} />
+        <div style={{ gridColumn: "span 2" }}>
+          <AuthorisedPersonsSection child={child} />
         </div>
       </div>
     </div>
   );
 }
 
-function AuthCollectionList({ childId, editable }) {
-  const [list, setList] = useState([]);
-  const [adding, setAdding] = useState(false);
-  const [nf, setNf] = useState({ name: "", relationship: "", phone: "", photo_id_type: "" });
+function AuthorisedPersonsSection({ child }) {
+  const [persons, setPersons] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", relationship: "", phone: "", photo_id_type: "" });
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    API(`/api/children/${childId}/collection-persons`).then(r => { if (Array.isArray(r)) setList(r); }).catch(() => {});
-  }, [childId]);
+  const load = () => API(`/api/children/${child.id}/collection-persons`)
+    .then(r => { if (Array.isArray(r)) setPersons(r); }).catch(() => {});
 
-  const add = async () => {
-    let r;
-    try { r = await API(`/api/children/${childId}/collection-persons`, { method: "POST", body: nf }); toast("Person added"); }
-    catch(e) { toast("Failed to add person.", "error"); return; }
-    if (r.id) { setList(p => [...p, r]); setAdding(false); setNf({ name: "", relationship: "", phone: "", photo_id_type: "" }); }
+  useEffect(() => { load(); }, [child.id]);
+
+  const save = async () => {
+    if (!form.name.trim()) { alert("Name is required"); return; }
+    setSaving(true);
+    try {
+      await API(`/api/children/${child.id}/collection-persons`, { method: "POST", body: form });
+      await load();
+      setShowForm(false);
+      setForm({ name: "", relationship: "", phone: "", photo_id_type: "" });
+      toast("Person added");
+    } catch (e) { toast("Failed to save", "error"); }
+    setSaving(false);
   };
+
   const remove = async (id) => {
-    await API(`/api/children/${childId}/collection-persons/${id}`, { method: "DELETE" });
-    setList(p => p.filter(x => x.id !== id));
+    if (!confirm("Remove this person?")) return;
+    await API(`/api/children/${child.id}/collection-persons/${id}`, { method: "DELETE" }).catch(() => {});
+    setPersons(p => p.filter(x => x.id !== id));
   };
 
   return (
-    <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-        {list.map(p => (
-          <div key={p.id} style={{ background: "#F8F5F1", borderRadius: 8, padding: "8px 12px", border: "1px solid #E8E0D8", display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontSize: 18 }}>👤</div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700 }}>{p.name}</div>
-              <div style={{ fontSize: 10, color: "#8A7F96" }}>{p.relationship} · {p.phone}</div>
-              {p.photo_id_type && <div style={{ fontSize: 9, color: "#5B8DB5" }}>ID: {p.photo_id_type}</div>}
-            </div>
-            {editable && <button onClick={() => remove(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#B71C1C", fontSize: 14 }}>✕</button>}
-          </div>
-        ))}
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: "#3D3248" }}>
+          👥 Authorised Collection Persons ({persons.length})
+        </div>
+        <button onClick={() => setShowForm(s => !s)}
+          style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid #7C3AED",
+            background: showForm ? "#7C3AED" : "#F5F0FB", color: showForm ? "#fff" : "#7C3AED",
+            cursor: "pointer", fontWeight: 600 }}>
+          {showForm ? "✕ Cancel" : "+ Add Person"}
+        </button>
       </div>
-      {editable && !adding && <button onClick={() => setAdding(true)} style={btnS}>+ Add Person</button>}
-      {adding && (
-        <div style={{ background: lp, borderRadius: 10, padding: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
-          {[["name","Name"],["relationship","Relationship"],["phone","Phone"],["photo_id_type","Photo ID Type"]].map(([k, l]) => (
-            <div key={k}><label style={lbl}>{l}</label><input style={inp} value={nf[k]} onChange={e => setNf(p => ({ ...p, [k]: e.target.value }))} /></div>
+
+      {showForm && (
+        <div style={{ background: "#F8F5FF", borderRadius: 10, padding: 14, marginBottom: 12, border: "1px solid #DDD6EE" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            {[["Name *", "name", "text"], ["Relationship", "relationship", "text"], ["Phone", "phone", "tel"], ["Photo ID Type", "photo_id_type", "text"]].map(([label, key, type]) => (
+              <div key={key}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#5C4E6A", marginBottom: 4 }}>{label}</div>
+                <input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid #DDD6EE", fontSize: 12, boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button onClick={() => setShowForm(false)}
+              style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer", fontSize: 12 }}>
+              Cancel
+            </button>
+            <button onClick={save} disabled={saving}
+              style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: "#7C3AED", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {persons.length === 0 && !showForm ? (
+        <div style={{ textAlign: "center", padding: 20, color: "#8A7F96", fontSize: 12 }}>
+          No authorised collection persons added yet
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {persons.map(p => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#fff", borderRadius: 8, border: "1px solid #EDE8F4" }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#F5F0FB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>👤</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 12, color: "#3D3248" }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: "#8A7F96" }}>{p.relationship}{p.phone ? ` · ${p.phone}` : ""}</div>
+              </div>
+              <button onClick={() => remove(p.id)}
+                style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer", flexShrink: 0 }}>
+                Remove
+              </button>
+            </div>
           ))}
-          <button onClick={add} style={btnP}>Add</button>
         </div>
       )}
     </div>
@@ -512,8 +556,12 @@ function FocusTab({ child }) {
 // ─── ATTENDANCE TAB ──────────────────────────────────────────────────────────
 function AttendanceTab({ child }) {
   const [data, setData] = useState(null);
+  const [loadErr, setLoadErr] = useState(false);
   useEffect(() => {
-    API(`/api/children/${child.id}/attendance-summary`).then(r => { if (r) setData(r); }).catch(() => {});
+    setData(null); setLoadErr(false);
+    API(`/api/children/${child.id}/attendance-summary`)
+      .then(r => { if (r && !r.error) setData(r); else setLoadErr(true); })
+      .catch(() => setLoadErr(true));
   }, [child.id]);
 
   const DAYS = ["Mon","Tue","Wed","Thu","Fri"];
@@ -559,15 +607,17 @@ function AttendanceTab({ child }) {
         {/* Arrival/departure stats */}
         <div style={card}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🕐 Arrival & Departure Stats</h4>
-          {[
-            { label: "Avg Arrival", value: data?.avg_arrival || "07:45" },
-            { label: "Avg Departure", value: data?.avg_departure || "16:30" },
-            { label: "Earliest Arrival", value: data?.earliest_arrival || "07:00" },
-            { label: "Latest Departure", value: data?.latest_departure || "18:30" },
+          {!data && !loadErr && <div style={{ textAlign: "center", padding: 12, color: "#B0AAB9", fontSize: 12 }}>Loading...</div>}
+          {loadErr && <div style={{ textAlign: "center", padding: 12, color: "#B71C1C", fontSize: 12 }}>Failed to load stats</div>}
+          {data && [
+            { label: "Avg Arrival", value: data.avg_arrival },
+            { label: "Avg Departure", value: data.avg_departure },
+            { label: "Earliest Arrival", value: data.earliest_arrival },
+            { label: "Latest Departure", value: data.latest_departure },
           ].map(s => (
             <div key={s.label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #F5F0FB" }}>
               <span style={{ fontSize: 12, color: "#8A7F96" }}>{s.label}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#3D3248" }}>{s.value}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#3D3248" }}>{s.value || "—"}</span>
             </div>
           ))}
         </div>
@@ -1426,7 +1476,7 @@ function PermissionsTab({ child }) {
       <div style={card}>
         <h4 style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700 }}>✅ Ongoing Permissions</h4>
         <p style={{ margin: "0 0 14px", fontSize: 11, color: "#8A7F96" }}>Standing permissions granted by parent/guardian. Updated date logged in audit trail.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {ONGOING_PERMS.map(op => {
             const existing = perms.find(p => p.permission_type === op.id);
             const granted = existing?.granted ?? false;
