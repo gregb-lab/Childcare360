@@ -131,7 +131,7 @@ export default function ChildrenModule() {
 
       {/* Detail pane */}
       {selected ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, maxWidth: "100%" }}>
           {/* Child header */}
           <div style={{ padding: "16px 20px 0", borderBottom: "1px solid #EDE8F4", background: "#fff", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
@@ -169,7 +169,7 @@ export default function ChildrenModule() {
             </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", minHeight: 0 }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", minHeight: 0, minWidth: 0 }}>
             {tab === "profile"    && <ProfileTab key={selected.id} child={selected} rooms={rooms} onSaved={refreshSelected} />}
             {tab === "focus"      && <FocusTab key={selected.id} child={selected} />}
             {tab === "attendance" && <AttendanceTab key={selected.id} child={selected} />}
@@ -259,8 +259,8 @@ function ProfileTab({ child, rooms, onSaved }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div style={card}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: "100%", overflow: "hidden" }}>
+        <div style={{ ...card, minWidth: 0, overflow: "hidden" }}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>👤 Child Details</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <FRow label="First Name" k="first_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
@@ -272,7 +272,7 @@ function ProfileTab({ child, rooms, onSaved }) {
           </div>
         </div>
 
-        <div style={card}>
+        <div style={{ ...card, minWidth: 0, overflow: "hidden" }}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>📞 Primary Contact</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <FRow label="Parent / Guardian" k="parent1_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
@@ -282,7 +282,7 @@ function ProfileTab({ child, rooms, onSaved }) {
           </div>
         </div>
 
-        <div style={card}>
+        <div style={{ ...card, minWidth: 0, overflow: "hidden" }}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>📞 Secondary Contact</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <FRow label="Parent / Guardian 2" k="parent2_name" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
@@ -291,7 +291,7 @@ function ProfileTab({ child, rooms, onSaved }) {
           </div>
         </div>
 
-        <div style={card}>
+        <div style={{ ...card, minWidth: 0, overflow: "hidden" }}>
           <h4 style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700 }}>🏛️ CCS / Centrelink</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <FRow label="Child CRN" k="centrelink_crn" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
@@ -299,7 +299,7 @@ function ProfileTab({ child, rooms, onSaved }) {
           </div>
         </div>
 
-        <div style={card}>
+        <div style={{ ...card, minWidth: 0, overflow: "hidden" }}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🏥 Medical Summary</h4>
           <div style={{ display: "grid", gap: 8 }}>
             <FRow label="Known Allergies" k="allergies" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
@@ -570,7 +570,7 @@ function AttendanceTab({ child }) {
   return (
     <div>
       {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 12, marginBottom: 14 }}>
         {[
           { label: "Total Days", value: data?.total_days || 0, icon: "📅", color: purple },
           { label: "Absences", value: data?.absences || 0, icon: "❌", color: "#B71C1C" },
