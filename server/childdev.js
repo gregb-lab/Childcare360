@@ -299,7 +299,7 @@ r.get('/menus/:weekStarting/allergen-check', (req, res) => {
 // ── Dietary requirements ──────────────────────────────────────────────────────
 r.get('/dietary', (req, res) => {
   try {
-    const rows = D().prepare(`
+    let rows = D().prepare(`
       SELECT dr.*, c.first_name, c.last_name, c.room_id, r.name as room_name
       FROM dietary_requirements dr
       JOIN children c ON c.id=dr.child_id
@@ -307,6 +307,21 @@ r.get('/dietary', (req, res) => {
       WHERE dr.tenant_id=?
       ORDER BY dr.severity DESC, c.last_name
     `).all(req.tenantId);
+    // Fallback: if dietary_requirements is empty, use child_dietary table
+    if (rows.length === 0) {
+      try {
+        rows = D().prepare(`
+          SELECT cd.id, cd.child_id, cd.name as requirement_type, cd.category, cd.severity,
+                 cd.description, cd.action_required, cd.is_anaphylactic,
+                 c.first_name, c.last_name, c.room_id, r.name as room_name
+          FROM child_dietary cd
+          JOIN children c ON c.id=cd.child_id
+          LEFT JOIN rooms r ON r.id=c.room_id
+          WHERE cd.tenant_id=?
+          ORDER BY cd.severity DESC, c.last_name
+        `).all(req.tenantId);
+      } catch(e2) {}
+    }
     res.json({ requirements: rows.map(r => ({ ...r, allergens: JSON.parse(r.allergens || '[]') })) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

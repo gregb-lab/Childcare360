@@ -397,14 +397,13 @@ export function PlanningWizardView({ children, rooms, dailyPlans, setDailyPlans 
   // ── Classroom analysis for selected room ──
   const roomAnalysis = useMemo(() => {
     if (!selectedRoom) return null;
-    const roomChildren = children.filter(c => c.roomId === selectedRoom.id);
-    if (roomChildren.length === 0) return null;
+    const roomChildren = children.filter(c => c.roomId === selectedRoom.id || c.room_id === selectedRoom.id);
 
     const domainAverages = {};
     const domainDistribution = {};
     DEV_DOMAINS.forEach(d => {
-      const vals = roomChildren.map(c => c.domains[d.id] || 0);
-      domainAverages[d.id] = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const vals = roomChildren.map(c => (c.domains || {})[d.id] || 0);
+      domainAverages[d.id] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
       domainDistribution[d.id] = {
         emerging: vals.filter(v => v <= 1).length,
         developing: vals.filter(v => v === 2).length,
@@ -418,14 +417,14 @@ export function PlanningWizardView({ children, rooms, dailyPlans, setDailyPlans 
       ...d,
       avg: domainAverages[d.id],
       needCount: roomChildren.filter(c => (c.domains[d.id] || 0) <= 2).length,
-      needPct: Math.round((roomChildren.filter(c => (c.domains[d.id] || 0) <= 2).length / roomChildren.length) * 100),
+      needPct: roomChildren.length > 0 ? Math.round((roomChildren.filter(c => ((c.domains || {})[d.id] || 0) <= 2).length / roomChildren.length) * 100) : 0,
     })).sort((a, b) => a.avg - b.avg);
 
     // EYLF outcome analysis
     const eylfNeeds = {};
     EYLF_OUTCOMES.forEach(o => {
       o.subOutcomes.forEach(s => {
-        const vals = roomChildren.map(c => c.eylfProgress[s.id]).filter(v => v !== undefined);
+        const vals = roomChildren.map(c => (c.eylfProgress || c.eylf_progress || {})[s.id]).filter(v => v !== undefined);
         if (vals.length > 0) {
           eylfNeeds[s.id] = {
             avg: vals.reduce((a, b) => a + b, 0) / vals.length,
@@ -610,7 +609,7 @@ export function PlanningWizardView({ children, rooms, dailyPlans, setDailyPlans 
           </p>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${rooms.length}, 1fr)`, gap: 12 }}>
             {rooms.map(room => {
-              const roomKids = children.filter(c => c.roomId === room.id);
+              const roomKids = children.filter(c => c.roomId === room.id || c.room_id === room.id);
               const hasPlan = todayPlans.some(p => p.roomId === room.id);
               return (
                 <button key={room.id} onClick={() => startWizard(room)}

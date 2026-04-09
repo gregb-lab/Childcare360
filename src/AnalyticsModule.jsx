@@ -76,7 +76,7 @@ function AttendanceTab() {
   },[weeks,roomFilter]);
   useEffect(()=>{load();},[load]);
 
-  if(!data)return <div style={{padding:40,textAlign:"center",color:MU}}>Loading…</div>;
+  if(!data)return <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading analytics...</div></div>;
 
   const maxPresent=Math.max(...(data.daily||[]).map(d=>d.present),1);
   const avgRate=data.weekly?.length
@@ -204,7 +204,7 @@ function AttendanceTab() {
 function ForecastTab() {
   const [data,setData]=useState(null);
   useEffect(()=>{API("/api/analytics/forecast").then(setData);},[]);
-  if(!data)return <div style={{padding:40,textAlign:"center",color:MU}}>Loading…</div>;
+  if(!data)return <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading analytics...</div></div>;
 
   const DOW_C={"1":"#7C3AED","2":"#0284C7","3":"#16A34A","4":"#D97706","5":"#DC2626"};
   const maxForecast=Math.max(...(data.forecast||[]).map(d=>d.forecast_present),1);
@@ -269,7 +269,7 @@ function ForecastTab() {
 function RevenueTab() {
   const [data,setData]=useState(null);
   useEffect(()=>{API("/api/analytics/revenue").then(setData);},[]);
-  if(!data)return <div style={{padding:40,textAlign:"center",color:MU}}>Loading…</div>;
+  if(!data)return <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading analytics...</div></div>;
 
   const maxBilled=Math.max(...(data.monthly||[]).map(m=>m.billed),1);
 

@@ -39,6 +39,10 @@ function CatBadge({ cat }) {
 export default function DocumentsModule() {
   const initTab = typeof window !== 'undefined' && localStorage.getItem('c360_docs_tab');
   const [tab, setTab] = useState(initTab || "pending");
+  useEffect(() => {
+    const stored = localStorage.getItem('c360_docs_tab');
+    if (stored) { setTab(stored); localStorage.removeItem('c360_docs_tab'); }
+  }, []);
   if (initTab) localStorage.removeItem('c360_docs_tab');
   const [pending, setPending] = useState([]);
   const [childDocs, setChildDocs] = useState([]);
@@ -125,10 +129,10 @@ export default function DocumentsModule() {
         <div>
           {loading && <div style={{ textAlign: "center", color: "#8A7F96", padding: 32 }}>Loading...</div>}
           {!loading && pending.length === 0 && (
-            <div style={{ ...card, textAlign: "center", color: "#8A7F96", padding: 48 }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>No documents pending review</div>
-              <div style={{ fontSize: 13, marginTop: 6 }}>Documents received via email or uploaded by parents will appear here</div>
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "#8A7F96" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: "#5C4E6A" }}>No Documents Yet</div>
+              <div style={{ fontSize: 13 }}>Upload and manage important documents here</div>
             </div>
           )}
           {pending.map(doc => (

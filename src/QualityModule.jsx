@@ -110,7 +110,7 @@ function QIPTab() {
     load();
   };
 
-  if(!data)return <div style={{padding:40,textAlign:"center",color:MU}}>Loading…</div>;
+  if(!data)return <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading quality data...</div></div>;
 
   const QA_NAMES=data.nqs||{};
 
@@ -226,7 +226,7 @@ function QIPTab() {
             )}
 
             {data.goals?.filter(g=>g.quality_area===selQA).length===0
-              ? <div style={{color:MU,fontSize:13,textAlign:"center",padding:"20px 0"}}>No goals yet for this quality area</div>
+              ? <div style={{textAlign:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{fontSize:48,marginBottom:12}}>🎯</div><div style={{fontWeight:700,fontSize:15,marginBottom:6,color:"#5C4E6A"}}>No Goals Set</div><div style={{fontSize:13}}>Add improvement goals to your Quality Improvement Plan</div></div>
               : data.goals?.filter(g=>g.quality_area===selQA).map(goal=>{
                 const sc={not_started:MU,in_progress:IN,completed:OK,on_hold:WA};
                 return (

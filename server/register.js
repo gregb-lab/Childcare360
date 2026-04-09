@@ -187,9 +187,10 @@ r.delete('/lunch-cover/:id', (req, res) => {
 r.get('/medications', requireAuth, requireTenant, (req, res) => {
   try {
     const { child_id } = req.query;
-    let sql = `SELECT m.*, c.first_name, c.last_name 
-               FROM medications m 
-               JOIN children c ON c.id=m.child_id 
+    let sql = `SELECT m.*, c.first_name, c.last_name,
+               c.first_name || ' ' || c.last_name as child_name
+               FROM medications m
+               LEFT JOIN children c ON c.id=m.child_id
                WHERE m.tenant_id=?`;
     const params = [req.tenantId];
     if (child_id) { sql += ' AND m.child_id=?'; params.push(child_id); }

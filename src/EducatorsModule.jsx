@@ -427,7 +427,7 @@ function CertRow({ label, value, expiry }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F0EBF8" }}>
       <span style={{ fontSize: 13, color: "#555" }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, whiteSpace: "nowrap" }}>
         {value && <span style={{ fontSize: 12, color: "#777" }}>{value}</span>}
         <span style={{ color, fontWeight: 700, fontSize: 13 }}>{icon} {expiry ? fmtDate(expiry) : "Not entered"}</span>
       </div>
@@ -1135,12 +1135,20 @@ function AddEducatorWizard({ onClose, onSaved }) {
 
 export default function EducatorsModule() {
   const [educators, setEducators] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => {
+    const stored = typeof window !== 'undefined' && localStorage.getItem('c360_educator_select');
+    if (stored) { localStorage.removeItem('c360_educator_select'); return stored; }
+    return null;
+  });
   const [detail, setDetail] = useState(null);
   const [tab, setTab] = useState("profile");
   const [ytd, setYtd] = useState(null);
   const [showWizard, setShowWizard] = useState(false);
-  const [mainTab, setMainTab] = useState("list");
+  const [mainTab, setMainTab] = useState(() => {
+    const stored = typeof window !== 'undefined' && localStorage.getItem('c360_educator_tab');
+    if (stored) { localStorage.removeItem('c360_educator_tab'); return stored; }
+    return "list";
+  });
   const [necwr, setNecwr] = useState([]);
   const [necwrLoading, setNecwrLoading] = useState(false);
   const [necwrFilter, setNecwrFilter] = useState("all");

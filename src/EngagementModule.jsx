@@ -181,7 +181,7 @@ function EventsTab() {
         )}
 
         {events.length===0
-          ? <div style={{...card,textAlign:"center",padding:"40px 20px",color:MUTED}}><div style={{fontSize:36}}>📅</div><div style={{marginTop:8}}>No {view} events</div></div>
+          ? <div style={{textAlign:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{fontSize:48,marginBottom:12}}>📅</div><div style={{fontWeight:700,fontSize:15,marginBottom:6,color:"#5C4E6A"}}>No Events Scheduled</div><div style={{fontSize:13}}>Create events to engage families and staff</div></div>
           : Object.entries(byMonth).map(([month,evts])=>(
             <div key={month}>
               <div style={{fontSize:11,fontWeight:700,color:MUTED,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>

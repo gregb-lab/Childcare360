@@ -78,7 +78,10 @@ router.get('/:id', (req, res) => {
       WHERE educator_id = ? AND date >= ?
     `).get(req.params.id, fyStart);
 
-    res.json({ ...edu, availability, absences, documents, leaveRequests, rosterHistory, ytdEarningsCents: ytd?.total || 0 });
+    // Compute shifts_last_30 for detail view (matches list view subquery)
+    const shiftsCount = D().prepare("SELECT COUNT(*) as c FROM roster_entries WHERE educator_id = ? AND date >= date('now','-30 days')").get(req.params.id)?.c || 0;
+
+    res.json({ ...edu, shifts_last_30: shiftsCount, availability, absences, documents, leaveRequests, rosterHistory, ytdEarningsCents: ytd?.total || 0 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -10,10 +10,13 @@ const uuid = () => crypto.randomUUID();
 r.get('/', (req, res) => {
   try {
     const { from, to, child_id, type, severity } = req.query;
-    let sql = `SELECT i.*, c.first_name, c.last_name, c.room_id, rm.name as room_name
-               FROM incidents i 
+    let sql = `SELECT i.*, c.first_name, c.last_name, c.room_id, rm.name as room_name,
+               COALESCE(e.first_name || ' ' || e.last_name, u.name, i.reported_by) as reported_by
+               FROM incidents i
                LEFT JOIN children c ON c.id=i.child_id
                LEFT JOIN rooms rm ON rm.id=c.room_id
+               LEFT JOIN educators e ON e.id=i.reported_by
+               LEFT JOIN users u ON u.id=i.reported_by
                WHERE i.tenant_id=?`;
     const params = [req.tenantId];
     if (from) { sql += ' AND i.date>=?'; params.push(from); }

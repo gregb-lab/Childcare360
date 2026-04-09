@@ -270,8 +270,10 @@ router.get('/clock-records', requireAuth, requireTenant, (req, res) => {
 router.post('/clock-records', requireAuth, requireTenant, (req, res) => {
   const id = uuid();
   const { memberId, clockIn, date } = req.body;
-  D().prepare('INSERT INTO clock_records (id,tenant_id,member_id,clock_in,date) VALUES(?,?,?,?,?)')
-    .run(id, req.tenantId, memberId, clockIn || new Date().toISOString(), date || new Date().toISOString().split('T')[0]);
+  const clockTime = clockIn || new Date().toISOString();
+  const clockDate = date || new Date().toISOString().split('T')[0];
+  D().prepare('INSERT INTO clock_records (id,tenant_id,member_id,educator_id,clock_in,date,clock_date) VALUES(?,?,?,?,?,?,?)')
+    .run(id, req.tenantId, memberId, memberId, clockTime, clockDate, clockDate);
   res.json({ id });
 });
 
@@ -390,7 +392,10 @@ router.get('/dashboard/today', async (req, res) => {
     const rp = db.prepare("SELECT id,first_name,last_name,qualification,role_title FROM educators WHERE tenant_id=? AND is_responsible_person=1 AND status='active' LIMIT 1").get(tid) || null;
 
     // Educators clocked in today
-    const clockedIn = db.prepare("SELECT COUNT(DISTINCT educator_id) as c FROM clock_records WHERE tenant_id=? AND clock_date=? AND clock_out IS NULL").get(tid, today)?.c || 0;
+    let clockedIn = 0;
+    try {
+      clockedIn = db.prepare("SELECT COUNT(DISTINCT COALESCE(educator_id, member_id)) as c FROM clock_records WHERE tenant_id=? AND (date=? OR clock_date=?) AND clock_out IS NULL").get(tid, today, today)?.c || 0;
+    } catch(e) {}
 
     // Upcoming birthdays (next 14 days)
     const todayD = new Date(); todayD.setHours(0,0,0,0);
@@ -409,7 +414,7 @@ router.get('/dashboard/today', async (req, res) => {
     // Expiring certs (next 30 days)
     let expiring = [];
     try { expiring = db.prepare(`
-      SELECT first_name, last_name,
+      SELECT id, first_name, last_name,
         CASE WHEN wwcc_expiry <= date('now','+30 days') AND wwcc_expiry > date('now') THEN 'WWCC'
              WHEN first_aid_expiry <= date('now','+30 days') AND first_aid_expiry > date('now') THEN 'First Aid'
              WHEN cpr_expiry <= date('now','+30 days') AND cpr_expiry > date('now') THEN 'CPR' END as cert_type,

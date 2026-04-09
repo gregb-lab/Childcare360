@@ -429,6 +429,13 @@ export default function ChildcareRosterApp() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [liveEducatorCount, setLiveEducatorCount] = useState(null);
+  // Auto-collapse sidebar on mobile
+  useEffect(() => {
+    const handler = () => { if (window.innerWidth < 768) setSidebarCollapsed(true); };
+    handler(); // check on mount
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   // Fetch live centre status (educators with clock status + rooms from DB)
   useEffect(() => {
@@ -1227,13 +1234,31 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
   const [ratioData, setRatioData] = useState(null);
   const [ratioLoading, setRatioLoading] = useState(false);
 
-  const tok  = localStorage.getItem("c360_token");
-  const tid  = localStorage.getItem("c360_tenant");
-  const hdrs = { "Content-Type":"application/json", ...(tok?{Authorization:`Bearer ${tok}`}:{}), ...(tid?{"x-tenant-id":tid}:{}) };
+  const getHdrs = () => {
+    const tok = localStorage.getItem("c360_token");
+    const tid = localStorage.getItem("c360_tenant");
+    return { "Content-Type":"application/json", ...(tok?{Authorization:`Bearer ${tok}`}:{}), ...(tid?{"x-tenant-id":tid}:{}) };
+  };
+  const hdrs = getHdrs();
+
+  // Fetch with auto-refresh on 401
+  const authFetch = async (url, opts = {}) => {
+    let res = await fetch(url, { ...opts, headers: getHdrs() });
+    if (res.status === 401) {
+      const rt = localStorage.getItem("c360_refresh");
+      if (rt) {
+        try {
+          const rr = await fetch("/auth/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken: rt }) });
+          if (rr.ok) { const d = await rr.json(); localStorage.setItem("c360_token", d.accessToken); if (d.refreshToken) localStorage.setItem("c360_refresh", d.refreshToken); res = await fetch(url, { ...opts, headers: getHdrs() }); }
+        } catch {}
+      }
+    }
+    return res;
+  };
 
   // Load dashboard data + auto-load ratio on mount
   useEffect(() => {
-    fetch("/api/dashboard/today", { headers: hdrs }).then(r=>r.json()).then(d=>{
+    authFetch("/api/dashboard/today").then(r=>r.json()).then(d=>{
       if (!d.error) setToday(d);
     }).catch(()=>{});
     // Auto-load ratio compliance with timeout fallback
@@ -1241,7 +1266,7 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
       const todayStr = new Date().toISOString().split("T")[0];
       const ctrl = new AbortController();
       const timer = setTimeout(() => { ctrl.abort(); setRatioData({ intervals: [], total_slots: 0, improvements_needed: 0 }); }, 5000);
-      fetch(`/api/roster/ratio-interval?date=${todayStr}`, { headers: hdrs, signal: ctrl.signal })
+      authFetch(`/api/roster/ratio-interval?date=${todayStr}`, { signal: ctrl.signal })
         .then(r=>r.json()).then(d=>{ clearTimeout(timer); setRatioData(d.error ? { intervals:[], total_slots:0, improvements_needed:0 } : d); })
         .catch(()=>{ clearTimeout(timer); setRatioData({ intervals:[], total_slots:0, improvements_needed:0 }); });
     };
@@ -1268,7 +1293,7 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
     { icon:"🚪", label:"Sign In/Out",         tab:"clockinout",         color:"#0284C7" },
     { icon:"✅", label:"Checklists",          tab:"checklists",         color:"#16A34A", count: today?.checklists_pending },
     { icon:"💊", label:"Medication Today",    tab:"medication_register", color:"#DC2626", count: today?.medication_today, alert: (today?.medication_today||0) > 0 },
-    { icon:"📁", label:"Expired Docs",        tab:"documents",          color:"#D97706", count: today?.expiring_certs?.length, preAction: () => localStorage.setItem('c360_docs_tab','expiring') },
+    { icon:"📁", label:"Expired Docs",        tab:"educators",          color:"#D97706", count: today?.expiring_certs?.length, preAction: () => localStorage.setItem('c360_educator_tab','certifications') },
   ];
 
   // FIX 3: Use today API data consistently for KPIs
@@ -1298,6 +1323,7 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
     const key = `${c.first_name} ${c.last_name}`;
     if (!deduped[key]) deduped[key] = { ...c, certs: [] };
     deduped[key].certs.push(c.cert_type);
+    if (c.id && !deduped[key].id) deduped[key].id = c.id;
   });
   const dedupedAlerts = Object.values(deduped);
 
@@ -1459,7 +1485,7 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
                 </div>
               ))}
               {dedupedAlerts.map((c,i) => (
-                <div key={"cert-"+i} onClick={()=>onNavigate("educators")} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
+                <div key={"cert-"+i} onClick={()=>{ if(c.id) localStorage.setItem('c360_educator_select',c.id); onNavigate("educators"); }} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
                   borderRadius:8, background:"#FFFBEB", border:"1px solid #FDE68A", fontSize:12, color:WA2, cursor:"pointer" }}>
                   ⚠️ {c.first_name} {c.last_name} — {c.certs.join(", ")} expiring {c.expires_on ? `(${c.expires_on})` : "soon"}
                 </div>
@@ -1916,24 +1942,26 @@ function ClockInOutView({ educators, clockIn, clockOut, startBreak, endBreak, no
         </div>
       </div>}
 
-      {/* Today's Log */}
-      <div style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600 }}>Today's Time Log</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
-          {[...clockRecords].reverse().slice(0, 20).map((r) => {
-            const ed = educators.find((e) => e.id === r.educatorId);
-            const colors = { clock_in: "#6BA38B", clock_out: "#C9828A", break_start: "#D4A26A", break_end: "#9B7DC0" };
-            const labels = { clock_in: "IN", clock_out: "OUT", break_start: "BRK→", break_end: "←BRK" };
-            return (
-              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 6, background: "#E8E0D8", fontSize: 12 }}>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, color: colors[r.type], fontSize: 10, width: 32 }}>{labels[r.type]}</span>
-                <span style={{ fontWeight: 600, flex: 1 }}>{ed?.name?.split(" ")[0]}</span>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", color: "#A89DB5", fontSize: 11 }}>{formatTime(r.time)}</span>
-              </div>
-            );
-          })}
+      {/* Today's Log — only show for educator tab */}
+      {clockTab === "educators" && (
+        <div style={{ ...cardStyle, marginTop: 16 }}>
+          <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600 }}>Today's Time Log</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+            {[...clockRecords].reverse().slice(0, 20).map((r) => {
+              const ed = educators.find((e) => e.id === r.educatorId);
+              const colors = { clock_in: "#6BA38B", clock_out: "#C9828A", break_start: "#D4A26A", break_end: "#9B7DC0" };
+              const labels = { clock_in: "IN", clock_out: "OUT", break_start: "BRK→", break_end: "←BRK" };
+              return (
+                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 6, background: "#E8E0D8", fontSize: 12 }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, color: colors[r.type], fontSize: 10, width: 32 }}>{labels[r.type]}</span>
+                  <span style={{ fontWeight: 600, flex: 1 }}>{ed?.name?.split(" ")[0]}</span>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", color: "#A89DB5", fontSize: 11 }}>{formatTime(r.time)}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

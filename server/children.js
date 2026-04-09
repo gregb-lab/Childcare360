@@ -5,6 +5,109 @@ import { requireAuth, requireTenant } from './middleware.js';
 const router = Router();
 router.use(requireAuth, requireTenant);
 
+// GET /simple — lightweight child list for dropdowns (MUST be before /:id)
+router.get('/simple', (req, res) => {
+  try {
+    res.json(D().prepare(`
+      SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id,
+             r.name as room_name, c.active,
+             CAST((julianday('now')-julianday(c.dob))/30.44 AS INTEGER) as age_months
+      FROM children c LEFT JOIN rooms r ON r.id=c.room_id
+      WHERE c.tenant_id=? AND c.active=1
+      ORDER BY r.name, c.last_name, c.first_name
+    `).all(req.tenantId));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /attendance-today — all children with today's sign-in status (MUST be before /:id)
+router.get('/attendance-today', (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const rows = D().prepare(`
+      SELECT c.id, c.first_name, c.last_name, c.room_id, c.photo_url, c.allergies, c.dob,
+             r.name as room_name,
+             a.id as session_id, a.sign_in, a.sign_out, a.absent, a.absent_reason, a.hours
+      FROM children c
+      LEFT JOIN rooms r ON r.id = c.room_id
+      LEFT JOIN attendance_sessions a ON a.child_id = c.id AND a.date = ? AND a.tenant_id = ?
+      WHERE c.tenant_id = ? AND c.active = 1
+      ORDER BY r.name, c.first_name
+    `).all(today, req.tenantId, req.tenantId);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /attendance-report?from=&to= — attendance register for date range (MUST be before /:id)
+router.get('/attendance-report', (req, res) => {
+  try {
+    const { from, to } = req.query;
+    if (!from || !to) return res.status(400).json({ error: 'from and to dates required' });
+    const db = D();
+    const children = db.prepare(`
+      SELECT c.id, c.first_name, c.last_name, c.dob, r.name as room_name
+      FROM children c LEFT JOIN rooms r ON r.id=c.room_id
+      WHERE c.tenant_id=?
+      ORDER BY c.first_name
+    `).all(req.tenantId);
+    let records = [];
+    try {
+      records = db.prepare(`
+        SELECT a.child_id, a.date, a.sign_in as sign_in_time, a.sign_out as sign_out_time,
+               a.absent, a.absent_reason, a.hours, c.first_name, c.last_name, c.dob
+        FROM attendance_sessions a JOIN children c ON c.id=a.child_id
+        WHERE a.tenant_id=? AND a.date>=? AND a.date<=?
+        ORDER BY a.date, c.first_name
+      `).all(req.tenantId, from, to);
+    } catch(e) { records = []; }
+    res.json({ from, to, children, records, total_children: children.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /bulk-room-assign (MUST be before /:id)
+router.post('/bulk-room-assign', (req, res) => {
+  try {
+    const { assignments } = req.body;
+    if (!Array.isArray(assignments)) return res.status(400).json({ error: 'assignments array required' });
+    const db = D();
+    let updated = 0;
+    const stmt = db.prepare('UPDATE children SET room_id=?, updated_at=? WHERE id=? AND tenant_id=?');
+    const now = new Date().toISOString();
+    const run = db.transaction(() => {
+      for (const { child_id, room_id } of assignments) {
+        const r = stmt.run(room_id || null, now, child_id, req.tenantId);
+        updated += r.changes;
+      }
+    });
+    run();
+    res.json({ ok: true, updated });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /delete-demo (MUST be before /:id)
+router.delete('/delete-demo', requireAuth, (req, res) => {
+  try {
+    const db = D();
+    const tid = req.tenantId;
+    db.prepare('DELETE FROM children WHERE tenant_id=?').run(tid);
+    db.prepare('DELETE FROM parent_contacts WHERE tenant_id=?').run(tid);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /room-educators/:roomId (MUST be before /:id)
+router.get('/room-educators/:roomId', (req, res) => {
+  try {
+    const rows = D().prepare(`
+      SELECT e.id, e.first_name, e.last_name, e.qualification
+      FROM educators e
+      LEFT JOIN room_educators re ON re.educator_id=e.id
+      WHERE (re.room_id=? OR re.room_id IS NULL) AND e.tenant_id=? AND e.status='active'
+      ORDER BY e.first_name
+    `).all(req.params.roomId, req.tenantId);
+    res.json(rows);
+  } catch(e) { res.json([]); }
+});
+
 // DEBUG - returns count + tenant info
 router.get('/debug-count', (req, res) => {
   try {
@@ -54,7 +157,27 @@ router.get('/:id', (req, res) => {
     const invoices = D().prepare('SELECT * FROM invoices WHERE child_id = ? AND tenant_id = ? ORDER BY period_start DESC LIMIT 12').all(req.params.id, req.tenantId);
     const recentUpdates = tryQuery(() => D().prepare('SELECT * FROM daily_updates WHERE child_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 50').all(req.params.id, req.tenantId));
     
-    res.json({ ...child, parents, medPlans, immunisations, medications, dietary, permissions, pickups, requests, documents, invoices, recentUpdates });
+    // Normalize gender codes (F/M → female/male)
+    if (child.gender === 'F' || child.gender === 'f') child.gender = 'female';
+    else if (child.gender === 'M' || child.gender === 'm') child.gender = 'male';
+
+    // Map parent_contacts into parent1_/parent2_ fields if not already set on child record
+    const p1 = parents.find(p => p.is_primary) || parents[0];
+    const p2 = parents.find(p => p !== p1);
+    const contactFields = {};
+    if (p1 && !child.parent1_name) {
+      contactFields.parent1_name = p1.name || '';
+      contactFields.parent1_email = p1.email || '';
+      contactFields.parent1_phone = p1.phone || '';
+      contactFields.parent1_relationship = p1.relationship || 'parent';
+    }
+    if (p2 && !child.parent2_name) {
+      contactFields.parent2_name = p2.name || '';
+      contactFields.parent2_email = p2.email || '';
+      contactFields.parent2_phone = p2.phone || '';
+    }
+
+    res.json({ ...child, ...contactFields, parents, medPlans, immunisations, medications, dietary, permissions, pickups, requests, documents, invoices, recentUpdates });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -345,113 +468,6 @@ router.post('/:id/mark-absent', (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
-// GET /api/children/attendance-today — all children with today's sign-in status
-router.get('/attendance-today', (req, res) => {
-  try {
-    const today = new Date().toISOString().slice(0,10);
-    const rows = D().prepare(`
-      SELECT c.id, c.first_name, c.last_name, c.room_id, c.photo_url, c.allergies, c.dob,
-             r.name as room_name,
-             a.sign_in, a.sign_out, a.absent, a.absent_reason, a.hours
-      FROM children c
-      LEFT JOIN rooms r ON r.id = c.room_id
-      LEFT JOIN attendance_sessions a ON a.child_id = c.id AND a.date = ? AND a.tenant_id = ?
-      WHERE c.tenant_id = ? 
-      ORDER BY r.name, c.first_name
-    `).all(today, req.tenantId, req.tenantId);
-    res.json(rows);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-
-// GET /api/children/attendance-report?from=&to= — attendance register for date range
-router.get('/attendance-report', requireAuth, requireTenant, (req, res) => {
-  try {
-    const { from, to } = req.query;
-    if (!from || !to) return res.status(400).json({ error: 'from and to dates required' });
-    const db = D();
-    
-    // Get all active children with room info
-    const children = db.prepare(`
-      SELECT c.id, c.first_name, c.last_name, c.dob, r.name as room_name
-      FROM children c LEFT JOIN rooms r ON r.id=c.room_id
-      WHERE c.tenant_id=? 
-      ORDER BY c.first_name
-    `).all(req.tenantId);
-
-    // Get attendance records for range
-    let records = [];
-    try {
-      records = db.prepare(`
-        SELECT a.child_id, a.date, a.sign_in as sign_in_time, a.sign_out as sign_out_time,
-               a.absent, a.absent_reason, a.hours, c.first_name, c.last_name, c.dob
-        FROM attendance_sessions a JOIN children c ON c.id=a.child_id
-        WHERE a.tenant_id=? AND a.date>=? AND a.date<=?
-        ORDER BY a.date, c.first_name
-      `).all(req.tenantId, from, to);
-    } catch(e) {
-      // attendance_sessions table may not exist yet
-      records = [];
-    }
-
-    res.json({ from, to, children, records, total_children: children.length });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-
-// POST /api/children/bulk-room-assign — update multiple children's room assignments at once
-router.post('/bulk-room-assign', requireAuth, requireTenant, (req, res) => {
-  try {
-    const { assignments } = req.body; // [{child_id, room_id}]
-    if (!Array.isArray(assignments)) return res.status(400).json({ error: 'assignments array required' });
-    const db = D();
-    let updated = 0;
-    const stmt = db.prepare('UPDATE children SET room_id=?, updated_at=? WHERE id=? AND tenant_id=?');
-    const now = new Date().toISOString();
-    const run = db.transaction(() => {
-      for (const { child_id, room_id } of assignments) {
-        const r = stmt.run(room_id || null, now, child_id, req.tenantId);
-        updated += r.changes;
-      }
-    });
-    run();
-    console.log(`[bulk-room-assign] tenant=${req.tenantId} updated=${updated}/${assignments.length}`);
-    res.json({ ok: true, updated });
-  } catch(e) {
-    console.error('[bulk-room-assign] error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-
-// GET /api/children/:id/room-test?room_id=X — diagnostic: test room assignment
-router.get('/:id/room-test', requireAuth, requireTenant, (req, res) => {
-  try {
-    const { room_id } = req.query;
-    const db = D();
-    const child = db.prepare('SELECT id, first_name, room_id, tenant_id FROM children WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
-    if (!child) return res.json({ error: 'child not found', id: req.params.id, tenant: req.tenantId });
-    
-    if (room_id !== undefined) {
-      const r = db.prepare('UPDATE children SET room_id=?, updated_at=? WHERE id=? AND tenant_id=?')
-        .run(room_id === 'null' ? null : room_id, new Date().toISOString(), req.params.id, req.tenantId);
-      return res.json({ ok: true, changes: r.changes, child_id: req.params.id, new_room_id: room_id, tenant: req.tenantId });
-    }
-    res.json({ child, tenant: req.tenantId, role: req.tenantRole });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// GET /simple — lightweight child list for dropdowns
-router.get('/simple', (req, res) => {
-  try {
-    res.json(D().prepare('SELECT id, first_name, last_name, room_id FROM children WHERE tenant_id=?').all(req.tenantId));
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-export default router;
-
-// ─── MISSING ENDPOINTS ────────────────────────────────────────────────────────
 
 // GET /:id/attendance-summary (alias + enriched version of attendance-stats)
 router.get('/:id/attendance-summary', (req, res) => {
@@ -808,21 +824,6 @@ router.post('/:id/equipment', requireAuth, requireTenant, (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE demo children — works with or without tenant (platform admin passes ?tenant=)
-router.delete('/delete-demo', requireAuth, (req, res) => {
-  try {
-    const tenantId = req.tenantId || req.query.tenant;
-    if (!tenantId) return res.status(400).json({ error: 'No tenant specified' });
-    const cnRoomIds = ['cn-sprouts-1','cn-sprouts-2','cn-buds-1','cn-buds-2','cn-blossoms-1','cn-blossoms-2','cn-oaks-1'];
-    const placeholders = cnRoomIds.map(() => '?').join(',');
-    const before = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
-    D().prepare((() => 'UPDATE children SET active=0 WHERE tenant_id=? AND (room_id NOT IN (' + placeholders + ') OR room_id IS NULL)')())
-      .run(tenantId, ...cnRoomIds);
-    const after = D().prepare('SELECT COUNT(*) as cnt FROM children WHERE tenant_id=? AND active=1').get(tenantId)?.cnt || 0;
-    res.json({ ok: true, removed: before - after, remaining: after });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
 // DELETE /:id — archive child (soft delete)
 router.delete('/:id', requireAuth, requireTenant, (req, res) => {
   try {
@@ -831,13 +832,4 @@ router.delete('/:id', requireAuth, requireTenant, (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/rooms/:id/educators — educators assigned to a room
-router.get('/room-educators/:roomId', requireAuth, requireTenant, (req, res) => {
-  const educators = tryQuery(() => D().prepare(`
-    SELECT u.id, u.name, u.email, u.role, u.qualifications, u.wwcc_number
-    FROM users u
-    JOIN educator_room_assignments era ON era.educator_id = u.id
-    WHERE era.room_id = ? AND era.tenant_id = ? AND u.active = 1
-  `).all(req.params.roomId, req.tenantId));
-  res.json(educators);
-});
+export default router;

@@ -57,17 +57,20 @@ export default function EnrolmentModule() {
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedApp, setSelectedApp] = useState(null);
 
+  const [enrolledCount, setEnrolledCount] = useState(0);
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [apps, wl, rm] = await Promise.all([
+      const [apps, wl, rm, children] = await Promise.all([
         API("/api/enrolment/applications"),
         API("/api/waitlist"),
         API("/api/rooms"),
+        API("/api/children").catch(() => []),
       ]);
       if (Array.isArray(apps)) setApplications(apps.map(a => ({ ...a, preferred_days: tryParse(a.preferred_days) })));
       if (Array.isArray(wl))   setWaitlist(wl);
       if (Array.isArray(rm))   setRooms(rm);
+      if (Array.isArray(children)) setEnrolledCount(children.filter(c => c.active === 1 || c.active === true).length);
     } catch {}
     setLoading(false);
   }, []);
@@ -114,6 +117,7 @@ export default function EnrolmentModule() {
             loading={loading}
             onOpen={openApp}
             onRefresh={load}
+            enrolledCount={enrolledCount}
           />
         )}
         {view === "waitlist" && <WaitlistView waitlist={waitlist} rooms={rooms} onRefresh={load} />}
@@ -134,7 +138,7 @@ export default function EnrolmentModule() {
 function tryParse(v) { try { return JSON.parse(v || "[]"); } catch { return []; } }
 
 // ─── PIPELINE VIEW ────────────────────────────────────────────────────────────
-function PipelineView({ applications, allApplications, counts, rooms, statusFilter, setStatusFilter, loading, onOpen, onRefresh }) {
+function PipelineView({ applications, allApplications, counts, rooms, statusFilter, setStatusFilter, loading, onOpen, onRefresh, enrolledCount = 0 }) {
   const [selected, setSelected] = useState(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
   const toggleSel = (id) => setSelected(p => { const s=new Set(p); s.has(id)?s.delete(id):s.add(id); return s; });
@@ -164,6 +168,10 @@ function PipelineView({ applications, allApplications, counts, rooms, statusFilt
             <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>{cfg.label}</div>
           </button>
         ))}
+        <div style={{ background: "#F5F0FB", border: "2px solid #7C3AED", borderRadius: 12, padding: "12px 10px", textAlign: "left" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#7C3AED" }}>{enrolledCount}</div>
+          <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>Currently Enrolled</div>
+        </div>
       </div>
 
       {loading ? (

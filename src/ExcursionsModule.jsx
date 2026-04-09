@@ -142,8 +142,8 @@ export default function ExcursionsModule() {
   };
 
   const excursionsByStatus = {
-    upcoming: excursions.filter(e => ["planning", "permission_sent", "confirmed"].includes(e.status)),
-    past: excursions.filter(e => ["completed", "cancelled"].includes(e.status)),
+    upcoming: excursions.filter(e => ["planning", "permission_sent", "confirmed"].includes(e.status) && (!e.excursion_date || e.excursion_date >= new Date().toISOString().split("T")[0])),
+    past: excursions.filter(e => ["completed", "cancelled"].includes(e.status) || (e.excursion_date && e.excursion_date < new Date().toISOString().split("T")[0])),
   };
 
   return (
@@ -176,10 +176,11 @@ export default function ExcursionsModule() {
       {view === "list" && (
         <div>
           {excursionsByStatus.upcoming.length === 0 && excursionsByStatus.past.length === 0 && (
-            <div style={{ ...card, textAlign: "center", color: "#8A7F96", padding: 48 }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🚌</div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>No excursions yet</div>
-              <div style={{ fontSize: 13, marginTop: 6 }}>Click "New Excursion" to plan your first outing</div>
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "#8A7F96" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>🚌</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: "#5C4E6A" }}>No Excursions Yet</div>
+              <div style={{ fontSize: 13, marginBottom: 20 }}>Plan your first excursion for the children</div>
+              <button onClick={() => setView("new")} style={{ padding: "10px 24px", borderRadius: 8, background: "#7C3AED", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Create Excursion</button>
             </div>
           )}
 

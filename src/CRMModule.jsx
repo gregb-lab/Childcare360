@@ -212,8 +212,8 @@ function EnquiriesView() {
       )}
 
       {loading?<div style={{color:MUTED,padding:30,textAlign:"center"}}>Loading…</div>
-        :enquiries.length===0?(<div style={{...card,textAlign:"center",padding:"40px 20px",color:MUTED}}>
-          <div style={{fontSize:36}}>🎯</div><div style={{marginTop:8}}>No enquiries found</div>
+        :enquiries.length===0?(<div style={{textAlign:"center",padding:"60px 20px",color:"#8A7F96"}}>
+          <div style={{fontSize:48,marginBottom:12}}>📬</div><div style={{fontWeight:700,fontSize:15,marginBottom:6,color:"#5C4E6A"}}>No Enquiries Yet</div><div style={{fontSize:13}}>Enquiries from prospective families will appear here</div>
         </div>)
         :(
           <div style={{display:"flex",flexDirection:"column",gap:8}}>

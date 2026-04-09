@@ -187,9 +187,10 @@ export default function WaitlistModule() {
       {tab === "waitlist" && (
         <div>
           {waitlist.length === 0 ? (
-            <div style={{ ...card, textAlign: "center", padding: 60, color: "#8A7F96" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-              <p>No families on the waitlist. Click "Add to Waitlist" to get started.</p>
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "#8A7F96" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: "#5C4E6A" }}>Waitlist is Empty</div>
+              <div style={{ fontSize: 13 }}>Families on the waitlist will appear here</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

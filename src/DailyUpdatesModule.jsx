@@ -14,7 +14,7 @@ const toast = (msg, type = "success") => { if (window.showToast) window.showToas
 const purple = "#8B6DAF", lp = "#F0EBF8";
 const inp = { padding: "7px 10px", borderRadius: 7, border: "1px solid #DDD6EE", fontSize: 12, width: "100%", boxSizing: "border-box" };
 const lbl = { fontSize: 11, color: "#7A6E8A", fontWeight: 600, display: "block", marginBottom: 3 };
-const card = { background: "#fff", borderRadius: 12, border: "1px solid #EDE8F4", padding: 14 };
+const card = { background: "#fff", borderRadius: 12, border: "1px solid #EDE8F4", padding: 16 };
 const btnP = { background: purple, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer", fontWeight: 700, fontSize: 12 };
 const btnS = { background: lp, color: purple, border: `1px solid ${purple}40`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 12 };
 
@@ -145,10 +145,19 @@ const ACTION_TYPES = [
 
 function ChildUpdatePanel({ child, updates, activeEntry, setActiveEntry, onSaved }) {
   const timeSince = (ts) => {
-    const secs = Math.floor((Date.now() - new Date(ts)) / 1000);
-    if (secs < 60) return "just now";
-    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-    return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ago`;
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const today = now.toDateString() === d.toDateString();
+    const yesterday = new Date(now - 86400000).toDateString() === d.toDateString();
+    const timeStr = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
+    if (today) return `Today at ${timeStr}`;
+    if (yesterday) return `Yesterday at ${timeStr}`;
+    return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ` at ${timeStr}`;
   };
 
   return (

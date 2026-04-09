@@ -324,10 +324,10 @@ export default function IncidentModule() {
       {loading ? <div style={{ padding: 40, textAlign: "center", color: "#8A7F96" }}>Loading...</div> : (
         <div>
           {incidents.length === 0 ? (
-            <div style={{ ...card, textAlign: "center", padding: 40, color: "#A89DB5" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-              <p style={{ margin: 0, fontWeight: 600 }}>No incidents recorded for the selected period.</p>
-              <p style={{ margin: "8px 0 0", fontSize: 12 }}>Use the + Record Incident button to log any incidents, injuries or trauma.</p>
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "#8A7F96" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: "#5C4E6A" }}>No Incidents Recorded</div>
+              <div style={{ fontSize: 13 }}>All clear — no incidents to report for the selected period</div>
             </div>
           ) : incidents.map(inc => (
             <div key={inc.id} style={{ ...card, cursor: "pointer" }} onClick={() => setDetail(detail?.id === inc.id ? null : inc)}>

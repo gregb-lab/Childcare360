@@ -347,7 +347,7 @@ function MilestonesTab() {
 
   const loadMilestones=async(childId)=>{
     setSelChild(childId);
-    const r=await API(`/api/childdev/milestones/${childId}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/childdev/milestones/${childId}`).catch(e=>{console.error('API error:',e);return null;});
     setData(r);
   };
 
@@ -355,11 +355,11 @@ function MilestonesTab() {
     const currently=data?.framework?.[domain]?.milestones?.find(m=>m.key===milestone.key);
     const nowAchieved=!currently?.achieved;
     setSaving(true);
-    await API(`/api/childdev/milestones/${childId}`,{method:"POST",body:{ // catch: .catch(e=>console.error('API error:',e))
+    await API(`/api/childdev/milestones/${childId}`,{method:"POST",body:{
       milestone_key:milestone.key, domain, milestone_label:milestone.label,
       age_months_expected:milestone.age, achieved:nowAchieved
-    }});
-    const r=await API(`/api/childdev/milestones/${childId}`.catch(e=>console.error('API error:',e)));
+    }}).catch(e=>console.error('API error:',e));
+    const r=await API(`/api/childdev/milestones/${childId}`).catch(e=>{console.error('API error:',e);return null;});
     setData(r);setSaving(false);
   };
 
@@ -504,7 +504,7 @@ function TransitionsTab() {
   useEffect(()=>{load();},[load]);
 
   const loadReport=async(id)=>{
-    const r=await API(`/api/childdev/transitions/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/childdev/transitions/${id}`).catch(e=>{console.error('API error:',e);return null;});
     setActive(r?.report);
     setMilestones(r?.milestones||[]);
   };
