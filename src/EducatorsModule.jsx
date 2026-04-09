@@ -425,11 +425,11 @@ function CertRow({ label, value, expiry }) {
   const color = !expiry ? "#9E9E9E" : isExpired(expiry) ? "#B71C1C" : isExpiringSoon(expiry,30) ? "#E65100" : "#2E7D32";
   const icon = !expiry ? "—" : isExpired(expiry) ? "✗" : isExpiringSoon(expiry,30) ? "⚠" : "✓";
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F0EBF8", gap: 8, minWidth: 0 }}>
-      <span style={{ fontSize: 13, color: "#555", flexShrink: 0 }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, textAlign: "right", flexWrap: "wrap", justifyContent: "flex-end" }}>
-        {value && <span style={{ fontSize: 12, color: "#777" }}>{value}</span>}
-        <span style={{ color, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>{icon} {expiry ? fmtDate(expiry) : "Not entered"}</span>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #F0EBF8" }}>
+      <span style={{ fontSize: 11, color: "#8A7F96", flexShrink: 0, whiteSpace: "nowrap", minWidth: 80 }}>{label}</span>
+      <div style={{ flex: 1, textAlign: "right", fontSize: 12, color: "#3D3248", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+        {value && <span style={{ color: "#555", marginRight: 6 }}>{value}</span>}
+        <span style={{ color, fontWeight: 700 }}>{icon} {expiry ? fmtDate(expiry) : "Not entered"}</span>
       </div>
     </div>
   );
@@ -1498,7 +1498,7 @@ export default function EducatorsModule() {
 
   return (
     <>
-    <div style={{ display:"flex",flexDirection:"column",height:"100%",overflow:"hidden" }}>
+    <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
       <div style={{ padding:"16px 24px",borderBottom:"1px solid #EDE8F4",display:"flex",alignItems:"center",gap:16,background:"#fff",flexShrink:0 }}>
         <button onClick={()=>{ setSelected(null); setDetail(null); setEditMode(false); }} style={{ background:"none",border:"none",cursor:"pointer",color:purple,fontWeight:700,fontSize:14 }}>← Back</button>
         <PhotoUpload educator={edu} onUploaded={()=>loadDetail(selected)} />

@@ -80,7 +80,8 @@ export default function EnrolmentModule() {
 
   useEffect(() => { load(); }, [load]);
 
-  const filteredApps = statusFilter ? applications.filter(a => a.status === statusFilter) : applications;
+  const STATUS_ALIASES = { submitted: ["submitted", "reviewing"], approved: ["approved", "accepted"] };
+  const filteredApps = statusFilter ? applications.filter(a => (STATUS_ALIASES[statusFilter] || [statusFilter]).includes(a.status)) : applications;
 
   const counts = {};
   applications.forEach(a => { counts[a.status] = (counts[a.status] || 0) + 1; });
@@ -177,14 +178,27 @@ function PipelineView({ applications, allApplications, counts, rooms, statusFilt
           <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>On Waitlist</div>
         </div>
       </div>
-      {/* Filter badges */}
+      {/* Filter badges — canonical list, no duplicates */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-        {Object.entries(STATUS_CONFIG).map(([status, cfg]) => (
-          <button key={status} onClick={() => setStatusFilter(statusFilter === status ? "" : status)}
-            style={{ background: statusFilter === status ? cfg.bg : "#fff", border: `1px solid ${statusFilter === status ? cfg.color : "#EDE8F4"}`, borderRadius: 20, padding: "6px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: statusFilter === status ? 700 : 500, color: statusFilter === status ? cfg.color : "#8A7F96" }}>
-            <span style={{ fontWeight: 800 }}>{counts[status] || 0}</span> {cfg.label}
-          </button>
-        ))}
+        {[
+          { label: "All",        value: null,         color: "#3D3248", bg: "#F0EBF8" },
+          { label: "Enquiry",    value: "enquiry",    color: "#8A7F96", bg: "#F5F5F5" },
+          { label: "Application",value: "submitted",  color: "#5B8DB5", bg: "#E8F0F8", also: ["reviewing"] },
+          { label: "Offered",    value: "offered",    color: "#0284C7", bg: "#E0F2FE" },
+          { label: "Accepted",   value: "approved",   color: "#6BA38B", bg: "#EDF8F3", also: ["accepted"] },
+          { label: "Enrolled",   value: "enrolled",   color: "#3D3248", bg: "#F0EBF8" },
+          { label: "Waitlisted", value: "waitlisted", color: "#9B7DC0", bg: "#F3EEFF" },
+          { label: "Rejected",   value: "rejected",   color: "#B45960", bg: "#FFEBEE" },
+        ].map(b => {
+          const active = b.value === null ? !statusFilter : statusFilter === b.value;
+          const cnt = b.value === null ? allApplications.length : allApplications.filter(a => a.status === b.value || (b.also || []).includes(a.status)).length;
+          return (
+            <button key={b.label} onClick={() => setStatusFilter(active ? "" : b.value)}
+              style={{ background: active ? b.bg : "#fff", border: `1px solid ${active ? b.color : "#EDE8F4"}`, borderRadius: 20, padding: "6px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: active ? 700 : 500, color: active ? b.color : "#8A7F96" }}>
+              <span style={{ fontWeight: 800 }}>{cnt}</span> {b.label}
+            </button>
+          );
+        })}
       </div>
 
       {loading ? (

@@ -287,26 +287,35 @@ r.get('/today', (req, res) => {
     };
 
     // Also include children signed in via attendance_sessions (Clock In/Out module)
+    const kioskChildIds = new Set(sessions.map(s => s.child_id));
     try {
       const attendanceSessions = D().prepare(`
-        SELECT a.child_id, a.sign_in, a.sign_out, c.first_name, c.last_name, c.photo_url, c.room_id, r.name as room_name
+        SELECT a.id, a.child_id, a.sign_in as signed_in_at, a.sign_out as signed_out_at,
+               a.date as session_date,
+               c.first_name, c.last_name, c.photo_url, c.room_id, r.name as room_name
         FROM attendance_sessions a
         JOIN children c ON c.id=a.child_id
         LEFT JOIN rooms r ON r.id=c.room_id
         WHERE a.tenant_id=? AND a.date=? AND a.sign_in IS NOT NULL AND a.absent=0
       `).all(req.tenantId, today());
-      // Add attendance-based sign-ins to summary if not already in kiosk sessions
-      const kioskChildIds = new Set(sessions.map(s => s.child_id));
       attendanceSessions.forEach(a => {
         if (!kioskChildIds.has(a.child_id)) {
-          summary.signed_in += a.sign_in && !a.sign_out ? 1 : 0;
-          summary.signed_out += a.sign_out ? 1 : 0;
-          summary.total += 1;
+          sessions.push(a);
+          kioskChildIds.add(a.child_id);
         }
       });
     } catch(e) {}
 
-    res.json({ sessions, not_signed_in: notSignedIn, summary, date: today() });
+    // Rebuild summary from merged sessions
+    summary.signed_in = sessions.filter(s => (s.signed_in_at || s.sign_in) && !(s.signed_out_at || s.sign_out)).length;
+    summary.signed_out = sessions.filter(s => s.signed_out_at || s.sign_out).length;
+    summary.total = sessions.length;
+
+    // Remove merged children from not_signed_in
+    const allSignedInIds = new Set(sessions.map(s => s.child_id));
+    const filteredNotSignedIn = notSignedIn.filter(c => !allSignedInIds.has(c.id));
+
+    res.json({ sessions, not_signed_in: filteredNotSignedIn, summary, date: today() });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
