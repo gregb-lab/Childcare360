@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import DatePicker from "./DatePicker.jsx";
 
 const API = (path, opts = {}) => {
@@ -131,7 +131,7 @@ export default function ChildrenModule() {
 
       {/* Detail pane */}
       {selected ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
           {/* Child header */}
           <div style={{ padding: "16px 20px 0", borderBottom: "1px solid #EDE8F4", background: "#fff", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
@@ -169,7 +169,7 @@ export default function ChildrenModule() {
             </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", minHeight: 0 }}>
             {tab === "profile"    && <ProfileTab key={selected.id} child={selected} rooms={rooms} onSaved={refreshSelected} />}
             {tab === "focus"      && <FocusTab key={selected.id} child={selected} />}
             {tab === "attendance" && <AttendanceTab key={selected.id} child={selected} />}
@@ -324,6 +324,7 @@ function AuthorisedPersonsSection({ child }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", relationship: "", phone: "", photo_id_type: "" });
   const [saving, setSaving] = useState(false);
+  const formRef = useRef(null);
 
   const load = () => API(`/api/children/${child.id}/collection-persons`)
     .then(r => { if (Array.isArray(r)) setPersons(r); }).catch(() => {});
@@ -355,7 +356,7 @@ function AuthorisedPersonsSection({ child }) {
         <div style={{ fontWeight: 700, fontSize: 13, color: "#3D3248" }}>
           👥 Authorised Collection Persons ({persons.length})
         </div>
-        <button onClick={() => setShowForm(s => !s)}
+        <button onClick={() => setShowForm(s => { if (!s) setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50); return !s; })}
           style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid #7C3AED",
             background: showForm ? "#7C3AED" : "#F5F0FB", color: showForm ? "#fff" : "#7C3AED",
             cursor: "pointer", fontWeight: 600 }}>
@@ -364,7 +365,7 @@ function AuthorisedPersonsSection({ child }) {
       </div>
 
       {showForm && (
-        <div style={{ background: "#F8F5FF", borderRadius: 10, padding: 14, marginBottom: 12, border: "1px solid #DDD6EE" }}>
+        <div ref={formRef} style={{ background: "#F8F5FF", borderRadius: 10, padding: 14, marginBottom: 12, border: "1px solid #DDD6EE" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
             {[["Name *", "name", "text"], ["Relationship", "relationship", "text"], ["Phone", "phone", "tel"], ["Photo ID Type", "photo_id_type", "text"]].map(([label, key, type]) => (
               <div key={key}>
@@ -1481,19 +1482,17 @@ function PermissionsTab({ child }) {
             const existing = perms.find(p => p.permission_type === op.id);
             const granted = existing?.granted ?? false;
             return (
-              <div key={op.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 10,
-                background: granted ? "#E8F5E9" : "#F8F5F1", border: `1px solid ${granted ? "#A5D6A7" : "#E8E0D8"}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>{op.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#3D3248" }}>{op.label}</div>
-                    <div style={{ fontSize: 10, color: "#8A7F96" }}>{op.description}</div>
-                    {existing?.granted_date && <div style={{ fontSize: 9, color: "#2E7D32" }}>Granted {fmtDate(existing.granted_date)}</div>}
-                  </div>
+              <div key={op.id} onClick={() => toggle(op.id, granted)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+                background: granted ? "#F0FDF4" : "#FAFAFA", borderRadius: 8, border: `1px solid ${granted ? "#BBF7D0" : "#EDE8F4"}`,
+                cursor: "pointer", marginBottom: 2, userSelect: "none" }}>
+                <div style={{ width: 36, height: 20, borderRadius: 10, flexShrink: 0, background: granted ? "#059669" : "#D1D5DB", position: "relative", transition: "background 0.2s" }}>
+                  <div style={{ position: "absolute", top: 2, left: granted ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                 </div>
-                <div onClick={() => toggle(op.id, granted)} style={{ cursor: "pointer", flexShrink: 0, width: 40, height: 22, borderRadius: 11, background: granted ? "#2E7D32" : "#CCC", position: "relative", transition: "background 0.2s" }}>
-                  <div style={{ position: "absolute", top: 3, left: granted ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#3D3248" }}>{op.icon} {op.label}</div>
+                  <div style={{ fontSize: 11, color: "#8A7F96" }}>{op.description}</div>
                 </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: granted ? "#059669" : "#8A7F96", flexShrink: 0 }}>{granted ? "ON" : "OFF"}</div>
               </div>
             );
           })}

@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { D, auditLog } from './db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'childcare360-dev-secret-change-in-production';
-const JWT_EXPIRY = '4h';
+const JWT_EXPIRY = '8h';
 const REFRESH_EXPIRY_DAYS = 30;
 
 export function signToken(payload) {
