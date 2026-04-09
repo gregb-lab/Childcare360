@@ -425,9 +425,9 @@ function CertRow({ label, value, expiry }) {
   const color = !expiry ? "#9E9E9E" : isExpired(expiry) ? "#B71C1C" : isExpiringSoon(expiry,30) ? "#E65100" : "#2E7D32";
   const icon = !expiry ? "—" : isExpired(expiry) ? "✗" : isExpiringSoon(expiry,30) ? "⚠" : "✓";
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #F0EBF8" }}>
-      <span style={{ fontSize: 11, color: "#8A7F96", flexShrink: 0, whiteSpace: "nowrap", minWidth: 80 }}>{label}</span>
-      <div style={{ flex: 1, textAlign: "left", fontSize: 12, color: "#3D3248", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: "4px 8px", padding: "6px 0", borderBottom: "1px solid #F5F0FB", alignItems: "start" }}>
+      <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600, paddingTop: 1 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "#3D3248", wordBreak: "break-word", overflowWrap: "anywhere", textAlign: "left" }}>
         {value && <span style={{ color: "#555", marginRight: 6 }}>{value}</span>}
         <span style={{ color, fontWeight: 700 }}>{icon} {expiry ? fmtDate(expiry) : "Not entered"}</span>
       </div>
