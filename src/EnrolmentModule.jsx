@@ -24,12 +24,15 @@ const ageFromDob = dob => { if (!dob) return ""; const m = (new Date() - new Dat
 
 const DAYS = ["Mon","Tue","Wed","Thu","Fri"];
 const STATUS_CONFIG = {
-  submitted:  { label: "Submitted",   color: "#5B8DB5", bg: "#E8F0F8" },
-  reviewing:  { label: "Reviewing",   color: "#D4A26A", bg: "#FFF6E8" },
-  approved:   { label: "Approved",    color: "#6BA38B", bg: "#EDF8F3" },
-  rejected:   { label: "Rejected",    color: "#B45960", bg: "#FFEBEE" },
-  waitlisted: { label: "Waitlisted",  color: "#9B7DC0", bg: "#F3EEFF" },
+  enquiry:    { label: "Enquiry",     color: "#8A7F96", bg: "#F5F5F5" },
+  submitted:  { label: "Application", color: "#5B8DB5", bg: "#E8F0F8" },
+  reviewing:  { label: "Application", color: "#D4A26A", bg: "#FFF6E8" },
+  offered:    { label: "Offered",     color: "#0284C7", bg: "#E0F2FE" },
+  approved:   { label: "Accepted",    color: "#6BA38B", bg: "#EDF8F3" },
+  accepted:   { label: "Accepted",    color: "#6BA38B", bg: "#EDF8F3" },
   enrolled:   { label: "Enrolled",    color: "#3D3248", bg: "#F0EBF8" },
+  waitlisted: { label: "Waitlisted",  color: "#9B7DC0", bg: "#F3EEFF" },
+  rejected:   { label: "Rejected",    color: "#B45960", bg: "#FFEBEE" },
 };
 const PRIORITY_CONFIG = {
   urgent: { label: "Urgent",  color: "#B45960", bg: "#FFEBEE" },
@@ -159,19 +162,29 @@ function PipelineView({ applications, allApplications, counts, rooms, statusFilt
   };
   return (
     <div>
-      {/* Stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10, marginBottom: 20 }}>
-        {Object.entries(STATUS_CONFIG).map(([status, cfg]) => (
-          <button key={status} onClick={() => setStatusFilter(statusFilter === status ? "" : status)}
-            style={{ background: statusFilter === status ? cfg.bg : "#fff", border: `2px solid ${statusFilter === status ? cfg.color : "#EDE8F4"}`, borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left" }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: cfg.color }}>{counts[status] || 0}</div>
-            <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>{cfg.label}</div>
-          </button>
-        ))}
-        <div style={{ background: "#F5F0FB", border: "2px solid #7C3AED", borderRadius: 12, padding: "12px 10px", textAlign: "left" }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: "#7C3AED" }}>{enrolledCount}</div>
+      {/* Summary bar */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, padding: 16, background: "#F5F0FB", borderRadius: 12, border: "1px solid #EDE8F4", alignItems: "center" }}>
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "#7C3AED" }}>{enrolledCount}</div>
           <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>Currently Enrolled</div>
         </div>
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "#3D3248" }}>{allApplications.length}</div>
+          <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>Pipeline Applications</div>
+        </div>
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "#D97706" }}>{allApplications.filter(a => a.status === "waitlisted").length}</div>
+          <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>On Waitlist</div>
+        </div>
+      </div>
+      {/* Filter badges */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+        {Object.entries(STATUS_CONFIG).map(([status, cfg]) => (
+          <button key={status} onClick={() => setStatusFilter(statusFilter === status ? "" : status)}
+            style={{ background: statusFilter === status ? cfg.bg : "#fff", border: `1px solid ${statusFilter === status ? cfg.color : "#EDE8F4"}`, borderRadius: 20, padding: "6px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: statusFilter === status ? 700 : 500, color: statusFilter === status ? cfg.color : "#8A7F96" }}>
+            <span style={{ fontWeight: 800 }}>{counts[status] || 0}</span> {cfg.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (

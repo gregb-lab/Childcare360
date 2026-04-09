@@ -279,7 +279,34 @@ r.get('/today', (req, res) => {
       ORDER BY c.last_name
     `).all(...([req.tenantId, req.tenantId, today()].concat(room_id ? [room_id] : [])));
 
-    res.json({ sessions, not_signed_in: notSignedIn, date: today() });
+    // Build summary (matching /board endpoint format)
+    const summary = {
+      signed_in: sessions.filter(s => s.signed_in_at && !s.signed_out_at).length,
+      signed_out: sessions.filter(s => s.signed_out_at).length,
+      total: sessions.length,
+    };
+
+    // Also include children signed in via attendance_sessions (Clock In/Out module)
+    try {
+      const attendanceSessions = D().prepare(`
+        SELECT a.child_id, a.sign_in, a.sign_out, c.first_name, c.last_name, c.photo_url, c.room_id, r.name as room_name
+        FROM attendance_sessions a
+        JOIN children c ON c.id=a.child_id
+        LEFT JOIN rooms r ON r.id=c.room_id
+        WHERE a.tenant_id=? AND a.date=? AND a.sign_in IS NOT NULL AND a.absent=0
+      `).all(req.tenantId, today());
+      // Add attendance-based sign-ins to summary if not already in kiosk sessions
+      const kioskChildIds = new Set(sessions.map(s => s.child_id));
+      attendanceSessions.forEach(a => {
+        if (!kioskChildIds.has(a.child_id)) {
+          summary.signed_in += a.sign_in && !a.sign_out ? 1 : 0;
+          summary.signed_out += a.sign_out ? 1 : 0;
+          summary.total += 1;
+        }
+      });
+    } catch(e) {}
+
+    res.json({ sessions, not_signed_in: notSignedIn, summary, date: today() });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

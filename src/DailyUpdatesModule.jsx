@@ -103,7 +103,7 @@ export default function DailyUpdatesModule() {
                       {child.first_name} {child.last_name}
                     </div>
                     {icons.length > 0 && <div style={{ fontSize: 14, marginTop: 1 }}>{icons.join(" ")}</div>}
-                    {icons.length === 0 && <div style={{ fontSize: 10, color: "#B0AAB9" }}>No updates today</div>}
+                    {icons.length === 0 && <div style={{ fontSize: 10, color: "#B0AAB9" }}>No recent updates</div>}
                   </div>
                 </div>
               </div>
@@ -202,7 +202,7 @@ function ChildUpdatePanel({ child, updates, activeEntry, setActiveEntry, onSaved
 
       {/* Today's timeline */}
       <div style={card}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#3D3248" }}>Today's Timeline</h4>
+        <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#3D3248" }}>Recent Updates</h4>
         {updates.length === 0 ? (
           <div style={{ textAlign: "center", padding: 20, color: "#B0AAB9", fontSize: 12 }}>No updates logged yet today</div>
         ) : (

@@ -1293,7 +1293,7 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
     { icon:"🚪", label:"Sign In/Out",         tab:"clockinout",         color:"#0284C7" },
     { icon:"✅", label:"Checklists",          tab:"checklists",         color:"#16A34A", count: today?.checklists_pending },
     { icon:"💊", label:"Medication Today",    tab:"medication_register", color:"#DC2626", count: today?.medication_today, alert: (today?.medication_today||0) > 0 },
-    { icon:"📁", label:"Expired Docs",        tab:"educators",          color:"#D97706", count: today?.expiring_certs?.length, preAction: () => localStorage.setItem('c360_educator_tab','certifications') },
+    { icon:"📁", label:"Expired Docs",        tab:"educators",          color:"#D97706", count: today?.expiring_certs?.length, preAction: () => localStorage.setItem('c360_educator_tab','certexpiry') },
   ];
 
   // FIX 3: Use today API data consistently for KPIs

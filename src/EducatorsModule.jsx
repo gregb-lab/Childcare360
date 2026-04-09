@@ -425,11 +425,11 @@ function CertRow({ label, value, expiry }) {
   const color = !expiry ? "#9E9E9E" : isExpired(expiry) ? "#B71C1C" : isExpiringSoon(expiry,30) ? "#E65100" : "#2E7D32";
   const icon = !expiry ? "—" : isExpired(expiry) ? "✗" : isExpiringSoon(expiry,30) ? "⚠" : "✓";
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F0EBF8" }}>
-      <span style={{ fontSize: 13, color: "#555" }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, whiteSpace: "nowrap" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F0EBF8", gap: 8, minWidth: 0 }}>
+      <span style={{ fontSize: 13, color: "#555", flexShrink: 0 }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, textAlign: "right", flexWrap: "wrap", justifyContent: "flex-end" }}>
         {value && <span style={{ fontSize: 12, color: "#777" }}>{value}</span>}
-        <span style={{ color, fontWeight: 700, fontSize: 13 }}>{icon} {expiry ? fmtDate(expiry) : "Not entered"}</span>
+        <span style={{ color, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>{icon} {expiry ? fmtDate(expiry) : "Not entered"}</span>
       </div>
     </div>
   );
@@ -437,7 +437,7 @@ function CertRow({ label, value, expiry }) {
 
 function CertificationsTab({ edu, editData, setEditData, editMode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
       <div style={card}>
         <h3 style={{ margin: "0 0 16px", fontSize: 14, color: "#3D3248" }}>Certifications</h3>
         <CertRow label="First Aid" value={edu.first_aid ? "✓ Held" : "Not held"} expiry={edu.first_aid_expiry} />

@@ -1050,9 +1050,12 @@ function OutcomesView({ children, filterChild, filterFamily, families, multiFami
         </div>
       )}
 
-      {child && <h3 style={{ margin:"0 0 18px", color:"#3D3248" }}>{child.first_name} {child.last_name} — EYLF Progress</h3>}
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
+        <button onClick={()=>setActiveChild("")} style={{ background:"none", border:"none", cursor:"pointer", color:purple, fontWeight:700, fontSize:14 }}>← Back</button>
+        {child && <h3 style={{ margin:0, color:"#3D3248" }}>{child.first_name} {child.last_name} — EYLF Progress</h3>}
+      </div>
 
-      {loading ? <div style={{ textAlign:"center", padding:40, color:"#B0AAB9" }}>Loading…</div> : (
+      {loading ? <div style={{ display:"flex",flexDirection:"column",alignItems:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading EYLF data...</div></div> : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16 }}>
           {EYLF.map(outcome => {
             const progresses = (data?.progress||[]).filter(p=>p.eylf_outcome===outcome.id);
