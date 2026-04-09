@@ -610,17 +610,21 @@ function AttendanceTab({ child }) {
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🕐 Arrival & Departure Stats</h4>
           {!data && !loadErr && <div style={{ textAlign: "center", padding: 12, color: "#B0AAB9", fontSize: 12 }}>Loading...</div>}
           {loadErr && <div style={{ textAlign: "center", padding: 12, color: "#B71C1C", fontSize: 12 }}>Failed to load stats</div>}
-          {data && [
-            { label: "Avg Arrival", value: data.avg_arrival },
-            { label: "Avg Departure", value: data.avg_departure },
-            { label: "Earliest Arrival", value: data.earliest_arrival },
-            { label: "Latest Departure", value: data.latest_departure },
-          ].map(s => (
-            <div key={s.label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #F5F0FB" }}>
-              <span style={{ fontSize: 12, color: "#8A7F96" }}>{s.label}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#3D3248" }}>{s.value || "—"}</span>
+          {data && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, width: "100%", boxSizing: "border-box" }}>
+              {[
+                { label: "Avg Arrival", value: data.avg_arrival || "—" },
+                { label: "Avg Departure", value: data.avg_departure || "—" },
+                { label: "Earliest", value: data.earliest_arrival || "—" },
+                { label: "Latest Out", value: data.latest_departure || "—" },
+              ].map(s => (
+                <div key={s.label} style={{ background: "#F8F5FF", borderRadius: 8, padding: "10px 12px", minWidth: 0, boxSizing: "border-box" }}>
+                  <div style={{ fontSize: 10, color: "#8A7F96", fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#3D3248" }}>{s.value}</div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
         {/* Recent attendance sessions */}
