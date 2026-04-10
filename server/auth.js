@@ -24,7 +24,7 @@ function sendEmail(to, subject, body) {
 }
 
 function issueTokens(user, tenantId) {
-  const accessToken = signToken({ userId: user.id, email: user.email, tenantId });
+  const accessToken = signToken({ userId: user.id, email: user.email, tenantId, role: user.role || "educator" });
   const refreshToken = randomBytes(48).toString('hex');
   const refreshHash = hashToken(refreshToken);
   D().prepare(
@@ -416,7 +416,7 @@ router.post('/switch-tenant', (req, res) => {
     if (!member) return res.status(403).json({ error: 'Not a member of that organisation' });
 
     const user = D().prepare('SELECT * FROM users WHERE id = ?').get(decoded.userId);
-    const token = signToken({ userId: user.id, email: user.email, tenantId });
+    const token = signToken({ userId: user.id, email: user.email, tenantId, role: user.role || "educator" });
     const tenant = D().prepare('SELECT id, name, service_type FROM tenants WHERE id = ?').get(tenantId);
 
     auditLog(user.id, tenantId, 'switch_tenant', {}, req.ip, req.headers['user-agent']);
