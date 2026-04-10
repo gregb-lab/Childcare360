@@ -18,7 +18,7 @@ function ToastContainer() {
     window.showToast = (msg, type = 'success') => {
       const id = Date.now();
       setToasts(t => [...t, { id, msg, type }]);
-      setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
+      setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
     };
     return () => { delete window.showToast; };
   }, []);

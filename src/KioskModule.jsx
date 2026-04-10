@@ -483,11 +483,11 @@ function KioskScreen({ onExit }) {
           )}
 
           {/* PIN display */}
-          <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <div style={{display:"flex",gap:10,justifyContent:"center",
+            animation:pinError?"shake 0.4s ease":"none"}}>
             {[0,1,2,3].map(i=>(
               <div key={i} style={{width:14,height:14,borderRadius:"50%",
-                background:pin.length>i?"#7C3AED":"#DDD6EE",transition:"background 0.15s",
-                animation:pinError?"shake 0.4s ease":"none"}}/>
+                background:pin.length>i?"#7C3AED":"#DDD6EE",transition:"background 0.15s"}}/>
             ))}
           </div>
           {pinError && <div style={{color:"#DC2626",fontSize:13,fontWeight:600,textAlign:"center",marginTop:8}}>{pinError}</div>}
