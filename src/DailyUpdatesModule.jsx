@@ -26,7 +26,12 @@ function ChildAvatar({ child, size = 34 }) {
 }
 
 const now = () => new Date().toTimeString().slice(0, 5);
-const todayStr = () => new Date().toISOString().slice(0, 10);
+// Local date — toISOString() is UTC and returns yesterday for the first
+// 10 hours of the day in AEST. Build the YYYY-MM-DD from local components.
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
 
 export default function DailyUpdatesModule() {
   const [children, setChildren] = useState([]);
@@ -36,6 +41,7 @@ export default function DailyUpdatesModule() {
   const [activeEntry, setActiveEntry] = useState(null); // what form is open
   const [updates, setUpdates] = useState({}); // childId -> [events]
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(todayStr());
 
   const load = useCallback(async () => {
     try {
@@ -48,18 +54,62 @@ export default function DailyUpdatesModule() {
 
   useEffect(() => { load(); }, [load]);
 
-  const loadUpdates = useCallback(async (childId) => {
+  const loadUpdates = useCallback(async (childId, date) => {
+    const d = date || selectedDate;
     try {
-      const r = await API(`/api/daily-updates?child_id=${childId}&date=${todayStr()}`);
+      const r = await API(`/api/daily-updates?child_id=${childId}&date=${d}`);
       if (Array.isArray(r)) setUpdates(p => ({ ...p, [childId]: r }));
     } catch (e) {}
-  }, []);
+  }, [selectedDate]);
+
+  // Re-fetch when date or selected child changes
+  useEffect(() => {
+    if (selectedChild) loadUpdates(selectedChild.id);
+  }, [selectedDate, selectedChild, loadUpdates]);
+
+  const prevDay = () => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+  };
+  const nextDay = () => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if (next <= todayStr()) setSelectedDate(next);
+  };
 
   const visibleChildren = selectedRoom === "all" ? children : children.filter(c => c.room_id === selectedRoom);
 
   const handleSaved = (childId) => {
     setActiveEntry(null);
     loadUpdates(childId);
+  };
+
+  // Edit / delete handlers for individual update cards
+  const saveEdit = async (id, notes) => {
+    const r = await API(`/api/daily-updates/${id}`, { method: "PATCH", body: { notes } });
+    if (r?.error) { toast(r.error, "error"); return false; }
+    if (selectedChild) {
+      setUpdates(prev => ({
+        ...prev,
+        [selectedChild.id]: (prev[selectedChild.id] || []).map(u => u.id === id ? { ...u, notes } : u),
+      }));
+    }
+    toast("Update saved");
+    return true;
+  };
+  const deleteUpdate = async (id) => {
+    if (!confirm("Delete this update?")) return;
+    const r = await API(`/api/daily-updates/${id}`, { method: "DELETE" });
+    if (r?.error) { toast(r.error, "error"); return; }
+    if (selectedChild) {
+      setUpdates(prev => ({
+        ...prev,
+        [selectedChild.id]: (prev[selectedChild.id] || []).filter(u => u.id !== id),
+      }));
+    }
+    toast("Deleted");
   };
 
   if (loading) return <div style={{ padding: 60, textAlign: "center", color: "#8A7F96" }}>Loading...</div>;
@@ -76,6 +126,15 @@ export default function DailyUpdatesModule() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 4 }}>
+              <button onClick={prevDay}
+                style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer", fontSize: 12 }}>‹ Prev</button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#3D3248", minWidth: 92, textAlign: "center" }}>
+                {selectedDate === todayStr() ? "Today" : selectedDate}
+              </span>
+              <button onClick={nextDay} disabled={selectedDate >= todayStr()}
+                style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#fff", cursor: selectedDate >= todayStr() ? "not-allowed" : "pointer", fontSize: 12, opacity: selectedDate >= todayStr() ? 0.4 : 1 }}>Next ›</button>
+            </div>
             <label style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>Filter Room:</label>
             <select value={selectedRoom} onChange={e => setSelectedRoom(e.target.value)}
               style={{ ...inp, width: "auto", padding: "6px 10px" }}>
@@ -91,7 +150,9 @@ export default function DailyUpdatesModule() {
         <div style={{ width: 230, borderRight: "1px solid #EDE8F4", overflowY: "auto", background: "#FDFBF9" }}>
           {visibleChildren.map(child => {
             const childUpdates = updates[child.id] || [];
-            const icons = childUpdates.map(u => ({ sleep: "😴", food: "🍽️", diaper: "👶", sunscreen: "☀️", incident: "🩹", toilet: "🚽", other: "📝" }[u.type] || "📌")).slice(-4);
+            // Records saved to the DB use `category`, not `type` — fall back so
+            // freshly-saved updates and re-fetched ones both render the right icon.
+            const icons = childUpdates.map(u => ({ sleep: "😴", food: "🍽️", diaper: "👶", sunscreen: "☀️", incident: "🩹", toilet: "🚽", other: "📝" }[u.category || u.type] || "📌")).slice(-4);
             const sel = selectedChild?.id === child.id;
             return (
               <div key={child.id} onClick={() => { setSelectedChild(child); loadUpdates(child.id); setActiveEntry(null); }}
@@ -120,6 +181,10 @@ export default function DailyUpdatesModule() {
               activeEntry={activeEntry}
               setActiveEntry={setActiveEntry}
               onSaved={handleSaved}
+              onEdit={saveEdit}
+              onDelete={deleteUpdate}
+              selectedDate={selectedDate}
+              isToday={selectedDate === todayStr()}
             />
           ) : (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: 8, color: "#B0AAB9" }}>
@@ -143,7 +208,15 @@ const ACTION_TYPES = [
   { id: "other",    icon: "📝", label: "Other",      color: "#8A7F96", bg: "#F8F5F1" },
 ];
 
-function ChildUpdatePanel({ child, updates, activeEntry, setActiveEntry, onSaved }) {
+function ChildUpdatePanel({ child, updates, activeEntry, setActiveEntry, onSaved, onEdit, onDelete, selectedDate, isToday = true }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editNotes, setEditNotes] = useState("");
+  const startEdit = (u) => { setEditingId(u.id); setEditNotes(u.notes || ""); };
+  const cancelEdit = () => { setEditingId(null); setEditNotes(""); };
+  const commitEdit = async () => {
+    const ok = await onEdit?.(editingId, editNotes);
+    if (ok) { setEditingId(null); setEditNotes(""); }
+  };
   const timeSince = (ts) => {
     if (!ts) return '';
     const d = new Date(ts);
@@ -200,25 +273,54 @@ function ChildUpdatePanel({ child, updates, activeEntry, setActiveEntry, onSaved
       {activeEntry === "incident"  && <IncidentForm  child={child} onSaved={onSaved} />}
       {activeEntry === "other"     && <OtherForm     child={child} onSaved={onSaved} />}
 
-      {/* Today's timeline */}
+      {/* Timeline */}
       <div style={card}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#3D3248" }}>Recent Updates</h4>
+        <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#3D3248" }}>
+          {isToday ? "Recent Updates" : `Updates for ${selectedDate}`}
+        </h4>
         {updates.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 20, color: "#B0AAB9", fontSize: 12 }}>No updates logged yet today</div>
+          <div style={{ textAlign: "center", padding: 20, color: "#B0AAB9", fontSize: 12 }}>
+            {isToday ? "No updates logged yet today" : "No updates logged on this day"}
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {[...updates].reverse().map(u => {
-              const atype = ACTION_TYPES.find(a => a.id === u.type) || ACTION_TYPES[6];
+              const cat = u.category || u.type || 'other';
+              const atype = ACTION_TYPES.find(a => a.id === cat) || ACTION_TYPES[6];
+              const isEditing = editingId === u.id;
               return (
                 <div key={u.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", borderRadius: 8, background: atype.bg, border: `1px solid ${atype.color}20` }}>
                   <span style={{ fontSize: 18, flexShrink: 0 }}>{atype.icon}</span>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "#3D3248" }}>{atype.label}</div>
-                    <div style={{ fontSize: 11, color: "#5C4E6A" }}>{u.summary || u.notes}</div>
-                    {u.time && <div style={{ fontSize: 10, color: "#8A7F96", marginTop: 1 }}>⏰ {u.time}</div>}
+                    {isEditing ? (
+                      <div style={{ marginTop: 4 }}>
+                        <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2}
+                          style={{ ...inp, height: "auto", resize: "vertical", fontSize: 11 }} />
+                        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                          <button onClick={commitEdit}
+                            style={{ fontSize: 10, padding: "3px 10px", borderRadius: 6, border: "none", background: purple, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Save</button>
+                          <button onClick={cancelEdit}
+                            style={{ fontSize: 10, padding: "3px 10px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#fff", color: "#7A6E8A", cursor: "pointer" }}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: "#5C4E6A" }}>{u.summary || u.notes}</div>
+                    )}
+                    {u.time && !isEditing && <div style={{ fontSize: 10, color: "#8A7F96", marginTop: 1 }}>⏰ {u.time}</div>}
                   </div>
-                  <div style={{ fontSize: 10, color: "#B0AAB9", flexShrink: 0 }}>
-                    {u.created_at ? timeSince(u.created_at) : ""}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, color: "#B0AAB9" }}>
+                      {u.created_at ? timeSince(u.created_at) : ""}
+                    </div>
+                    {!isEditing && (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => startEdit(u)}
+                          style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#F8F5FF", color: "#7C3AED", cursor: "pointer" }}>Edit</button>
+                        <button onClick={() => onDelete?.(u.id)}
+                          style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer" }}>Delete</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

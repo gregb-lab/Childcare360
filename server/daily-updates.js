@@ -9,7 +9,10 @@ router.use(requireAuth, requireTenant);
 router.get('/', (req, res) => {
   try {
     const { child_id, date, room_id } = req.query;
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    // Local server date — UTC default would return yesterday's rows in AEST.
+    const _now = new Date();
+    const _localToday = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+    const targetDate = date || _localToday;
 
     let query, params;
     if (child_id) {
@@ -53,30 +56,41 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const {
-      child_id, educator_id, update_date, category,
-      sleep_start, sleep_end, sleep_checks,
-      meal_type, ate_amount, food_details,
+      child_id, educator_id, update_date,
+      sleep_checks, meal_type, ate_amount, food_details,
       diaper_type, notes, photo_url
     } = req.body;
 
-    const id = uuid();
-    const today = update_date || new Date().toISOString().split('T')[0];
+    // Frontend forms (SleepForm, FoodForm, etc) send `type` rather than
+    // `category`, and use `start_time`/`end_time` for sleep. Map both shapes
+    // here so the NOT NULL category column is never null and sleep columns
+    // are populated regardless of which field name the client used.
+    const category = req.body.category || req.body.type || 'other';
+    const sleep_start = req.body.sleep_start || req.body.start_time || null;
+    const sleep_end = req.body.sleep_end || req.body.end_time || null;
 
-    D().prepare(`INSERT INTO daily_updates 
+    const id = uuid();
+    // Use server-local date so the saved row matches the business day,
+    // not the UTC day. Same fix as children.js sign-in/sign-out.
+    const _now = new Date();
+    const localToday = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+    const today = update_date || localToday;
+
+    D().prepare(`INSERT INTO daily_updates
       (id,tenant_id,child_id,educator_id,update_date,category,sleep_start,sleep_end,sleep_checks,meal_type,ate_amount,food_details,diaper_type,notes,photo_url)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, child_id, educator_id||null, today, category,
-        sleep_start||null, sleep_end||null, sleep_checks ? JSON.stringify(sleep_checks) : '[]',
+        sleep_start, sleep_end, sleep_checks ? JSON.stringify(sleep_checks) : '[]',
         meal_type||null, ate_amount||null, food_details||null, diaper_type||null, notes||null, photo_url||null);
 
     // Log to event log
     try {
-      const desc = buildEventDescription(category, req.body);
+      const desc = buildEventDescription(category, { ...req.body, sleep_start, sleep_end });
       D().prepare(`INSERT INTO child_event_log (id,tenant_id,child_id,event_type,description,created_by) VALUES(?,?,?,?,?,?)`)
         .run(uuid(), req.tenantId, child_id, category, desc, req.userId);
     } catch(e) {}
 
-    res.json({ id });
+    res.json({ id, category, sleep_start, sleep_end });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -97,6 +111,26 @@ router.put('/:id/sleep', (req, res) => {
   }
 });
 
+// PATCH update — edit notes/category for an existing entry
+router.patch('/:id', (req, res) => {
+  try {
+    const { notes, category, type } = req.body;
+    const cat = category || type || null;
+    // COALESCE keeps existing values when caller omits a field. The
+    // daily_updates table has no updated_at column, so don't touch it.
+    D().prepare(`UPDATE daily_updates SET
+      notes = COALESCE(?, notes),
+      category = COALESCE(?, category)
+      WHERE id = ? AND tenant_id = ?`)
+      .run(notes ?? null, cat, req.params.id, req.tenantId);
+    const row = D().prepare('SELECT * FROM daily_updates WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
+    if (!row) return res.status(404).json({ error: 'Update not found' });
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE update
 router.delete('/:id', (req, res) => {
   try {
@@ -111,7 +145,9 @@ router.delete('/:id', (req, res) => {
 router.get('/feed/:childId', (req, res) => {
   try {
     const { date } = req.query;
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const _now = new Date();
+    const _localToday = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+    const targetDate = date || _localToday;
     const updates = D().prepare(`
       SELECT du.*, e.first_name||' '||e.last_name as educator_name,
         e.first_name as educator_first, e.last_name as educator_last
