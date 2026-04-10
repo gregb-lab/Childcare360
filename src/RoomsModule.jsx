@@ -586,13 +586,20 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
               <div style={{background:lightPurple,borderRadius:12,padding:16,marginBottom:16,border:`1px solid ${purple}30`}}>
                 <div style={{fontSize:12,fontWeight:700,color:"#3D3248",marginBottom:10}}>Select educator to assign:</div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
-                  {allEducators.filter(e=>!educators.find(a=>a.id===e.id)).map(e=>(
-                    <button key={e.id} onClick={()=>assignEducator(e.id)}
-                      style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,border:"1px solid #DDD6EE",background:"#fff",cursor:"pointer",textAlign:"left"}}>
-                      <div style={{width:32,height:32,borderRadius:"50%",background:purple+"25",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:purple,flexShrink:0}}>{e.name?.[0]}</div>
-                      <div><div style={{fontSize:12,fontWeight:700,color:"#3D3248"}}>{e.name}</div><div style={{fontSize:10,color:"#8A7F96"}}>{e.role}</div></div>
-                    </button>
-                  ))}
+                  {allEducators.filter(e=>!educators.find(a=>a.id===e.id)).map(e=>{
+                    // /api/educators returns raw DB columns (first_name, last_name, role_title);
+                    // /api/rooms/:id/educators aliases them as name/role. Support both.
+                    const displayName = e.name || `${e.first_name||""} ${e.last_name||""}`.trim() || e.email || "Educator";
+                    const initials = ((e.first_name?.[0]||displayName[0]||"")+(e.last_name?.[0]||"")).toUpperCase();
+                    const roleLabel = e.role || e.role_title || "Educator";
+                    return (
+                      <button key={e.id} onClick={()=>assignEducator(e.id)}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,border:"1px solid #DDD6EE",background:"#fff",cursor:"pointer",textAlign:"left"}}>
+                        <div style={{width:32,height:32,borderRadius:"50%",background:purple+"25",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:purple,flexShrink:0}}>{initials}</div>
+                        <div><div style={{fontSize:12,fontWeight:700,color:"#3D3248"}}>{displayName}</div><div style={{fontSize:10,color:"#8A7F96"}}>{roleLabel}</div></div>
+                      </button>
+                    );
+                  })}
                   {allEducators.filter(e=>!educators.find(a=>a.id===e.id)).length===0&&<div style={{gridColumn:"span 3",textAlign:"center",padding:20,color:"#B0AAB9",fontSize:12}}>All educators already assigned</div>}
                 </div>
                 <button onClick={()=>setShowAssign(false)} style={{marginTop:10,fontSize:12,color:"#8A7F96",background:"none",border:"none",cursor:"pointer"}}>Cancel</button>

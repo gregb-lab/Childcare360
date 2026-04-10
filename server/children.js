@@ -22,7 +22,11 @@ router.get('/simple', (req, res) => {
 // GET /attendance-today — all children with today's sign-in status (MUST be before /:id)
 router.get('/attendance-today', (req, res) => {
   try {
-    const today = new Date().toISOString().slice(0,10);
+    // Local server date — sign-in/sign-out write the local date, so the join
+    // here must use the same. Using UTC here was returning yesterday's row
+    // every morning in AEST and made the Clock In/Out UI look stale.
+    const _now = new Date();
+    const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
     const rows = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.room_id, c.photo_url, c.allergies, c.dob,
              r.name as room_name,
@@ -440,8 +444,11 @@ router.post('/:id/sign-in', (req, res) => {
 router.post('/:id/sign-out', (req, res) => {
   try {
     const { sign_out_time, collector_name } = req.body;
-    const today = new Date().toISOString().slice(0,10);
-    const signOut = sign_out_time || new Date().toTimeString().slice(0,5);
+    // Use server local date, not UTC — see sign-in handler for the same
+    // bug: in AEST, ISO UTC date can be a day behind the business day.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const signOut = sign_out_time || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const db = D();
     const child = db.prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Child not found' });
