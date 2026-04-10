@@ -337,7 +337,6 @@ function KioskScreen({ onExit }) {
   const [exitCode, setExitCode] = useState("");
   const [pinError, setPinError] = useState("");
   const [showExit, setShowExit] = useState(false);
-  const [pinError, setPinError] = useState("");
   const resetTimer = useRef(null);
 
   const resetToIdle = useCallback(() => {
