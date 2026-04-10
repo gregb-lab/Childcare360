@@ -222,7 +222,7 @@ r.post('/pins', (req, res) => {
   try {
     const { child_id, pin, pin_hint } = req.body;
     if (!child_id || !pin) return res.status(400).json({ error: 'child_id and pin required' });
-    if (!/^\d{4,6}$/.test(pin)) return res.status(400).json({ error: 'PIN must be 4-6 digits' });
+    if (!/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
 
     // Check PIN not already used by another child in this tenant
     const conflict = D().prepare(

@@ -204,9 +204,9 @@ function AdminView() {
               </div>
               <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
                 <div style={{flex:1}}>
-                  <label style={lbl}>4-6 Digit PIN</label>
-                  <input value={pinInput} onChange={e=>setPinInput(e.target.value.replace(/\D/g,"").slice(0,6))}
-                    style={inp} placeholder="e.g. 1234" maxLength={6}/>
+                  <label style={lbl}>4-Digit PIN</label>
+                  <input value={pinInput} onChange={e=>setPinInput(e.target.value.replace(/\D/g,"").slice(0,4))}
+                    style={inp} placeholder="e.g. 1234" maxLength={4}/>
                 </div>
                 <button style={bp} onClick={savePin}>Save</button>
                 <button style={bs} onClick={()=>{setEditPin(null);setPinInput("");}}>Cancel</button>
@@ -352,7 +352,7 @@ function KioskScreen({ onExit }) {
   }, [state, resetToIdle]);
 
   const handleDigit = (d) => {
-    if (pin.length >= 6) return;
+    if (pin.length >= 4) return;
     const newPin = pin + d;
     setPin(newPin);
     if (newPin.length >= 4) lookupPin(newPin);
@@ -478,13 +478,13 @@ function KioskScreen({ onExit }) {
             <div style={{textAlign:"center"}}>
               <div style={{fontSize:48,marginBottom:12}}>👋</div>
               <div style={{fontSize:22,fontWeight:700,color:DARK}}>Enter your child's PIN</div>
-              <div style={{fontSize:14,color:MU,marginTop:6}}>4–6 digit PIN to sign in or out</div>
+              <div style={{fontSize:14,color:MU,marginTop:6}}>Enter your 4-digit PIN</div>
             </div>
           )}
 
           {/* PIN display */}
           <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-            {[0,1,2,3,4,5].map(i=>(
+            {[0,1,2,3].map(i=>(
               <div key={i} style={{width:14,height:14,borderRadius:"50%",
                 background:pin.length>i?"#7C3AED":"#DDD6EE",transition:"background 0.15s",
                 animation:pinError?"shake 0.4s ease":"none"}}/>
