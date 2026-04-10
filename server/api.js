@@ -82,12 +82,23 @@ router.get('/rooms', requireAuth, requireTenant, (req, res) => {
   }
 });
 
+const NQF_MAX_RATIOS = { 'babies': 4, 'toddlers': 5, 'preschool': 10, 'kindergarten': 10, 'oshc': 15 };
+function validateNqfRatio(ageGroup, ratio) {
+  if (!ratio) return null;
+  const key = (ageGroup || '').toLowerCase();
+  const maxRatio = Object.entries(NQF_MAX_RATIOS).find(([k]) => key.includes(k))?.[1];
+  if (maxRatio && ratio > maxRatio) return `NQF requires a maximum ratio of 1:${maxRatio} for ${ageGroup} rooms`;
+  return null;
+}
+
 router.post('/rooms', requireAuth, requireTenant, requireRole('owner', 'admin', 'director'), (req, res) => {
   try {
-    const { name, capacity } = req.body;
+    const { name, capacity, ratio } = req.body;
     const ageGroup = req.body.ageGroup || 'preschool';
     console.log(`[POST /rooms] tenant=${req.tenantId} role=${req.tenantRole} name=${name}`);
     if (!name?.trim()) return res.status(400).json({ error: 'Room name is required' });
+    const nqfError = validateNqfRatio(ageGroup, ratio);
+    if (nqfError) return res.status(400).json({ error: nqfError });
     const id = uuid();
     D().prepare('INSERT INTO rooms (id,tenant_id,name,age_group,capacity) VALUES(?,?,?,?,?)')
       .run(id, req.tenantId, name.trim(), ageGroup, capacity || 20);
@@ -100,7 +111,9 @@ router.post('/rooms', requireAuth, requireTenant, requireRole('owner', 'admin', 
 });
 
 router.put('/rooms/:id', requireAuth, requireTenant, requireRole('owner', 'admin', 'director'), (req, res) => {
-  const { name, ageGroup, capacity, currentChildren, color, description } = req.body;
+  const { name, ageGroup, capacity, currentChildren, color, description, ratio } = req.body;
+  const nqfError = validateNqfRatio(ageGroup, ratio);
+  if (nqfError) return res.status(400).json({ error: nqfError });
   D().prepare('UPDATE rooms SET name=COALESCE(?,name), age_group=COALESCE(?,age_group), capacity=COALESCE(?,capacity), current_children=COALESCE(?,current_children) WHERE id=? AND tenant_id=?')
     .run(name, ageGroup, capacity, currentChildren ?? null, req.params.id, req.tenantId);
   res.json({ success: true });
@@ -174,7 +187,7 @@ router.get('/rooms/:id/stats', requireAuth, requireTenant, (req, res) => {
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const children = D().prepare('SELECT c.*, pc.name as parent_name, pc.email as parent_email, pc.phone as parent_phone FROM children c LEFT JOIN parent_contacts pc ON pc.child_id=c.id AND pc.is_primary=1 WHERE c.room_id=? AND c.tenant_id=? AND c.active=1 ORDER BY c.first_name').all(req.params.id, req.tenantId);
   const recentUpdates = D().prepare("SELECT du.*, c.first_name FROM daily_updates du JOIN children c ON c.id=du.child_id WHERE c.room_id=? AND c.tenant_id=? AND du.update_date=date('now','localtime') ORDER BY du.created_at DESC LIMIT 20").all(req.params.id, req.tenantId);
-  const todayAttendance = D().prepare("SELECT COUNT(*) as present FROM attendance_sessions WHERE date=date('now','localtime') AND child_id IN (SELECT id FROM children WHERE room_id=? AND tenant_id=?)").get(req.params.id, req.tenantId);
+  const todayAttendance = D().prepare("SELECT COUNT(*) as present FROM attendance_sessions WHERE date=date('now','localtime') AND sign_in IS NOT NULL AND sign_out IS NULL AND child_id IN (SELECT id FROM children WHERE room_id=? AND tenant_id=?)").get(req.params.id, req.tenantId);
   res.json({ room, children, recentUpdates, todayAttendance: todayAttendance?.present || 0, childCount: children.length });
 });
 
@@ -565,10 +578,10 @@ export default router;
 router.get('/rooms/:id/educators', requireAuth, requireTenant, (req, res) => {
   try {
     const educators = D().prepare(`
-      SELECT u.id, u.name, u.email, u.role, u.qualifications, u.wwcc_number, u.photo_url
-      FROM users u
-      JOIN educator_room_assignments era ON era.educator_id = u.id
-      WHERE era.room_id = ? AND era.tenant_id = ? AND u.active = 1
+      SELECT e.id, e.first_name || ' ' || e.last_name as name, e.email, e.role_title as role, e.qualification as qualifications, e.wwcc_number, e.photo_url
+      FROM educators e
+      JOIN educator_room_assignments era ON era.educator_id = e.id
+      WHERE era.room_id = ? AND era.tenant_id = ? AND e.status = 'active'
     `).all(req.params.id, req.tenantId);
     res.json(educators);
   } catch(err) { res.json([]); }

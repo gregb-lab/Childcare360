@@ -49,13 +49,15 @@ function findGroup(ageGroups, id) {
   // Fall back: parse legacy age-range codes like '0-2', '2-3', '3-4', '4-5'
   const rangeMatch = id.match(/^(\d+)-(\d+)$/);
   if (rangeMatch) {
+    const minYrs = parseInt(rangeMatch[1]);
+    const ratio = minYrs < 2 ? 4 : minYrs < 3 ? 5 : minYrs < 5 ? 10 : 15;
     return {
       group_id: id,
       label: id + ' yrs',
       sub: rangeMatch[1] + '–' + rangeMatch[2] + ' years',
-      min_months: parseInt(rangeMatch[1]) * 12,
+      min_months: minYrs * 12,
       max_months: parseInt(rangeMatch[2]) * 12,
-      ratio: 10,
+      ratio,
       color: '#8B6DAF',
     };
   }
