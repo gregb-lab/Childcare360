@@ -335,6 +335,7 @@ function KioskScreen({ onExit }) {
   const [childStatus, setChildStatus] = useState(null);
   const [message, setMessage] = useState(null);
   const [exitCode, setExitCode] = useState("");
+  const [pinError, setPinError] = useState("");
   const [showExit, setShowExit] = useState(false);
   const [pinError, setPinError] = useState("");
   const resetTimer = useRef(null);
@@ -487,7 +488,8 @@ function KioskScreen({ onExit }) {
             animation:pinError?"shake 0.4s ease":"none"}}>
             {[0,1,2,3].map(i=>(
               <div key={i} style={{width:14,height:14,borderRadius:"50%",
-                background:pin.length>i?"#7C3AED":"#DDD6EE",transition:"background 0.15s"}}/>
+                background:pin.length>i?"#7C3AED":"#DDD6EE",transition:"background 0.15s",
+                animation:pinError?"shake 0.4s ease":"none"}}/>
             ))}
           </div>
           {pinError && <div style={{color:"#DC2626",fontSize:13,fontWeight:600,textAlign:"center",marginTop:8}}>{pinError}</div>}

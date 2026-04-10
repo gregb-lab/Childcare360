@@ -411,6 +411,15 @@ router.post('/:id/sign-in', (req, res) => {
     // Get child to verify tenant
     const child = db.prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Child not found' });
+    // Cleanup any duplicate rows for today, keeping only the latest per child/tenant
+    db.prepare(`DELETE FROM attendance_sessions WHERE id NOT IN (
+      SELECT MAX(id) FROM attendance_sessions
+      WHERE date=date('now','localtime')
+      GROUP BY child_id, tenant_id
+    ) AND date=date('now','localtime')`).run();
+    // Guard against duplicate sign-in: open session (sign_in set, sign_out NULL)
+    const openSession = db.prepare('SELECT id FROM attendance_sessions WHERE child_id=? AND date=? AND tenant_id=? AND sign_in IS NOT NULL AND sign_out IS NULL').get(req.params.id, today, req.tenantId);
+    if (openSession) return res.status(409).json({ error: 'Child already signed in' });
     // Upsert attendance session for today
     const existing = db.prepare('SELECT * FROM attendance_sessions WHERE child_id=? AND date=? AND tenant_id=?').get(req.params.id, today, req.tenantId);
     if (existing) {

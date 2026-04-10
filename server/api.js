@@ -185,7 +185,18 @@ router.delete('/age-groups/:id', requireAuth, requireTenant, requireRole('owner'
 router.get('/rooms/:id/stats', requireAuth, requireTenant, (req, res) => {
   const room = D().prepare('SELECT * FROM rooms WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
-  const children = D().prepare('SELECT c.*, pc.name as parent_name, pc.email as parent_email, pc.phone as parent_phone FROM children c LEFT JOIN parent_contacts pc ON pc.child_id=c.id AND pc.is_primary=1 WHERE c.room_id=? AND c.tenant_id=? AND c.active=1 ORDER BY c.first_name').all(req.params.id, req.tenantId);
+  const children = D().prepare(`SELECT c.*, pc.name as parent_name, pc.email as parent_email, pc.phone as parent_phone,
+      a.sign_in as sign_in, a.sign_out as sign_out,
+      CASE
+        WHEN a.sign_in IS NOT NULL AND a.sign_out IS NULL THEN 'present'
+        WHEN a.sign_in IS NOT NULL AND a.sign_out IS NOT NULL THEN 'departed'
+        ELSE 'not_arrived'
+      END as attendance_status
+    FROM children c
+    LEFT JOIN parent_contacts pc ON pc.child_id=c.id AND pc.is_primary=1
+    LEFT JOIN attendance_sessions a ON a.child_id=c.id AND a.date=date('now','localtime') AND a.tenant_id=c.tenant_id
+    WHERE c.room_id=? AND c.tenant_id=? AND c.active=1
+    ORDER BY c.first_name`).all(req.params.id, req.tenantId);
   const recentUpdates = D().prepare("SELECT du.*, c.first_name FROM daily_updates du JOIN children c ON c.id=du.child_id WHERE c.room_id=? AND c.tenant_id=? AND du.update_date=date('now','localtime') ORDER BY du.created_at DESC LIMIT 20").all(req.params.id, req.tenantId);
   const todayAttendance = D().prepare("SELECT COUNT(*) as present FROM attendance_sessions WHERE date=date('now','localtime') AND sign_in IS NOT NULL AND sign_out IS NULL AND child_id IN (SELECT id FROM children WHERE room_id=? AND tenant_id=?)").get(req.params.id, req.tenantId);
   res.json({ room, children, recentUpdates, todayAttendance: todayAttendance?.present || 0, childCount: children.length });

@@ -524,9 +524,7 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
                   {roomChildren.map(child=>{
                     const fits=childFitsGroup(child,group);
                     const att=(stats?.children||[]).find(c=>c.id===child.id);
-                    const signedIn=att?.sign_in&&!att?.sign_out;
-                    const signedOut=att?.sign_in&&att?.sign_out;
-                    const status=signedOut?"signed-out":signedIn?"present":"absent";
+                    const status=att?.attendance_status || (att?.sign_in&&att?.sign_out?"departed":att?.sign_in?"present":"not_arrived");
                     return(
                       <tr key={child.id} style={{borderBottom:"1px solid #F5F0FB",background:!fits?"#FFF8F8":"transparent"}}>
                         <td style={{padding:"10px 12px"}}>
@@ -543,9 +541,9 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
                         <td style={{padding:"10px 12px",fontSize:12}}>{fmtTime(att?.sign_out)}</td>
                         <td style={{padding:"10px 12px"}}>
                           <span style={{padding:"3px 10px",borderRadius:20,fontSize:10,fontWeight:700,
-                            background:status==="present"?"#E8F5E9":status==="signed-out"?"#E3F2FD":"#FFF3E0",
-                            color:status==="present"?"#2E7D32":status==="signed-out"?"#1565C0":"#E65100"}}>
-                            {status==="present"?"✓ Present":status==="signed-out"?"Signed Out":"Not Arrived"}
+                            background:status==="present"?"#E8F5E9":status==="departed"?"#ECEFF1":"#FFF3E0",
+                            color:status==="present"?"#2E7D32":status==="departed"?"#546E7A":"#E65100"}}>
+                            {status==="present"?`✓ Present ${fmtTime(att?.sign_in)||""}`.trim():status==="departed"?"Departed":"Not Arrived"}
                           </span>
                         </td>
                         <td style={{padding:"10px 12px"}}>
