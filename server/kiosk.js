@@ -166,7 +166,7 @@ r.post('/signout', requireTenantHeader, (req, res) => {
     } catch(e) { /* ignore */ }
 
     const child = D().prepare('SELECT first_name, last_name FROM children WHERE id=? AND tenant_id=?')
-      .get(pinRecord.child_id);
+      .get(pinRecord.child_id, req.tenantId);
 
     res.json({
       ok: true,

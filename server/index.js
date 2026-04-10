@@ -513,6 +513,8 @@ app.get('/run-seed-cn', (req, res) => {
 });
 
 
+// Kiosk routes BEFORE /api catch-all (kiosk has public endpoints that don't need auth)
+app.use('/api/kiosk', kioskRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/compliance', complianceRoutes);
@@ -551,7 +553,7 @@ app.use('/api/integrations', integrationsRoutes);
 app.use('/api/admin', adminPowerRoutes);
 app.use('/api/childdev', childdevRoutes);
 app.use('/api/quality', qualityRoutes);
-app.use('/api/kiosk', kioskRoutes);
+// kiosk routes mounted before /api catch-all (see line 517)
 app.use('/api/payroll', payrollExportRoutes);
 app.use('/api/notifications', notifEngineRoutes);
 app.use('/api/comms', commsRoutes);
