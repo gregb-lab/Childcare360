@@ -433,6 +433,7 @@ function RatioBar({ count, capacity, group }) {
 // ─── ROOM DETAIL PANEL ───────────────────────────────────────────────────────
 function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onDelete, userRole }) {
   const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [educators, setEducators] = useState([]);
   const [allEducators, setAllEducators] = useState([]);
   const [showAssign, setShowAssign] = useState(false);
@@ -440,8 +441,15 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
   const canManage = ["admin","director","manager"].includes(userRole);
 
   useEffect(() => {
-    API(`/api/rooms/${room.id}/stats`).then(r=>{if(r)setStats(r);}).catch(()=>{});
-    API(`/api/rooms/${room.id}/educators`).then(r=>{if(Array.isArray(r))setEducators(r);}).catch(()=>{});
+    let cancelled = false;
+    setStatsLoading(true);
+    setStats(null);
+    API(`/api/rooms/${room.id}/stats`)
+      .then(r => { if (!cancelled && r) setStats(r); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setStatsLoading(false); });
+    API(`/api/rooms/${room.id}/educators`).then(r=>{if(!cancelled && Array.isArray(r))setEducators(r);}).catch(()=>{});
+    return () => { cancelled = true; };
   }, [room.id]);
 
   const loadAllEducators = async () => {
@@ -509,7 +517,9 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
       <div style={{flex:1,overflowY:"auto",padding:"16px 24px"}}>
         {view==="children"&&(
           <div>
-            {roomChildren.length===0?(
+            {statsLoading && !stats ? (
+              <div style={{textAlign:"center",padding:48,color:"#B0AAB9",fontSize:13}}>Loading attendance…</div>
+            ) : roomChildren.length===0?(
               <div style={{textAlign:"center",padding:48,color:"#B0AAB9",fontSize:14}}>No children assigned to {room.name}</div>
             ):(
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>

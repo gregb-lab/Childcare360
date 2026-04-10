@@ -23,8 +23,22 @@ function sendEmail(to, subject, body) {
   return true;
 }
 
-function issueTokens(user, tenantId) {
-  const accessToken = signToken({ userId: user.id, email: user.email, tenantId, role: user.role || "educator" });
+function issueTokens(user, tenantId, role) {
+  // Role is sourced from tenant_members for the active tenant — the users table
+  // has no `role` column, so we can't derive it from `user`.
+  let resolvedRole = role || null;
+  if (!resolvedRole && tenantId) {
+    const member = D().prepare(
+      'SELECT role FROM tenant_members WHERE user_id = ? AND tenant_id = ? AND active = 1'
+    ).get(user.id, tenantId);
+    resolvedRole = member?.role || null;
+  }
+  if (!resolvedRole) {
+    const pa = D().prepare('SELECT role FROM platform_admins WHERE user_id = ?').get(user.id);
+    if (pa?.role) resolvedRole = 'admin';
+  }
+  if (!resolvedRole) resolvedRole = 'educator';
+  const accessToken = signToken({ userId: user.id, email: user.email, tenantId, role: resolvedRole });
   const refreshToken = randomBytes(48).toString('hex');
   const refreshHash = hashToken(refreshToken);
   D().prepare(
@@ -416,7 +430,7 @@ router.post('/switch-tenant', (req, res) => {
     if (!member) return res.status(403).json({ error: 'Not a member of that organisation' });
 
     const user = D().prepare('SELECT * FROM users WHERE id = ?').get(decoded.userId);
-    const token = signToken({ userId: user.id, email: user.email, tenantId, role: user.role || "educator" });
+    const token = signToken({ userId: user.id, email: user.email, tenantId, role: member.role || "educator" });
     const tenant = D().prepare('SELECT id, name, service_type FROM tenants WHERE id = ?').get(tenantId);
 
     auditLog(user.id, tenantId, 'switch_tenant', {}, req.ip, req.headers['user-agent']);
@@ -449,7 +463,7 @@ router.post('/create-tenant', (req, res) => {
       'INSERT INTO tenant_members (id,user_id,tenant_id,role) VALUES(?,?,?,?)'
     ).run(uuid(), decoded.userId, tenantId, 'admin');
 
-    const token = signToken({ userId: decoded.userId, email: decoded.email, tenantId });
+    const token = signToken({ userId: decoded.userId, email: decoded.email, tenantId, role: 'admin' });
     auditLog(decoded.userId, tenantId, 'create_tenant', { name }, req.ip, req.headers['user-agent']);
 
     res.json({

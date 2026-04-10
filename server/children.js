@@ -405,19 +405,24 @@ function tryQuery(fn) { try { return fn(); } catch(e) { return []; } }
 router.post('/:id/sign-in', (req, res) => {
   try {
     const { sign_in_time, collector_name } = req.body;
-    const today = new Date().toISOString().slice(0,10);
-    const signIn = sign_in_time || new Date().toTimeString().slice(0,5);
+    // Use server local date so attendance day matches the business calendar.
+    // Previously this used new Date().toISOString() (UTC) while the guard
+    // query used date('now','localtime') — that mismatch silently disabled
+    // the duplicate-sign-in 409 whenever local date != UTC date.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const signIn = sign_in_time || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const db = D();
     // Get child to verify tenant
     const child = db.prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!child) return res.status(404).json({ error: 'Child not found' });
     // Guard against duplicate sign-in FIRST (before any cleanup)
-    const openSession = db.prepare('SELECT id FROM attendance_sessions WHERE child_id=? AND tenant_id=? AND date=date(\'now\',\'localtime\') AND sign_in IS NOT NULL AND sign_out IS NULL').get(req.params.id, req.tenantId);
+    const openSession = db.prepare('SELECT id FROM attendance_sessions WHERE child_id=? AND tenant_id=? AND date=? AND sign_in IS NOT NULL AND sign_out IS NULL').get(req.params.id, req.tenantId, today);
     if (openSession) return res.status(409).json({ error: 'Child already signed in', session_id: openSession.id });
     // Cleanup duplicate closed sessions for today (keep most recent closed one)
-    db.prepare(`DELETE FROM attendance_sessions WHERE child_id=? AND tenant_id=? AND date=date('now','localtime') AND sign_out IS NOT NULL AND id NOT IN (
-      SELECT id FROM attendance_sessions WHERE child_id=? AND tenant_id=? AND date=date('now','localtime') AND sign_out IS NOT NULL ORDER BY created_at DESC LIMIT 1
-    )`).run(req.params.id, req.tenantId, req.params.id, req.tenantId);
+    db.prepare(`DELETE FROM attendance_sessions WHERE child_id=? AND tenant_id=? AND date=? AND sign_out IS NOT NULL AND id NOT IN (
+      SELECT id FROM attendance_sessions WHERE child_id=? AND tenant_id=? AND date=? AND sign_out IS NOT NULL ORDER BY created_at DESC LIMIT 1
+    )`).run(req.params.id, req.tenantId, today, req.params.id, req.tenantId, today);
     // Upsert attendance session for today
     const existing = db.prepare('SELECT * FROM attendance_sessions WHERE child_id=? AND date=? AND tenant_id=?').get(req.params.id, today, req.tenantId);
     if (existing) {
