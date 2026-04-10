@@ -35,7 +35,7 @@ r.post('/lookup', requireTenantHeader, (req, res) => {
     const pinRecord = D().prepare(`
       SELECT kp.*, c.first_name, c.last_name, c.dob, c.room_id,
              c.photo_url, r.name as room_name,
-             c.medical_conditions, c.allergies
+             c.medical_notes, c.allergies
       FROM kiosk_pins kp
       JOIN children c ON c.id = kp.child_id
       LEFT JOIN rooms r ON r.id = c.room_id
@@ -59,7 +59,7 @@ r.post('/lookup', requireTenantHeader, (req, res) => {
         last_name: pinRecord.last_name,
         room_name: pinRecord.room_name,
         photo_url: pinRecord.photo_url,
-        medical_conditions: pinRecord.medical_conditions,
+        medical_notes: pinRecord.medical_notes,
         allergies: pinRecord.allergies,
       },
       status: session?.signed_out_at ? 'signed_out'
@@ -338,8 +338,9 @@ r.post('/pins/auto-generate', (req, res) => {
 
     let count = 0;
     const ins = D().prepare(`
-      INSERT OR IGNORE INTO kiosk_pins (id, tenant_id, child_id, pin, active)
+      INSERT INTO kiosk_pins (id, tenant_id, child_id, pin, active)
       VALUES (?,?,?,?,1)
+      ON CONFLICT(tenant_id, child_id) DO UPDATE SET pin=excluded.pin, active=1
     `);
 
     D().transaction(() => {

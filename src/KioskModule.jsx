@@ -105,14 +105,14 @@ function AdminView() {
   const autoGenerate = async () => {
     setGenerating(true);
     const r = await API("/api/kiosk/pins/auto-generate", { method: "POST" });
-    alert(`✓ Generated PINs for ${r.generated} children`);
+    window.showToast && window.showToast(`Generated PINs for ${r.generated} children`, "success");
     load(); setGenerating(false);
   };
 
   const savePin = async () => {
     if (!editPin || !pinInput) return;
     const r = await API("/api/kiosk/pins", { method: "POST", body: { child_id: editPin, pin: pinInput } });
-    if (r.error) { alert(r.error); return; }
+    if (r.error) { window.showToast && window.showToast(r.error === 'PIN already in use by another child' ? 'This PIN is already used by another child. Please choose a different PIN.' : r.error, "error"); return; }
     setEditPin(null); setPinInput(""); load();
   };
 
@@ -336,6 +336,7 @@ function KioskScreen({ onExit }) {
   const [message, setMessage] = useState(null);
   const [exitCode, setExitCode] = useState("");
   const [showExit, setShowExit] = useState(false);
+  const [pinError, setPinError] = useState("");
   const resetTimer = useRef(null);
 
   const resetToIdle = useCallback(() => {
@@ -358,11 +359,22 @@ function KioskScreen({ onExit }) {
   };
 
   const lookupPin = async (p) => {
-    const r = await KIOSK("/lookup", { body: { pin: p } });
-    if (r.found) {
-      setChild(r.child);
-      setChildStatus(r.status);
-      setState("found");
+    try {
+      const r = await KIOSK("/lookup", { body: { pin: p } });
+      if (r.found) {
+        setPinError("");
+        setChild(r.child);
+        setChildStatus(r.status);
+        setState("found");
+      } else {
+        setPinError(r.error === 'PIN not found' ? 'PIN not found. Please try again.' : (r.error || 'PIN not found. Please try again.'));
+        setPin("");
+        setTimeout(() => setPinError(""), 3000);
+      }
+    } catch(e) {
+      setPinError("Something went wrong. Please try again.");
+      setPin("");
+      setTimeout(() => setPinError(""), 3000);
     }
   };
 
@@ -474,9 +486,12 @@ function KioskScreen({ onExit }) {
           <div style={{display:"flex",gap:10,justifyContent:"center"}}>
             {[0,1,2,3,4,5].map(i=>(
               <div key={i} style={{width:14,height:14,borderRadius:"50%",
-                background:pin.length>i?"#7C3AED":"#DDD6EE",transition:"background 0.15s"}}/>
+                background:pin.length>i?"#7C3AED":"#DDD6EE",transition:"background 0.15s",
+                animation:pinError?"shake 0.4s ease":"none"}}/>
             ))}
           </div>
+          {pinError && <div style={{color:"#DC2626",fontSize:13,fontWeight:600,textAlign:"center",marginTop:8}}>{pinError}</div>}
+          <style>{`@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}`}</style>
 
           {/* Number pad */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:"100%"}}>
@@ -506,7 +521,7 @@ function KioskScreen({ onExit }) {
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <input value={exitCode} onChange={e=>setExitCode(e.target.value)}
               placeholder="Admin PIN" style={{...inp,width:120,fontSize:12}}/>
-            <button onClick={()=>{const adminPin = localStorage.getItem("kiosk_admin_pin") || "9999"; if(exitCode===adminPin){onExit();}else{alert("Incorrect PIN");setShowExit(false);setExitCode("");}}}
+            <button onClick={()=>{const adminPin = localStorage.getItem("kiosk_admin_pin") || "9999"; if(exitCode===adminPin){onExit();}else{window.showToast&&window.showToast("Incorrect PIN","error");setShowExit(false);setExitCode("");}}}
               style={{...bp,fontSize:12,padding:"6px 14px"}}>Exit</button>
           </div>
         ) : null}
