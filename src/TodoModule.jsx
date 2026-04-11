@@ -87,7 +87,7 @@ export default function TodoModule() {
   const urgentCount = todos.filter(t => t.priority === "urgent" && t.status !== "resolved").length;
 
   return (
-    <div style={{ padding: "24px 28px", maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ padding: "24px 28px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>

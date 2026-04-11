@@ -48,7 +48,7 @@ export default function OperationsModule() {
   const [alerts, setAlerts] = useState({ visitors:0, sleep:0, hazards:0, shifts:0 });
 
   return (
-    <div style={{ padding:"24px 28px", maxWidth:1200, margin:"0 auto" }}>
+    <div style={{ padding:"24px 28px" }}>
       <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
         <span style={{ fontSize:28 }}>⚙️</span>
         <div>

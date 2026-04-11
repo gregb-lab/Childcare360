@@ -45,7 +45,7 @@ export default function MessageCentreModule() {
   useEffect(()=>{ refreshUnread(); },[refreshUnread]);
 
   return (
-    <div style={{padding:"24px 28px",maxWidth:1300,margin:"0 auto"}}>
+    <div style={{padding:"24px 28px"}}>
       <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
         <span style={{fontSize:28}}>💬</span>
         <div>

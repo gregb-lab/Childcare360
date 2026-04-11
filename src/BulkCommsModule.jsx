@@ -32,7 +32,7 @@ const TABS=[
 export default function BulkCommsModule() {
   const [tab,setTab]=useState("send");
   return (
-    <div style={{padding:"24px 28px",maxWidth:1200,margin:"0 auto"}}>
+    <div style={{padding:"24px 28px"}}>
       <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:24}}>
         <span style={{fontSize:28}}>📣</span>
         <div>

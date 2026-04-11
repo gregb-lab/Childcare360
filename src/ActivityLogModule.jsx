@@ -73,7 +73,7 @@ export default function ActivityLogModule() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div style={{ padding: "24px 28px", maxWidth: 960, margin: "0 auto" }}>
+    <div style={{ padding: "24px 28px" }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

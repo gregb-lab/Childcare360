@@ -81,7 +81,7 @@ export default function ChecklistsModule() {
 
   // Active checklist completion view
   if (active && !active.viewingHistory) return (
-    <div style={{padding:"24px 28px",maxWidth:720,margin:"0 auto"}}>
+    <div style={{padding:"24px 28px",maxWidth:720}}>
       <button onClick={()=>setActive(null)} style={{...bs,marginBottom:16,fontSize:12}}>← Back</button>
       <div style={{...card,marginBottom:16}}>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:4}}>
@@ -143,7 +143,7 @@ export default function ChecklistsModule() {
 
   // History view
   if (active?.viewingHistory) return (
-    <div style={{padding:"24px 28px",maxWidth:720,margin:"0 auto"}}>
+    <div style={{padding:"24px 28px",maxWidth:720}}>
       <button onClick={()=>{setActive(null);setHistory([])}} style={{...bs,marginBottom:16,fontSize:12}}>← Back</button>
       <div style={{fontWeight:800,fontSize:18,color:DARK,marginBottom:16}}>{active.title} — History</div>
       {history.length === 0 ? (
@@ -170,7 +170,7 @@ export default function ChecklistsModule() {
   );
 
   return (
-    <div style={{padding:"24px 28px",maxWidth:1100,margin:"0 auto"}}>
+    <div style={{padding:"24px 28px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div>
           <div style={{fontWeight:800,fontSize:20,color:DARK}}>✅ Checklists</div>

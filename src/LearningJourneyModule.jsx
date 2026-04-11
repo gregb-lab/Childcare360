@@ -419,7 +419,7 @@ function NewStoryWizard({ children, rooms, families, multiFamilies, onSaved, onC
   );
 
   return (
-    <div style={{maxWidth:1140,margin:"0 auto"}}>
+    <div style={{}}>
       {/* Header bar */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,padding:"12px 18px",background:"#fff",borderRadius:12,border:"1px solid #EDE8F4"}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>

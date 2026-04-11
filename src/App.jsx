@@ -1374,7 +1374,7 @@ function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecord
   const dedupedAlerts = Object.values(deduped);
 
   return (
-    <div style={{ padding:"24px 28px", maxWidth:1200, margin:"0 auto" }}>
+    <div style={{ padding:"24px 28px" }}>
 
       {/* ── RESPONSIBLE PERSON ON DUTY ── */}
       <div style={{ ...card2, marginBottom:16, background:"linear-gradient(135deg,#F8F5FC,#EDE4F0)",
