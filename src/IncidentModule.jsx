@@ -129,7 +129,7 @@ export default function IncidentModule() {
   };
 
   return (
-    <div style={{ padding: "0 24px 24px" }}>
+    <div style={{ padding: "0 24px 24px", flex: 1, minHeight: 0, overflowY: "auto" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>

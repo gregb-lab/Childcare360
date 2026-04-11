@@ -17,11 +17,18 @@ r.use(requireAuth);
 r.use(requireTenant);
 
 // ─── Idempotent column migrations ────────────────────────────────────────────
-// `medication_log.witnessed_by` is a FK to users.id, so free-text witness
-// names can't be stored there without violating the FK. Add a sibling
-// text column for the name. The try/catch makes this a no-op after the
-// first run.
-try { D().prepare("ALTER TABLE medication_log ADD COLUMN witnessed_by_name TEXT").run(); } catch(e) { /* already exists */ }
+// Deferred: D() throws at import-time (before initDb runs in index.js), so
+// run these once on the first request instead.
+// Why we need witnessed_by_name: `medication_log.witnessed_by` is a FK to
+// users.id, so free-text witness names can't be stored there without
+// violating the FK. Add a sibling text column.
+let _migrationsRun = false;
+function runMigrations() {
+  if (_migrationsRun) return;
+  _migrationsRun = true;
+  try { D().prepare("ALTER TABLE medication_log ADD COLUMN witnessed_by_name TEXT").run(); } catch(e) { /* already exists */ }
+}
+r.use((req, _res, next) => { runMigrations(); next(); });
 
 // ─── EQUIPMENT / MEDICATION REGISTER ─────────────────────────────────────────
 

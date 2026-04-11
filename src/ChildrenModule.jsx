@@ -81,7 +81,7 @@ export default function ChildrenModule() {
   if (loading) return <div style={{ padding: 60, textAlign: "center", color: "#8A7F96" }}>Loading children...</div>;
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 100px)", overflow: "hidden" }}>
+    <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
       {/* Sidebar list */}
       <div style={{ width: 220, flexShrink: 0, background: "#FDFBF9", borderRight: "1px solid #EDE8F4", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "12px 12px 8px" }}>

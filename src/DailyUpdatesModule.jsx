@@ -115,7 +115,7 @@ export default function DailyUpdatesModule() {
   if (loading) return <div style={{ padding: 60, textAlign: "center", color: "#8A7F96" }}>Loading...</div>;
 
   return (
-    <div style={{ padding: "0 0 24px" }}>
+    <div style={{ padding: "0 0 24px", flex: 1, minHeight: 0, overflowY: "auto" }}>
       {/* Header */}
       <div style={{ padding: "16px 24px 12px", borderBottom: "1px solid #EDE8F4", background: "#fff" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
