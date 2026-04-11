@@ -26,6 +26,8 @@ import learningRoutes from './learning.js';
 import staffRoutes from './staff.js';
 import staffFeaturesRoutes from './staff-features.js';
 import runsheetRoutes from './runsheet.js';
+import runsheetLiveRoutes from './runsheet-live.js';
+import preferencesRoutes from './preferences.js';
 import reportsRoutes from './reports.js';
 import incidentRoutes from './incidents.js';
 import wellbeingRoutes from './wellbeing.js';
@@ -534,6 +536,11 @@ app.use('/api/learning', learningRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/staff-features', staffFeaturesRoutes);
 app.use('/api/runsheet', runsheetRoutes);
+app.use('/api/runsheet-live', runsheetLiveRoutes);
+// preferences router serves /api/educators/:id/preferences, /api/rooms/:id/preferred-educators,
+// /api/roster/nc-requirements, etc — mounted at /api so paths are absolute. Order matters: this
+// must come AFTER /api/educators so the educators router gets first crack at its own routes.
+app.use('/api', preferencesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/parent', parentRoutes);

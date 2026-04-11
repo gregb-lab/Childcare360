@@ -83,6 +83,7 @@ export function RosteringModule() {
   const tabs = [
     { id: "roster", l: "Roster", i: "📅", b: pendingCount },
     { id: "sickcover", l: "Sick Cover", i: "📱" },
+    { id: "nctime", l: "Non-Contact", i: "📚" },
     { id: "patterns", l: "Patterns", i: "📈" },
     { id: "educators", l: "Educators", i: "👩‍🏫" },
     { id: "timesheet", l: "Timesheet", i: "🕐" },
@@ -114,6 +115,7 @@ export function RosteringModule() {
       </div>
       {tab === "roster" && <RosterTab educators={data.educators} periods={data.periods} templates={data.templates} archived={archived} sp={selPeriod} loadP={loadPeriod} reload={load} settings={settings} proposals={data.proposals} />}
       {tab === "sickcover" && <SickCoverTab educators={data?.educators || []} fills={data?.fills || []} reload={load} />}
+      {tab === "nctime" && <NonContactTab />}
       {tab === "patterns" && <PatternsTab />}
       {tab === "educators" && <EducatorsTab educators={data.educators} loadEd={loadEd} selEd={selEd} setSelEd={setSelEd} reload={load} />}
       {tab === "timesheet" && <TimesheetTab educators={data.educators} periods={data.periods} />}
@@ -1973,6 +1975,107 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
 
 
 /* ═══ SICK COVER ═══ */
+// ─── Non-Contact Time Tab ─────────────────────────────────────────────────
+// Weekly view of every educator's NC entitlement vs scheduled hours.
+// Reads /api/roster/nc-requirements which is the canonical compliance source.
+function NonContactTab() {
+  const [data, setData] = useState(null);
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date();
+    const dow = d.getDay();
+    d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+    return d.toISOString().split("T")[0];
+  });
+
+  const load = useCallback(async () => {
+    try {
+      const r = await API(`/api/roster/nc-requirements?week_start=${weekStart}`);
+      if (r && !r.error) setData(r);
+    } catch (e) { /* non-fatal */ }
+  }, [weekStart]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const moveWeek = (delta) => {
+    const d = new Date(weekStart + "T00:00:00");
+    d.setDate(d.getDate() + delta * 7);
+    setWeekStart(d.toISOString().split("T")[0]);
+  };
+
+  const statusBadge = (s) => {
+    const map = {
+      compliant: { c: "#2E7D32", bg: "#E8F5E9", t: "✅ Compliant" },
+      partial: { c: "#E65100", bg: "#FFF3E0", t: "⚠ Partial" },
+      missing: { c: "#B71C1C", bg: "#FFEBEE", t: "❌ Missing" },
+      not_required: { c: "#8A7F96", bg: "#F5F5F5", t: "—" },
+    };
+    const m = map[s] || map.not_required;
+    return <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, color: m.c, background: m.bg }}>{m.t}</span>;
+  };
+
+  if (!data) return <div style={{ padding: 40, textAlign: "center", color: "#8A7F96" }}>Loading non-contact time…</div>;
+
+  const { educators = [], summary = {} } = data;
+
+  return (
+    <div>
+      <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 14, color: "#3D3248" }}>Non-Contact Time Compliance</h3>
+          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#8A7F96" }}>Week of {weekStart}</p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => moveWeek(-1)} style={btnS}>← Prev</button>
+          <button onClick={() => moveWeek(1)} style={btnS}>Next →</button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
+        {[
+          ["Total Educators", summary.total || 0, "#3D3248"],
+          ["Compliant", summary.compliant || 0, "#2E7D32"],
+          ["Partial", summary.partial || 0, "#E65100"],
+          ["Missing", summary.missing || 0, "#B71C1C"],
+        ].map(([l, v, c]) => (
+          <div key={l} style={{ ...card, marginBottom: 0, textAlign: "center", padding: "16px 12px" }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: c, lineHeight: 1 }}>{v}</div>
+            <div style={{ fontSize: 10, color: "#8A7F96", marginTop: 6, fontWeight: 600, textTransform: "uppercase" }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: "#EDE8F4" }}>
+              {["Educator", "Role", "Entitled", "Scheduled", "Gap", "Status"].map(h => (
+                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#5C4E6A", fontSize: 11 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {educators.map((e, i) => (
+              <tr key={e.educator_id} style={{ background: i % 2 === 0 ? "#FDFBF9" : "#fff", borderBottom: "1px solid #F0EBF8" }}>
+                <td style={{ padding: "10px 14px", fontWeight: 600, color: "#3D3248" }}>
+                  {e.name}
+                  {e.is_trainee && <span style={{ marginLeft: 6, fontSize: 9, color: "#7E5BA3", fontWeight: 700 }}>TRAINEE</span>}
+                </td>
+                <td style={{ padding: "10px 14px", color: "#5C4E6A" }}>{e.role || "—"}</td>
+                <td style={{ padding: "10px 14px", color: "#3D3248" }}>{e.nc_hours_entitled} hrs</td>
+                <td style={{ padding: "10px 14px", color: "#3D3248" }}>{e.nc_hours_scheduled} hrs</td>
+                <td style={{ padding: "10px 14px", color: e.gap > 0 ? "#B71C1C" : "#2E7D32", fontWeight: e.gap > 0 ? 700 : 400 }}>
+                  {e.gap > 0 ? `${e.gap} hrs short` : "—"}
+                </td>
+                <td style={{ padding: "10px 14px" }}>{statusBadge(e.status)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function SickCoverTab({ educators = [], fills = [], reload }) {
   const [selectedFill, setSelectedFill] = React.useState(null);
   const [attempts, setAttempts] = React.useState([]);

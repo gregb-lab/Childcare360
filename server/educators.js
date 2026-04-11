@@ -95,7 +95,9 @@ router.put('/:id', (req, res) => {
       'max_hours_per_week','wwcc_number','wwcc_expiry','first_aid','first_aid_expiry','cpr_expiry',
       'anaphylaxis_expiry','asthma_expiry','photo_url','tax_file_number','bank_bsb','bank_account',
       'bank_account_name','super_fund_name','super_fund_usi','super_member_number','notes','status',
-      'can_start_earlier_mins','can_finish_later_mins','is_lunch_cover','preferred_rooms'];
+      'can_start_earlier_mins','can_finish_later_mins','is_lunch_cover','preferred_rooms',
+      // Rostering preferences (v2.22)
+      'is_float','preferred_room_id','nc_hours_per_week','is_trainee','study_hours_per_week'];
     const updates = {};
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     const setCols = fields.filter(f => f in updates);

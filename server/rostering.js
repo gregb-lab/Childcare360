@@ -203,6 +203,62 @@ r.post('/generate', (req, res) => {
     availability[e.id] = db.prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ?').all(e.id, req.tenantId);
   });
 
+  // ── Preference + history scaffolding (Priority 2 & 3 inputs) ────────────────
+  // Build per-educator maps so room scoring is O(1) inside the inner loop.
+  //   prefByEd[edId][roomId] = { type, priority }
+  //   recentRoomByEd[edId]   = roomId most-frequently used in last 3 weeks
+  // The generator uses these to bias room placement *after* hard constraints.
+  const allPrefs = db.prepare(`
+    SELECT educator_id, room_id, preference_type, priority
+    FROM educator_preferences
+    WHERE tenant_id = ?
+  `).all(req.tenantId);
+  const prefByEd = {};
+  allPrefs.forEach(p => {
+    if (!prefByEd[p.educator_id]) prefByEd[p.educator_id] = {};
+    if (p.room_id) prefByEd[p.educator_id][p.room_id] = { type: p.preference_type, priority: p.priority };
+  });
+
+  // Room continuity: count manual assignment-history hits per (ed, room) over last 21 days
+  const histRows = db.prepare(`
+    SELECT educator_id, room_id, COUNT(*) as n
+    FROM roster_assignment_history
+    WHERE tenant_id = ? AND created_at >= datetime('now','-21 days')
+    GROUP BY educator_id, room_id
+  `).all(req.tenantId);
+  const recentRoomByEd = {};
+  histRows.forEach(h => {
+    if (!recentRoomByEd[h.educator_id] || h.n > recentRoomByEd[h.educator_id].n) {
+      recentRoomByEd[h.educator_id] = { room_id: h.room_id, n: h.n };
+    }
+  });
+
+  // Score how strongly an educator wants a particular room. Higher = stronger fit.
+  // Scoring weights live here so the inner loop stays clean.
+  //   +1000  educator.preferred_room_id matches (Priority 2 hard preference)
+  //   + 800  preferred_room preference, priority 1-3 (Priority 2)
+  //   + 400  preferred_room preference, priority 4-7 (Priority 3)
+  //   + 300  recent room continuity (manual history), per move
+  //   - 9999 avoid_room preference (effectively excludes the room)
+  //   + 100  is_float — float educators are *always* candidates but we score them
+  //          a bit lower so room-stable educators land in their home room first
+  const roomFitScore = (ed, roomId) => {
+    if (!roomId) return 0;
+    const pref = prefByEd[ed.id]?.[roomId];
+    let score = 0;
+    if (ed.preferred_room_id === roomId) score += 1000;
+    if (pref) {
+      if (pref.type === 'avoid_room') return -9999;
+      if (pref.type === 'preferred_room') {
+        score += pref.priority <= 3 ? 800 : 400;
+      }
+    }
+    const recent = recentRoomByEd[ed.id];
+    if (recent && recent.room_id === roomId) score += 300 * Math.min(3, recent.n);
+    if (ed.is_float) score += 100;
+    return score;
+  };
+
   // NQF ratio requirements — map age_group strings to ratio config.
   // NOTE: ECT is a SERVICE-LEVEL requirement, not per room. The
   // `prefer_lead_with_ect` flag below is just a roster-quality hint that
@@ -249,25 +305,39 @@ r.post('/generate', (req, res) => {
       const reqEds = Math.max(1, Math.ceil(children / ratio.ratio));
       const needECT = ratio.prefer_lead_with_ect; // roster-quality hint, not a NQF rule
 
-      // Find available educators for this day/room
+      // Find available educators for this day/room.
+      //
+      // Hard constraints (Priority 1):
+      //   - has availability for this day
+      //   - has hours remaining under contracted/max cap
+      //   - no avoid_room preference for this room
+      //
+      // The legacy preferred_rooms JSON is treated as a soft hint now; the
+      // structured preferences table is the source of truth.
       const available = educators.filter(e => {
         const avail = availability[e.id]?.find(a => a.day_of_week === dow);
         if (!avail || !avail.available) return false;
-        const rooms = JSON.parse(e.preferred_rooms || '[]');
-        if (rooms.length > 0 && !rooms.includes(room.id)) return false; // Respect preferences
-        // Check hours cap
         const currentHrs = edHours[e.id] || 0;
         if (currentHrs >= e.max_hours_per_week) return false;
+        // Hard exclude: avoid_room preference for this room
+        if (prefByEd[e.id]?.[room.id]?.type === 'avoid_room') return false;
         return true;
       });
 
-      // Sort by: reliability (desc), then distance (asc), then hours worked (asc for balance)
+      // Sort by: room fit (desc) → reliability (desc) → distance (asc) → balance (asc)
+      // Float educators land last in their non-home rooms so room-stable educators
+      // get their preferred placements first.
       const prefs = preferences || {};
       available.sort((a, b) => {
         // Permanent before casual
         if (a.employment_type === 'permanent' && b.employment_type !== 'permanent') return -1;
         if (b.employment_type === 'permanent' && a.employment_type !== 'permanent') return 1;
-        // Reliability
+        // Float educators after room-stable educators (within same employment class)
+        if (!a.is_float && b.is_float) return -1;
+        if (a.is_float && !b.is_float) return 1;
+        // Room fit dominates remaining tiebreakers
+        const fitDiff = roomFitScore(b, room.id) - roomFitScore(a, room.id);
+        if (Math.abs(fitDiff) >= 100) return fitDiff;
         const relW = prefs.reliability_weight || 3;
         const distW = prefs.distance_weight || 1;
         const balW = prefs.balance_weight || 2;

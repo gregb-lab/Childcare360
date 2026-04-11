@@ -5783,5 +5783,114 @@ function initLearningTables(db) {
     'CREATE TABLE IF NOT EXISTS rostering_settings (id TEXT PRIMARY KEY, tenant_id TEXT UNIQUE, operating_days TEXT DEFAULT \'[1,2,3,4,5]\', open_time TEXT DEFAULT \'07:00\', close_time TEXT DEFAULT \'18:30\', default_period_type TEXT DEFAULT \'weekly\', default_break_mins INTEGER DEFAULT 30, created_at TEXT DEFAULT (datetime(\'now\')))',
     'ALTER TABLE roster_periods ADD COLUMN is_special INTEGER DEFAULT 0',
     'ALTER TABLE roster_periods ADD COLUMN special_notes TEXT',
+
+    // ── v2.22 — Educator preferences, room stability, NC time, intelligent run sheet ──
+    `CREATE TABLE IF NOT EXISTS educator_preferences (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      educator_id TEXT NOT NULL,
+      room_id TEXT,
+      preference_type TEXT NOT NULL,
+      priority INTEGER DEFAULT 5,
+      notes TEXT,
+      set_by_user_id TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(tenant_id, educator_id, preference_type, room_id)
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_edpref_tenant_ed ON educator_preferences(tenant_id, educator_id)',
+
+    `CREATE TABLE IF NOT EXISTS roster_assignment_history (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      educator_id TEXT NOT NULL,
+      room_id TEXT NOT NULL,
+      week_start TEXT NOT NULL,
+      was_manually_changed INTEGER DEFAULT 0,
+      changed_from_room_id TEXT,
+      changed_by_user_id TEXT,
+      change_reason TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_rasthist_tenant_ed ON roster_assignment_history(tenant_id, educator_id)',
+
+    `CREATE TABLE IF NOT EXISTS non_contact_schedule (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      educator_id TEXT NOT NULL,
+      week_start TEXT NOT NULL,
+      day_of_week INTEGER NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      nc_type TEXT DEFAULT 'programming',
+      hours_allocated REAL DEFAULT 2.0,
+      replacement_educator_id TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_ncsched_tenant_ed ON non_contact_schedule(tenant_id, educator_id, week_start)',
+
+    `CREATE TABLE IF NOT EXISTS run_sheet_snapshots (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      snapshot_time TEXT NOT NULL,
+      total_children_present INTEGER DEFAULT 0,
+      total_educators_on_duty INTEGER DEFAULT 0,
+      compliance_status TEXT DEFAULT 'unknown',
+      spare_educator_minutes INTEGER DEFAULT 0,
+      estimated_cost_per_hour REAL DEFAULT 0,
+      data_json TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_rssnap_tenant_date ON run_sheet_snapshots(tenant_id, date)',
+
+    `CREATE TABLE IF NOT EXISTS run_sheet_suggestions (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      suggested_at TEXT NOT NULL,
+      suggestion_type TEXT NOT NULL,
+      educator_id TEXT,
+      from_room_id TEXT,
+      to_room_id TEXT,
+      reason TEXT NOT NULL,
+      estimated_saving_cents INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      accepted_by_user_id TEXT,
+      accepted_at TEXT,
+      dismissed_at TEXT,
+      expires_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_rssugg_tenant_date ON run_sheet_suggestions(tenant_id, date, status)',
+
+    `CREATE TABLE IF NOT EXISTS daily_cost_savings (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      total_scheduled_cost_cents INTEGER DEFAULT 0,
+      total_optimized_cost_cents INTEGER DEFAULT 0,
+      savings_cents INTEGER DEFAULT 0,
+      suggestions_made INTEGER DEFAULT 0,
+      suggestions_accepted INTEGER DEFAULT 0,
+      nc_hours_utilized REAL DEFAULT 0,
+      overstaffing_hours_identified REAL DEFAULT 0,
+      overstaffing_hours_acted_on REAL DEFAULT 0,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(tenant_id, date)
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_dcs_tenant_date ON daily_cost_savings(tenant_id, date)',
+
+    // educator column additions
+    'ALTER TABLE educators ADD COLUMN is_float INTEGER DEFAULT 0',
+    'ALTER TABLE educators ADD COLUMN preferred_room_id TEXT',
+    'ALTER TABLE educators ADD COLUMN nc_hours_per_week REAL DEFAULT 2.0',
+    'ALTER TABLE educators ADD COLUMN is_trainee INTEGER DEFAULT 0',
+    'ALTER TABLE educators ADD COLUMN study_hours_per_week REAL DEFAULT 0',
+
+    // attendance / clock_records — flags for live run sheet recompute
+    'ALTER TABLE attendance_sessions ADD COLUMN notified_run_sheet INTEGER DEFAULT 0',
+    'ALTER TABLE clock_records ADD COLUMN notified_run_sheet INTEGER DEFAULT 0',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

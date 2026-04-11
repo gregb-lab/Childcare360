@@ -84,6 +84,7 @@ const btnS = { background: lp, color: purple, border: "none", borderRadius: 8, p
 
 export default function RunSheetModule() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [view, setView] = useState("rooms"); // "rooms" = legacy activity sheets, "live" = intelligent live view
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -213,17 +214,31 @@ Use Australian early childhood education language aligned with EYLF principles.`
             <p style={{ margin: "2px 0 0", fontSize: 12, color: "#8A7F96" }}>Learning records, activity tracking &amp; educator notes</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", border: "1px solid #D9D0C7", borderRadius: 8, overflow: "hidden" }}>
+              <button onClick={() => setView("rooms")}
+                style={{ padding: "7px 14px", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
+                  background: view === "rooms" ? purple : "#fff", color: view === "rooms" ? "#fff" : "#5C4E6A" }}>
+                📋 Activity Sheets
+              </button>
+              <button onClick={() => setView("live")}
+                style={{ padding: "7px 14px", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
+                  background: view === "live" ? purple : "#fff", color: view === "live" ? "#fff" : "#5C4E6A" }}>
+                ⚡ Live Intelligence
+              </button>
+            </div>
             <DatePicker value={date} onChange={v => setDate(v)} max={new Date().toISOString().slice(0,10)} />
-            <button onClick={() => setPrintMode(!printMode)} style={btnS}>
+            {view === "rooms" && <button onClick={() => setPrintMode(!printMode)} style={btnS}>
               {printMode ? "📋 Normal View" : "🖨 Print View"}
-            </button>
+            </button>}
             <button onClick={load} style={btnS}>↻ Refresh</button>
           </div>
         </div>
       </div>
 
+      {view === "live" && <LiveRunSheet date={date} />}
+
       {/* Room tabs */}
-      <div style={{ padding: "8px 24px", borderBottom: "1px solid #EDE8F4", display: "flex", gap: 4, flexShrink: 0, overflowX: "auto", background: "#FDFBF9" }}>
+      {view === "rooms" && <div style={{ padding: "8px 24px", borderBottom: "1px solid #EDE8F4", display: "flex", gap: 4, flexShrink: 0, overflowX: "auto", background: "#FDFBF9" }}>
         {data.map(r => {
           const present = r.children.filter(c => childData[c.id]?.attended).length;
           return (
@@ -235,10 +250,10 @@ Use Australian early childhood education language aligned with EYLF principles.`
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {/* Main content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+      {view === "rooms" && <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
         {!roomData ? (
           <div style={{ textAlign: "center", padding: 60, color: "#8A7F96" }}>Select a room to view its run sheet</div>
         ) : (
@@ -453,7 +468,180 @@ Use Australian early childhood education language aligned with EYLF principles.`
             )}
           </>
         )}
+      </div>}
+    </div>
+  );
+}
+
+// ─── Live Intelligent Run Sheet ────────────────────────────────────────────
+// Real-time view: who is on duty, who's signed in, ratio status,
+// AI optimisation suggestions. Polls /api/runsheet-live/live every 30s.
+function LiveRunSheet({ date }) {
+  const [state, setState] = useState(null);
+  const [savings, setSavings] = useState(null);
+  const [acting, setActing] = useState({});
+
+  const load = useCallback(async () => {
+    try {
+      const [s, sv] = await Promise.all([
+        API(`/api/runsheet-live/live?date=${date}`),
+        API(`/api/runsheet-live/cost-savings?days=30`),
+      ]);
+      if (s && !s.error) setState(s);
+      if (sv && !sv.error) setSavings(sv);
+    } catch (e) { /* non-fatal */ }
+  }, [date]);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const accept = async (suggestionId) => {
+    setActing(p => ({ ...p, [suggestionId]: true }));
+    try {
+      const r = await API(`/api/runsheet-live/suggestions/${suggestionId}/accept`, { method: "POST" });
+      if (r.error) toast(r.error, "error");
+      else { toast("Suggestion applied"); load(); }
+    } catch (e) { toast("Action failed", "error"); }
+    setActing(p => ({ ...p, [suggestionId]: false }));
+  };
+
+  const dismiss = async (suggestionId) => {
+    setActing(p => ({ ...p, [suggestionId]: true }));
+    try {
+      await API(`/api/runsheet-live/suggestions/${suggestionId}/dismiss`, { method: "POST" });
+      load();
+    } catch (e) { /* non-fatal */ }
+    setActing(p => ({ ...p, [suggestionId]: false }));
+  };
+
+  if (!state) return <div style={{ flex: 1, textAlign: "center", padding: 60, color: "#8A7F96" }}>Loading live state…</div>;
+
+  const statusColor = state.compliance_status === "breach" ? "#B71C1C"
+    : state.compliance_status === "overstaffed" ? "#E65100" : "#2E7D32";
+  const statusBg = state.compliance_status === "breach" ? "#FFEBEE"
+    : state.compliance_status === "overstaffed" ? "#FFF3E0" : "#E8F5E9";
+  const statusLabel = state.compliance_status === "breach" ? "⚠ Ratio Breach"
+    : state.compliance_status === "overstaffed" ? "⚡ Overstaffed" : "✅ Optimal";
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+      {/* ── Top KPI strip ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 12, marginBottom: 16 }}>
+        {[
+          ["Children Present", state.children_present, "#3D3248"],
+          ["Educators On Duty", state.educators_on_duty, "#3D3248"],
+          ["Required", state.required_educators, "#5C4E6A"],
+          ["Spare", state.spare_educators, state.spare_educators > 0 ? "#E65100" : "#2E7D32"],
+          ["ECT", `${state.ect_on_duty}/${state.ect_required}`, state.ect_compliant ? "#2E7D32" : "#B71C1C"],
+          ["Status", statusLabel, statusColor],
+        ].map(([l, v, c]) => (
+          <div key={l} style={{ ...card, marginBottom: 0, textAlign: "center", padding: "16px 12px",
+            background: l === "Status" ? statusBg : "#fff" }}>
+            <div style={{ fontSize: l === "Status" ? 13 : 26, fontWeight: 800, color: c, lineHeight: 1.2 }}>{v}</div>
+            <div style={{ fontSize: 10, color: "#8A7F96", marginTop: 6, fontWeight: 600, textTransform: "uppercase" }}>{l}</div>
+          </div>
+        ))}
       </div>
+
+      {/* ── 30-day savings banner ── */}
+      {savings && savings.total_savings_dollars > 0 && (
+        <div style={{ ...card, background: "linear-gradient(135deg,#E8F5E9,#F1F8E9)", border: "1px solid #C8E6C9", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#558B2F", fontWeight: 700, textTransform: "uppercase" }}>30-Day Optimisation Savings</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "#2E7D32", marginTop: 4 }}>${savings.total_savings_dollars.toLocaleString()}</div>
+            </div>
+            <div style={{ textAlign: "right", fontSize: 11, color: "#558B2F" }}>
+              {savings.total_suggestions_accepted} suggestion{savings.total_suggestions_accepted !== 1 ? "s" : ""} accepted
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Suggestions ── */}
+      <div style={{ ...card }}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#3D3248" }}>
+          🧠 Intelligent Suggestions {state.suggestions.length > 0 && <span style={{ background: lp, color: purple, fontSize: 11, padding: "2px 8px", borderRadius: 10, marginLeft: 6 }}>{state.suggestions.length}</span>}
+        </h3>
+        {state.suggestions.length === 0 && <div style={{ color: "#8A7F96", fontSize: 12, padding: 12 }}>No suggestions right now — service is running optimally.</div>}
+        {state.suggestions.map(s => {
+          const isWarning = s.suggestion_type === "ratio_breach_warning";
+          return (
+            <div key={s.id} style={{
+              padding: 14, marginBottom: 8, borderRadius: 10,
+              background: isWarning ? "#FFEBEE" : "#FDFBF9",
+              border: isWarning ? "1px solid #FFCDD2" : "1px solid #EDE8F4",
+              display: "flex", gap: 12, alignItems: "flex-start",
+            }}>
+              <div style={{ fontSize: 22 }}>{
+                isWarning ? "⚠" : s.suggestion_type === "move_to_nc" ? "📚"
+                  : s.suggestion_type === "move_to_room" ? "🔄"
+                  : s.suggestion_type === "lunch_cover" ? "🥪" : "💡"
+              }</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: "#3D3248", lineHeight: 1.5 }}>{s.reason}</div>
+                {s.estimated_saving_cents > 0 && (
+                  <div style={{ fontSize: 11, color: "#2E7D32", marginTop: 4, fontWeight: 700 }}>
+                    Est. value: ${(s.estimated_saving_cents / 100).toFixed(2)}
+                  </div>
+                )}
+              </div>
+              {!isWarning && (
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => accept(s.id)} disabled={acting[s.id]}
+                    style={{ ...btnP, padding: "6px 12px", fontSize: 11, opacity: acting[s.id] ? 0.5 : 1 }}>
+                    {s.action_label || "Accept"}
+                  </button>
+                  <button onClick={() => dismiss(s.id)} disabled={acting[s.id]}
+                    style={{ ...btnS, padding: "6px 12px", fontSize: 11, opacity: acting[s.id] ? 0.5 : 1 }}>
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Room breakdown ── */}
+      <div style={{ ...card }}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#3D3248" }}>Rooms — Current Status</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+          {state.by_room.map(r => (
+            <div key={r.id} style={{
+              padding: 14, borderRadius: 10,
+              background: r.compliant ? "#F1F8E9" : "#FFEBEE",
+              border: `1px solid ${r.compliant ? "#C8E6C9" : "#FFCDD2"}`,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#3D3248", marginBottom: 4 }}>{r.name}</div>
+              <div style={{ fontSize: 11, color: "#5C4E6A" }}>
+                {r.children_present} children · {r.educators_on_duty}/{r.min_required} educators
+              </div>
+              <div style={{ fontSize: 11, color: r.compliant ? "#2E7D32" : "#B71C1C", marginTop: 4, fontWeight: 700 }}>
+                {r.compliant ? "✅ Compliant" : "⚠ Below ratio"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── NC pending ── */}
+      {state.nc_pending_educators.length > 0 && (
+        <div style={{ ...card }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#3D3248" }}>📚 Non-Contact Time Owed This Week</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 8 }}>
+            {state.nc_pending_educators.map(e => (
+              <div key={e.id} style={{ padding: "10px 14px", background: "#FFF8E1", border: "1px solid #FFE082", borderRadius: 8, fontSize: 12 }}>
+                <div style={{ fontWeight: 700, color: "#3D3248" }}>{e.name}</div>
+                <div style={{ color: "#E65100", fontSize: 11, marginTop: 2 }}>Owed {e.hours_owed}hrs</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

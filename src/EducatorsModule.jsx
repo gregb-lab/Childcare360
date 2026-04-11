@@ -867,6 +867,301 @@ function countWorkdays(s, e) {
   while (cur <= ed) { cur.getDay()===0||cur.getDay()===6 ? weekend++ : work++; cur.setDate(cur.getDate()+1); }
   return { work, weekend, total: work+weekend };
 }
+// ─── Rostering Preferences Tab ─────────────────────────────────────────────
+// Surfaces the new educator_preferences + non_contact_schedule data so
+// managers can set primary room, float status, room preferences, avoid rooms,
+// NC time entitlement & schedule, and trainee study hours.
+function RosteringPrefsTab({ educator, editData, setEditData, editMode, onSaved }) {
+  const [rooms, setRooms] = useState([]);
+  const [educators, setEducators] = useState([]);
+  const [prefs, setPrefs] = useState([]);
+  const [ncSchedule, setNcSchedule] = useState([]);
+  const [newPref, setNewPref] = useState({ preference_type: "preferred_room", room_id: "", priority: 3 });
+  const [newNc, setNewNc] = useState({ day_of_week: 0, start_time: "14:00", end_time: "16:00", nc_type: "programming", replacement_educator_id: "" });
+
+  const load = useCallback(async () => {
+    try {
+      const [rs, eds, ps, ns] = await Promise.all([
+        API("/api/rooms"),
+        API("/api/educators/simple"),
+        API(`/api/educators/${educator.id}/preferences`),
+        API(`/api/educators/${educator.id}/nc-schedule`),
+      ]);
+      if (Array.isArray(rs)) setRooms(rs);
+      if (Array.isArray(eds)) setEducators(eds);
+      if (Array.isArray(ps)) setPrefs(ps);
+      if (Array.isArray(ns)) setNcSchedule(ns);
+    } catch (e) { /* non-fatal */ }
+  }, [educator.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const addPref = async () => {
+    if (!newPref.room_id && newPref.preference_type !== "float") {
+      toast("Select a room", "error"); return;
+    }
+    try {
+      const r = await API(`/api/educators/${educator.id}/preferences`, {
+        method: "POST", body: JSON.stringify(newPref),
+      });
+      if (r.error) { toast(r.error, "error"); return; }
+      toast("Preference saved");
+      setNewPref({ preference_type: "preferred_room", room_id: "", priority: 3 });
+      load();
+    } catch (e) { toast("Save failed", "error"); }
+  };
+
+  const removePref = async (prefId) => {
+    try {
+      await API(`/api/educators/${educator.id}/preferences/${prefId}`, { method: "DELETE" });
+      load();
+    } catch (e) { toast("Delete failed", "error"); }
+  };
+
+  const addNcSlot = async () => {
+    try {
+      const r = await API(`/api/educators/${educator.id}/nc-schedule`, {
+        method: "POST", body: JSON.stringify(newNc),
+      });
+      if (r.error) { toast(r.error, "error"); return; }
+      toast("NC block added");
+      load();
+    } catch (e) { toast("Save failed", "error"); }
+  };
+
+  const removeNcSlot = async (slotId) => {
+    try {
+      await API(`/api/educators/${educator.id}/nc-schedule/${slotId}`, { method: "DELETE" });
+      load();
+    } catch (e) { toast("Delete failed", "error"); }
+  };
+
+  const preferredPrefs = prefs.filter(p => p.preference_type === "preferred_room");
+  const avoidPrefs = prefs.filter(p => p.preference_type === "avoid_room");
+  const isFloat = !!(editMode ? editData.is_float : educator.is_float);
+  const isTrainee = !!(editMode ? editData.is_trainee : educator.is_trainee);
+  const ncEntitled = (editMode ? editData.nc_hours_per_week : educator.nc_hours_per_week) ?? 2;
+  const ncScheduledHrs = ncSchedule.reduce((sum, s) => {
+    const sh = parseInt((s.start_time||"0:0").slice(0,2),10) + parseInt((s.start_time||"0:0").slice(3,5),10)/60;
+    const eh = parseInt((s.end_time||"0:0").slice(0,2),10) + parseInt((s.end_time||"0:0").slice(3,5),10)/60;
+    return sum + Math.max(0, eh - sh);
+  }, 0);
+
+  const dayLabels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const ncTypeLabels = { programming: "Programming", educational_leader: "Ed Leader", study: "Study", admin: "Admin" };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      {/* ── Primary room + flags ── */}
+      <div style={{ ...card, gridColumn: "1 / -1" }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 14, color: "#3D3248" }}>Room Assignment</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div>
+            <label style={lbl}>Primary (Home) Room</label>
+            {editMode ? (
+              <select
+                value={editData.preferred_room_id || ""}
+                onChange={e => setEditData({ ...editData, preferred_room_id: e.target.value || null })}
+                disabled={isFloat}
+                style={{ ...inp, opacity: isFloat ? 0.5 : 1 }}
+              >
+                <option value="">— None —</option>
+                {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            ) : (
+              <div style={{ padding: "8px 0", fontSize: 13, fontWeight: 600 }}>
+                {rooms.find(r => r.id === educator.preferred_room_id)?.name || "—"}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: "#8A7F96", marginTop: 4 }}>
+              AI will always try to roster them here first.
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Float Educator</label>
+            {editMode ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 0" }}>
+                <input
+                  type="checkbox"
+                  checked={isFloat}
+                  onChange={e => setEditData({
+                    ...editData,
+                    is_float: e.target.checked ? 1 : 0,
+                    preferred_room_id: e.target.checked ? null : editData.preferred_room_id,
+                  })}
+                />
+                <span style={{ fontSize: 13 }}>Floats between rooms as needed</span>
+              </label>
+            ) : (
+              <div style={{ padding: "8px 0", fontSize: 13, fontWeight: 600 }}>
+                {isFloat ? "⟷ Float educator" : "Room-stable"}
+              </div>
+            )}
+          </div>
+          <div>
+            <label style={lbl}>Trainee</label>
+            {editMode ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 0" }}>
+                <input
+                  type="checkbox"
+                  checked={isTrainee}
+                  onChange={e => setEditData({ ...editData, is_trainee: e.target.checked ? 1 : 0 })}
+                />
+                <span style={{ fontSize: 13 }}>Trainee — needs study time</span>
+              </label>
+            ) : (
+              <div style={{ padding: "8px 0", fontSize: 13, fontWeight: 600 }}>
+                {isTrainee ? "Yes" : "No"}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Preferred rooms ── */}
+      <div style={card}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#3D3248" }}>Preferred Rooms</h3>
+        {preferredPrefs.length === 0 && <div style={{ color: "#8A7F96", fontSize: 12, marginBottom: 12 }}>No preferences set</div>}
+        {preferredPrefs.map(p => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#F0EBF8", borderRadius: 8, marginBottom: 6 }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{p.room_name || "—"}</span>
+            <span style={{ fontSize: 11, color: "#5C4E6A" }}>Priority {p.priority}</span>
+            <button onClick={() => removePref(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#B71C1C", fontSize: 14 }}>✕</button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+          <select
+            value={newPref.preference_type === "preferred_room" ? newPref.room_id : ""}
+            onChange={e => setNewPref({ ...newPref, preference_type: "preferred_room", room_id: e.target.value })}
+            style={{ ...inp, flex: 2 }}
+          >
+            <option value="">+ Add room…</option>
+            {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          <select
+            value={newPref.priority}
+            onChange={e => setNewPref({ ...newPref, priority: parseInt(e.target.value, 10) })}
+            style={{ ...inp, flex: 1 }}
+          >
+            <option value={1}>High</option>
+            <option value={3}>Medium</option>
+            <option value={6}>Low</option>
+          </select>
+          <button onClick={addPref} style={{ ...btnP, padding: "8px 14px" }}>Add</button>
+        </div>
+      </div>
+
+      {/* ── Avoid rooms ── */}
+      <div style={card}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#3D3248" }}>Avoid Rooms</h3>
+        {avoidPrefs.length === 0 && <div style={{ color: "#8A7F96", fontSize: 12, marginBottom: 12 }}>No exclusions</div>}
+        {avoidPrefs.map(p => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#FFEBEE", borderRadius: 8, marginBottom: 6 }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{p.room_name || "—"}</span>
+            <span style={{ fontSize: 11, color: "#5C4E6A" }}>{p.notes || "—"}</span>
+            <button onClick={() => removePref(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#B71C1C", fontSize: 14 }}>✕</button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+          <select
+            onChange={e => {
+              const room_id = e.target.value;
+              if (!room_id) return;
+              API(`/api/educators/${educator.id}/preferences`, {
+                method: "POST",
+                body: JSON.stringify({ preference_type: "avoid_room", room_id, priority: 1 }),
+              }).then(load);
+              e.target.value = "";
+            }}
+            style={inp}
+          >
+            <option value="">+ Add avoid room…</option>
+            {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* ── Non-contact time ── */}
+      <div style={{ ...card, gridColumn: "1 / -1" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 14, color: "#3D3248" }}>Non-Contact Time</h3>
+          {editMode && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ fontSize: 11, color: "#8A7F96" }}>Entitlement (hrs/wk)</label>
+              <input
+                type="number" min="0" max="10" step="0.5"
+                value={editData.nc_hours_per_week ?? 2}
+                onChange={e => setEditData({ ...editData, nc_hours_per_week: parseFloat(e.target.value) || 0 })}
+                style={{ ...inp, width: 70 }}
+              />
+            </div>
+          )}
+        </div>
+        <div style={{ marginBottom: 12, fontSize: 12, color: "#5C4E6A" }}>
+          Entitled to <strong>{ncEntitled}hrs/week</strong> · Scheduled <strong>{Math.round(ncScheduledHrs * 10) / 10}hrs</strong>
+          {ncScheduledHrs >= ncEntitled
+            ? <span style={{ color: "#2E7D32", marginLeft: 8 }}>✅ Compliant</span>
+            : <span style={{ color: "#E65100", marginLeft: 8 }}>⚠ {Math.round((ncEntitled - ncScheduledHrs) * 10) / 10}hrs short</span>}
+        </div>
+        {ncSchedule.length === 0 && <div style={{ color: "#8A7F96", fontSize: 12, marginBottom: 12 }}>No NC blocks scheduled</div>}
+        {ncSchedule.map(s => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#FDFBF9", borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
+            <span style={{ minWidth: 40, fontWeight: 700 }}>{dayLabels[s.day_of_week]}</span>
+            <span>{s.start_time} – {s.end_time}</span>
+            <span style={{ flex: 1, color: "#5C4E6A" }}>{ncTypeLabels[s.nc_type] || s.nc_type}</span>
+            <span style={{ color: "#8A7F96" }}>
+              {s.replacement_first_name ? `Cover: ${s.replacement_first_name} ${s.replacement_last_name}` : "No cover"}
+            </span>
+            <button onClick={() => removeNcSlot(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#B71C1C", fontSize: 14 }}>✕</button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center" }}>
+          <select value={newNc.day_of_week} onChange={e => setNewNc({ ...newNc, day_of_week: parseInt(e.target.value, 10) })} style={{ ...inp, width: 80 }}>
+            {dayLabels.map((d, i) => <option key={d} value={i}>{d}</option>)}
+          </select>
+          <input type="time" value={newNc.start_time} onChange={e => setNewNc({ ...newNc, start_time: e.target.value })} style={{ ...inp, width: 100 }} />
+          <input type="time" value={newNc.end_time} onChange={e => setNewNc({ ...newNc, end_time: e.target.value })} style={{ ...inp, width: 100 }} />
+          <select value={newNc.nc_type} onChange={e => setNewNc({ ...newNc, nc_type: e.target.value })} style={{ ...inp, width: 130 }}>
+            {Object.entries(ncTypeLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <select value={newNc.replacement_educator_id} onChange={e => setNewNc({ ...newNc, replacement_educator_id: e.target.value })} style={{ ...inp, flex: 1 }}>
+            <option value="">— Cover educator —</option>
+            {educators.filter(e => e.id !== educator.id).map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+          </select>
+          <button onClick={addNcSlot} style={{ ...btnP, padding: "8px 14px" }}>Add</button>
+        </div>
+      </div>
+
+      {/* ── Trainee study time ── */}
+      {isTrainee && (
+        <div style={{ ...card, gridColumn: "1 / -1" }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#3D3248" }}>Trainee Study Time</h3>
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div>
+              <label style={lbl}>Study Hours per Week</label>
+              {editMode ? (
+                <input
+                  type="number" min="0" max="20" step="0.5"
+                  value={editData.study_hours_per_week ?? 0}
+                  onChange={e => setEditData({ ...editData, study_hours_per_week: parseFloat(e.target.value) || 0 })}
+                  style={{ ...inp, width: 100 }}
+                />
+              ) : (
+                <div style={{ padding: "8px 0", fontSize: 13, fontWeight: 600 }}>
+                  {educator.study_hours_per_week || 0} hrs
+                </div>
+              )}
+            </div>
+            <div style={{ flex: 1, fontSize: 11, color: "#8A7F96" }}>
+              Trainee study time is treated like NC time — replacement cover required.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LeaveTab({ educator, onSaved }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ leave_type: "annual", start_date: "", end_date: "", days_requested: 1, reason: "" });
@@ -1488,6 +1783,7 @@ export default function EducatorsModule() {
   const tabs = [
     { id:"profile",label:"Profile" },
     { id:"employment",label:"Employment" },
+    { id:"rostering",label:"Rostering" },
     { id:"availability",label:"Availability" },
     { id:"certifications",label:"Certifications",alert:!edu.first_aid||isExpired(edu.first_aid_expiry)||isExpired(edu.cpr_expiry) },
     { id:"documents",label:"Documents" },
@@ -1605,6 +1901,7 @@ export default function EducatorsModule() {
           </div>
         )}
 
+        {tab==="rostering"&&<RosteringPrefsTab educator={edu} editData={editData} setEditData={setEditData} editMode={editMode} onSaved={()=>loadDetail(selected)} />}
         {tab==="availability"&&<AvailabilityTab educator={edu} onSaved={()=>loadDetail(selected)} />}
         {tab==="certifications"&&<CertificationsTab edu={edu} editData={editData} setEditData={setEditData} editMode={editMode} />}
         {tab==="documents"&&<DocumentsTab educator={edu} onSaved={()=>loadDetail(selected)} />}
