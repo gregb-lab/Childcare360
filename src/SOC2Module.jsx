@@ -496,7 +496,7 @@ export default function SOC2Module({ tenantId }) {
   ];
 
   return (
-    <div style={{ background: '#F8F5FC', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ background: '#F8F5FC', flex: 1, minHeight: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #2d1f3d 0%, #4a3560 100%)', padding: '24px 32px 0', color: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
@@ -519,7 +519,7 @@ export default function SOC2Module({ tenantId }) {
       </div>
 
       {/* Tab content */}
-      <div style={{ background: '#fff', minHeight: 'calc(100vh - 120px)' }}>
+      <div style={{ background: '#fff', flex: 1, minHeight: 0 }}>
         {tab === 'compliance' && <ComplianceTab />}
         {tab === 'audit' && <AuditLogTab />}
         {tab === 'sessions' && <SessionsTab />}

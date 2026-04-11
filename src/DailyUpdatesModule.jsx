@@ -145,7 +145,7 @@ export default function DailyUpdatesModule() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 0, height: "calc(100vh - 180px)" }}>
+      <div style={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}>
         {/* Children list */}
         <div style={{ width: 230, borderRight: "1px solid #EDE8F4", overflowY: "auto", background: "#FDFBF9" }}>
           {visibleChildren.map(child => {

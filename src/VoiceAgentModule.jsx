@@ -872,7 +872,7 @@ export default function VoiceAgentModule() {
   ];
 
   return (
-    <div style={{ background: '#F8F5FC', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ background: '#F8F5FC', flex: 1, minHeight: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div style={{ background: 'linear-gradient(135deg, #1a0f2e 0%, #3d2460 100%)', padding: '24px 32px 0', color: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
           <div style={{ fontSize: 36 }}>🤖</div>
@@ -893,7 +893,7 @@ export default function VoiceAgentModule() {
         </div>
       </div>
 
-      <div style={{ background: '#fff', minHeight: 'calc(100vh - 116px)' }}>
+      <div style={{ background: '#fff', flex: 1, minHeight: 0 }}>
         {tab === 'setup'   && <SettingsTab />}
         {tab === 'test'    && <TestCallTab />}
         {tab === 'history' && <HistoryTab />}

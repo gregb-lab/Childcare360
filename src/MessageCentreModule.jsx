@@ -120,7 +120,7 @@ function InboxTab({onUnreadChange}) {
   };
 
   return (
-    <div style={{display:"flex",gap:0,height:"calc(100vh-260px)",minHeight:500,borderRadius:14,overflow:"hidden",border:"1px solid #EDE8F4"}}>
+    <div style={{display:"flex",gap:0,flex:1,minHeight:0,minHeight:500,borderRadius:14,overflow:"hidden",border:"1px solid #EDE8F4"}}>
       {/* Thread list */}
       <div style={{width:300,flexShrink:0,borderRight:"1px solid #EDE8F4",overflowY:"auto",background:"#FDFBFF",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"12px 14px",borderBottom:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>

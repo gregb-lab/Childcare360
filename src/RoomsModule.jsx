@@ -893,7 +893,7 @@ export default function RoomsModule() {
 
   if(viewDetail&&selectedRoom){
     return(
-      <div style={{display:"flex",height:"calc(100vh - 100px)",overflow:"hidden"}}>
+      <div style={{display:"flex",flex:1,minHeight:0,overflow:"hidden"}}>
         {modals}
         <div style={{width:200,flexShrink:0,background:"#FDFBF9",borderRight:"1px solid #EDE8F4",overflowY:"auto"}}>
           <div style={{padding:"10px 10px 6px",fontSize:10,fontWeight:700,color:"#8A7F96",textTransform:"uppercase"}}>Rooms</div>
