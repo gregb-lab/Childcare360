@@ -5951,5 +5951,8 @@ function initLearningTables(db) {
     'ALTER TABLE enrolment_applications ADD COLUMN consent_sunscreen INTEGER DEFAULT 0',
     'ALTER TABLE enrolment_applications ADD COLUMN consent_photos INTEGER DEFAULT 0',
     'ALTER TABLE enrolment_applications ADD COLUMN consent_excursions INTEGER DEFAULT 0',
+
+    // ── BUG-WL-01 — offer expiry on waitlist entries ──
+    'ALTER TABLE waitlist ADD COLUMN offer_expiry TEXT',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

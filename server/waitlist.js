@@ -29,17 +29,73 @@ r.post('/', requireAuth, requireTenant, (req, res) => {
   res.json({ id, ok: true });
 });
 
-// PUT /api/waitlist/:id
+// PUT /api/waitlist/:id — full edit (BUG-WL-04). Used to live-edit a waitlist
+// entry from the new "Edit" modal. Accepts any subset of editable columns.
 r.put('/:id', requireAuth, requireTenant, (req, res) => {
-  const { priority, status, preferred_room } = req.body;
-  D().prepare('UPDATE waitlist SET priority=COALESCE(?,priority), status=COALESCE(?,status), preferred_room=COALESCE(?,preferred_room), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?').run(priority || null, status || null, preferred_room || null, req.params.id, req.tenantId);
-  res.json({ ok: true });
+  try {
+    const b = req.body || {};
+    const fields = [
+      'child_name', 'child_dob', 'parent_name', 'parent_email', 'parent_phone',
+      'preferred_room', 'preferred_days', 'preferred_start',
+      'notes', 'priority', 'status',
+    ];
+    const updates = {};
+    for (const f of fields) {
+      if (b[f] !== undefined) {
+        updates[f] = f === 'preferred_days' && Array.isArray(b[f]) ? JSON.stringify(b[f]) : b[f];
+      }
+    }
+    if (!Object.keys(updates).length) return res.json({ ok: true });
+    const setClause = Object.keys(updates).map(f => `${f} = COALESCE(?, ${f})`).join(', ');
+    const values = Object.values(updates);
+    D().prepare(
+      `UPDATE waitlist SET ${setClause}, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+    ).run(...values, req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // DELETE /api/waitlist/:id
 r.delete('/:id', requireAuth, requireTenant, (req, res) => {
   D().prepare('DELETE FROM waitlist WHERE id=? AND tenant_id=?').run(req.params.id, req.tenantId);
   res.json({ ok: true });
+});
+
+// POST /api/waitlist/:id/offer (BUG-WL-01)
+// Mark a waitlist entry as "offered" with a 7-day expiry. The UI's "Offer
+// Place" button hits this endpoint. Returns the offer + expiry dates so the
+// UI can show a confirmation toast with the deadline.
+r.post('/:id/offer', requireAuth, requireTenant, (req, res) => {
+  try {
+    const entry = D().prepare(
+      'SELECT id FROM waitlist WHERE id = ? AND tenant_id = ?'
+    ).get(req.params.id, req.tenantId);
+    if (!entry) return res.status(404).json({ error: 'Waitlist entry not found' });
+
+    const localDate = (d) => {
+      const n = d || new Date();
+      return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+    };
+    const offerDate = new Date();
+    const expiryDate = new Date(offerDate);
+    expiryDate.setDate(expiryDate.getDate() + 7);
+
+    D().prepare(`
+      UPDATE waitlist
+      SET status = 'offered',
+          offer_date = ?,
+          offer_expiry = ?,
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).run(localDate(offerDate), localDate(expiryDate), req.params.id, req.tenantId);
+
+    res.json({
+      ok: true,
+      offer_date: localDate(offerDate),
+      offer_expiry: localDate(expiryDate),
+      message: `Place offered — expires ${localDate(expiryDate)}`,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // POST /api/waitlist/:id/convert
@@ -88,8 +144,80 @@ r.post('/ai-reenrolment-plan', requireAuth, requireTenant, (req, res) => {
     availability: i < 5 ? 'available' : 'waitlisted',
     position: i + 1,
   }));
-  
-  res.json({ year, suggestions, transitions: transitions.slice(0, 10), graduating: graduating.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name}`, room: c.room_name })), spots, generated_at: new Date().toISOString() });
+
+  // ── BUG-WL-03 — aggregate counts + rooms-grouped placements ─────────────
+  // The UI expects existing_placed / waitlist_offers / rooms_at_capacity /
+  // unplaced_waitlist on the top-level response and a `rooms` array of
+  // room-grouped placements. Compute them from the raw analysis above so
+  // we don't have to teach the UI a different shape.
+  const offered = suggestions.filter(s => s.availability === 'available');
+  const unplaced = suggestions.filter(s => s.availability !== 'available');
+
+  // Group offered + transitioning placements by suggested room.
+  const roomMap = new Map();
+  const ensureRoom = (room) => {
+    if (!room) return null;
+    if (!roomMap.has(room.id)) {
+      roomMap.set(room.id, {
+        room_id: room.id,
+        room_name: room.name,
+        capacity: room.capacity || 0,
+        placements: [],
+      });
+    }
+    return roomMap.get(room.id);
+  };
+
+  // 1. Returning children who are transitioning into a new room next year
+  for (const t of transitions) {
+    const bucket = ensureRoom(t.newRoom);
+    if (!bucket) continue;
+    bucket.placements.push({
+      child_id: t.child.id,
+      child_name: `${t.child.first_name} ${t.child.last_name || ''}`.trim(),
+      is_new: false,
+      preferred_days: [],
+      reason: `Aged into ${t.newGroup} (${t.ageInJan}m)`,
+    });
+  }
+
+  // 2. Waitlist children being offered a place
+  for (const s of offered) {
+    const bucket = ensureRoom(s.suggested_room);
+    if (!bucket) continue;
+    bucket.placements.push({
+      child_id: s.id,
+      child_name: s.child_name,
+      is_new: true,
+      preferred_days: [],
+      reason: `Priority: ${s.priority}`,
+    });
+  }
+
+  const roomsArray = Array.from(roomMap.values());
+  const roomsAtCapacity = roomsArray.filter(r => r.capacity > 0 && r.placements.length >= r.capacity).length;
+
+  res.json({
+    year,
+    // Counts the UI displays in the planner header (BUG-WL-03)
+    existing_placed: transitions.length + graduating.length,
+    waitlist_offers: offered.length,
+    rooms_at_capacity: roomsAtCapacity,
+    unplaced_waitlist: unplaced.length,
+    summary: `${transitions.length + graduating.length} returning families re-placed, ${offered.length} waitlist families offered places. ${unplaced.length} remain on the waitlist.`,
+    rooms: roomsArray,
+    remaining_waitlist: unplaced.map(s => ({
+      id: s.id,
+      child_name: s.child_name,
+      preferred_days: [],
+    })),
+    // Original raw fields kept for any consumer that depends on them
+    suggestions,
+    transitions: transitions.slice(0, 10),
+    graduating: graduating.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name}`, room: c.room_name })),
+    spots,
+    generated_at: new Date().toISOString(),
+  });
 });
 
 export default r;

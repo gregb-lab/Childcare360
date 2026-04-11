@@ -38,6 +38,10 @@ export default function WaitlistModule() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ child_name: "", child_dob: "", parent_name: "", parent_email: "", parent_phone: "", preferred_room: "", preferred_days: [], notes: "", priority: "normal" });
+  // BUG-WL-04: edit modal state
+  const [editEntry, setEditEntry] = useState(null);
+  // BUG-WL-02: collapsible converted section
+  const [showConverted, setShowConverted] = useState(false);
   const [aiPlan, setAiPlan] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [nextYear] = useState(new Date().getFullYear() + 1);
@@ -79,6 +83,64 @@ export default function WaitlistModule() {
     load();
   };
 
+  // BUG-WL-01 — Offer Place handler. Wires the previously-dead button up to
+  // POST /api/waitlist/:id/offer, which marks the entry as "offered" and
+  // sets a 7-day expiry.
+  const handleOfferPlace = async (id, childName) => {
+    if (!(await window.showConfirm(
+      `Offer ${childName || "this family"} a place? They will be marked as offered and the offer will expire in 7 days.`
+    ))) return;
+    try {
+      const r = await API(`/api/waitlist/${id}/offer`, { method: "POST" });
+      if (r.error) { window.showToast("Failed to offer place: " + r.error, "error"); return; }
+      window.showToast(r.message || "Place offered — family notified", "success");
+      load();
+    } catch (e) {
+      window.showToast("Failed to offer place: " + (e.message || "Unknown error"), "error");
+    }
+  };
+
+  // BUG-WL-04 — Edit handlers. Opens a modal pre-populated with the entry
+  // data; saving PUTs the changed fields back to /api/waitlist/:id.
+  const handleEditEntry = (entry) => {
+    setEditEntry({
+      id: entry.id,
+      child_name: entry.child_name || "",
+      child_dob: entry.child_dob || "",
+      parent_name: entry.parent_name || "",
+      parent_email: entry.parent_email || "",
+      parent_phone: entry.parent_phone || "",
+      preferred_room: entry.preferred_room || "",
+      preferred_days: typeof entry.preferred_days === "string"
+        ? (() => { try { return JSON.parse(entry.preferred_days); } catch { return []; } })()
+        : (entry.preferred_days || []),
+      notes: entry.notes || "",
+      priority: entry.priority || "normal",
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editEntry?.id) return;
+    try {
+      const r = await API(`/api/waitlist/${editEntry.id}`, {
+        method: "PUT",
+        body: editEntry,
+      });
+      if (r.error) { window.showToast("Failed to update entry: " + r.error, "error"); return; }
+      window.showToast("Waitlist entry updated", "success");
+      setEditEntry(null);
+      load();
+    } catch (e) {
+      window.showToast("Failed to update entry: " + (e.message || "Unknown error"), "error");
+    }
+  };
+
+  // BUG-WL-02 — split waitlist into active (waiting/offered) vs already
+  // converted/enrolled. The header counts and active list should only show
+  // the active set; converted entries get their own collapsible section.
+  const activeEntries = waitlist.filter(e => e.status === "waiting" || e.status === "offered" || !e.status);
+  const convertedEntries = waitlist.filter(e => e.status === "converted" || e.status === "enrolled");
+
   const runAIPlan = async () => {
     setAiLoading(true);
     try {
@@ -114,7 +176,7 @@ export default function WaitlistModule() {
         <div>
           <h2 style={{ margin: 0, color: "#3D3248" }}>Waitlist & Re-Enrolment</h2>
           <p style={{ margin: "4px 0 0", color: "#8A7F96", fontSize: 13 }}>
-            {waitlist.length} families on waitlist · AI re-enrolment planner for {nextYear}
+            {activeEntries.length} families on waitlist · AI re-enrolment planner for {nextYear}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -127,7 +189,7 @@ export default function WaitlistModule() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
-        {[["waitlist",`Waitlist (${waitlist.length})`],["planner","AI Planner"],["reenrolment","Re-Enrolment Preferences"]].map(([id,l]) => (
+        {[["waitlist",`Waitlist (${activeEntries.length})`],["planner","AI Planner"],["reenrolment","Re-Enrolment Preferences"]].map(([id,l]) => (
           <button key={id} onClick={() => setTab(id)} style={{ padding: "8px 18px", borderRadius: 8, border: `1px solid ${tab===id ? purple : "#EDE8F4"}`, background: tab===id ? purple : "#fff", color: tab===id ? "#fff" : "#555", cursor: "pointer", fontSize: 13, fontWeight: tab===id ? 700 : 400 }}>{l}</button>
         ))}
       </div>
@@ -186,7 +248,7 @@ export default function WaitlistModule() {
       {/* WAITLIST TAB */}
       {tab === "waitlist" && (
         <div>
-          {waitlist.length === 0 ? (
+          {activeEntries.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 20px", color: "#8A7F96" }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
               <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: "#5C4E6A" }}>Waitlist is Empty</div>
@@ -194,8 +256,10 @@ export default function WaitlistModule() {
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {waitlist.map((entry, idx) => (
-                <div key={entry.id} style={{ ...card, padding: "14px 18px", display: "flex", gap: 16, alignItems: "flex-start" }}>
+              {activeEntries.map((entry, idx) => {
+                const isOffered = entry.status === "offered";
+                return (
+                <div key={entry.id} style={{ ...card, padding: "14px 18px", display: "flex", gap: 16, alignItems: "flex-start", borderLeft: isOffered ? "3px solid #2E7D32" : undefined }}>
                   {/* Position */}
                   <div style={{ width: 36, height: 36, borderRadius: "50%", background: lightPurple, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: purple, fontSize: 14, flexShrink: 0 }}>
                     {idx + 1}
@@ -205,6 +269,7 @@ export default function WaitlistModule() {
                     <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontWeight: 800, color: "#3D3248", fontSize: 14 }}>{entry.child_name}</span>
                       <Badge text={entry.priority} color={priorityColor[entry.priority] || "#8A7F96"} />
+                      {isOffered && <Badge text={`Offered · expires ${entry.offer_expiry || "—"}`} color="#2E7D32" />}
                       {entry.has_sibling && <Badge text="Sibling enrolled" color="#7E5BA3" />}
                     </div>
                     <div style={{ fontSize: 12, color: "#8A7F96" }}>
@@ -219,13 +284,95 @@ export default function WaitlistModule() {
                   </div>
                   {/* Actions */}
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => handleEditEntry(entry)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #D9D0C7", background: "#fff", color: "#5C4E6A", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
                     <button onClick={() => removeFromWaitlist(entry.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #EDE8F4", background: "#fff", color: "#C06B73", cursor: "pointer", fontSize: 11 }}>Remove</button>
-                    <button style={{ ...btnP, fontSize: 11, padding: "5px 12px" }}>Offer Place</button>
+                    {!isOffered && (
+                      <button onClick={() => handleOfferPlace(entry.id, entry.child_name)} style={{ ...btnP, fontSize: 11, padding: "5px 12px" }}>Offer Place</button>
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
+
+          {/* BUG-WL-02 — Converted entries: collapsed by default at the bottom */}
+          {convertedEntries.length > 0 && (
+            <div style={{ ...card, marginTop: 16, padding: 0, overflow: "hidden" }}>
+              <button
+                onClick={() => setShowConverted(v => !v)}
+                style={{ width: "100%", padding: "12px 18px", background: "#FDFBF9", border: "none", borderBottom: showConverted ? "1px solid #EDE8F4" : "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "inherit" }}>
+                <span style={{ fontSize: 13, color: "#5C4E6A", fontWeight: 700 }}>{showConverted ? "▼" : "▶"}</span>
+                <span style={{ fontSize: 13, color: "#3D3248", fontWeight: 700 }}>Converted to Applications</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: purple, borderRadius: 12, padding: "2px 10px" }}>{convertedEntries.length}</span>
+              </button>
+              {showConverted && (
+                <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {convertedEntries.map(entry => (
+                    <div key={entry.id} style={{ padding: "10px 14px", background: "#FDFBF9", borderRadius: 8, border: "1px solid #F0EBF8", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#3D3248" }}>{entry.child_name}</div>
+                        <div style={{ fontSize: 11, color: "#8A7F96", marginTop: 2 }}>{entry.parent_name} · {entry.parent_email}</div>
+                      </div>
+                      <Badge text={entry.status === "enrolled" ? "Enrolled" : "Converted"} color="#2E7D32" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* BUG-WL-04 — Edit Modal */}
+      {editEntry && (
+        <div onClick={() => setEditEntry(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: 540, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }}>
+            <h3 style={{ margin: "0 0 20px", color: "#3D3248" }}>Edit Waitlist Entry</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {[["child_name","Child's Full Name"],["child_dob","Date of Birth"],["parent_name","Parent/Guardian Name"],["parent_email","Parent Email"],["parent_phone","Parent Phone"]].map(([f,l]) => (
+                <div key={f}>
+                  <label style={lbl}>{l}</label>
+                  <input type={f.includes("dob") ? "date" : "text"} value={editEntry[f] || ""} onChange={e => setEditEntry({ ...editEntry, [f]: e.target.value })} style={inp} />
+                </div>
+              ))}
+              <div>
+                <label style={lbl}>Priority</label>
+                <select value={editEntry.priority} onChange={e => setEditEntry({ ...editEntry, priority: e.target.value })} style={sel}>
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High (sibling/staff child)</option>
+                  <option value="normal">Normal</option>
+                  <option value="low">Low (future year)</option>
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Preferred Room</label>
+                <select value={editEntry.preferred_room || ""} onChange={e => setEditEntry({ ...editEntry, preferred_room: e.target.value })} style={sel}>
+                  <option value="">Any available</option>
+                  {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={lbl}>Preferred Days</label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {DAYS.map(d => (
+                    <label key={d} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+                      <input type="checkbox" checked={(editEntry.preferred_days || []).includes(d)} onChange={e => setEditEntry({ ...editEntry, preferred_days: e.target.checked ? [...(editEntry.preferred_days || []), d] : (editEntry.preferred_days || []).filter(x => x !== d) })} />
+                      {d.slice(0,3)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={lbl}>Notes</label>
+                <textarea value={editEntry.notes || ""} onChange={e => setEditEntry({ ...editEntry, notes: e.target.value })} rows={2} style={{ ...inp, resize: "none" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+              <button onClick={() => setEditEntry(null)} style={btnS}>Cancel</button>
+              <button onClick={handleSaveEdit} style={btnP}>Save Changes</button>
+            </div>
+          </div>
         </div>
       )}
 
