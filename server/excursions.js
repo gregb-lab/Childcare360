@@ -116,23 +116,47 @@ router.get('/:id/children', (req, res) => {
 // POST assign children (bulk by room or array)
 router.post('/:id/children', (req, res) => {
   try {
-    const { child_ids, room_id } = req.body;
-    let ids = child_ids || [];
+    // BUG 2 hardening: tolerate body arriving as a JSON string (used to happen
+    // when callers double-stringified). express.json normally parses it for us
+    // but defending against the same class of regression here is cheap.
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const { child_ids, room_id } = body || {};
+
+    // Verify the parent excursion exists and belongs to this tenant — otherwise
+    // we'd silently insert orphan rows.
+    const excursion = D().prepare('SELECT id FROM excursions WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
+    if (!excursion) return res.status(404).json({ error: 'Excursion not found' });
+
+    let ids = Array.isArray(child_ids) ? [...child_ids] : [];
     if (room_id) {
       const roomKids = D().prepare('SELECT id FROM children WHERE room_id = ? AND tenant_id = ? AND active = 1').all(room_id, req.tenantId);
       ids = [...new Set([...ids, ...roomKids.map(k => k.id)])];
     }
+
+    if (!ids.length) {
+      return res.status(400).json({ error: 'No child_ids or room_id provided' });
+    }
+
     const inserted = [];
+    const skipped = [];
     ids.forEach(cid => {
-      const existing = D().prepare('SELECT id FROM excursion_children WHERE excursion_id = ? AND child_id = ?').get(req.params.id, cid);
-      if (!existing) {
-        const eid = uuid();
-        D().prepare('INSERT INTO excursion_children (id,excursion_id,child_id,tenant_id,permission_status,permission_token) VALUES(?,?,?,?,\'pending\',?)').run(eid, req.params.id, cid, req.tenantId, uuid());
-        inserted.push(eid);
-      }
+      // Tenant-scoped existence check so we don't collide with other tenants
+      const existing = D().prepare(
+        'SELECT id FROM excursion_children WHERE excursion_id = ? AND child_id = ? AND tenant_id = ?'
+      ).get(req.params.id, cid, req.tenantId);
+      if (existing) { skipped.push(cid); return; }
+      const eid = uuid();
+      D().prepare(
+        'INSERT INTO excursion_children (id,excursion_id,child_id,tenant_id,permission_status,permission_token) VALUES(?,?,?,?,\'pending\',?)'
+      ).run(eid, req.params.id, cid, req.tenantId, uuid());
+      inserted.push(eid);
     });
-    res.json({ inserted: inserted.length });
+    res.json({ inserted: inserted.length, skipped: skipped.length, requested: ids.length });
   } catch (err) {
+    console.error('[excursions:assign-children]', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -147,18 +171,38 @@ router.delete('/:id/children/:childId', (req, res) => {
   }
 });
 
-// POST assign educators
+// POST assign educators — accepts either { educator_ids: [...] } (bulk)
+// or { educator_id: 'xxx' } (single). The UI sends the singular form when
+// toggling individual educators on/off.
 router.post('/:id/educators', (req, res) => {
   try {
-    const { educator_ids } = req.body;
-    educator_ids.forEach(eid => {
-      const existing = D().prepare('SELECT id FROM excursion_educators WHERE excursion_id = ? AND educator_id = ?').get(req.params.id, eid);
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const ids = Array.isArray(body?.educator_ids)
+      ? body.educator_ids
+      : (body?.educator_id ? [body.educator_id] : []);
+
+    if (!ids.length) return res.status(400).json({ error: 'No educator_ids provided' });
+
+    const excursion = D().prepare('SELECT id FROM excursions WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
+    if (!excursion) return res.status(404).json({ error: 'Excursion not found' });
+
+    const inserted = [];
+    ids.forEach(eid => {
+      const existing = D().prepare(
+        'SELECT id FROM excursion_educators WHERE excursion_id = ? AND educator_id = ? AND tenant_id = ?'
+      ).get(req.params.id, eid, req.tenantId);
       if (!existing) {
-        D().prepare('INSERT INTO excursion_educators (id,excursion_id,educator_id,tenant_id) VALUES(?,?,?,?)').run(uuid(), req.params.id, eid, req.tenantId);
+        const id = uuid();
+        D().prepare('INSERT INTO excursion_educators (id,excursion_id,educator_id,tenant_id) VALUES(?,?,?,?)').run(id, req.params.id, eid, req.tenantId);
+        inserted.push(id);
       }
     });
-    res.json({ success: true });
+    res.json({ success: true, inserted: inserted.length });
   } catch (err) {
+    console.error('[excursions:assign-educators]', err);
     res.status(500).json({ error: err.message });
   }
 });

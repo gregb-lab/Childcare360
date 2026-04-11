@@ -60,7 +60,9 @@ export default function ExcursionsModule() {
       if (Array.isArray(ex)) setExcursions(ex);
       if (Array.isArray(ch)) setChildren(ch);
       if (Array.isArray(ed)) setEducators(ed.filter(e => e.status === "active"));
-    } catch (e) {}
+    } catch (e) {
+      window.showToast('Failed to load excursions: ' + (e.message || 'Unknown error'), 'error');
+    }
   }, []);
 
   const loadDetail = useCallback(async (id) => {
@@ -68,7 +70,9 @@ export default function ExcursionsModule() {
     try {
       const d = await API(`/api/excursions/${id}`);
       setDetail(d);
-    } catch (e) {}
+    } catch (e) {
+      window.showToast('Failed to load excursion: ' + (e.message || 'Unknown error'), 'error');
+    }
     setLoading(false);
   }, []);
 
@@ -79,13 +83,18 @@ export default function ExcursionsModule() {
     if (!form.title || !form.excursion_date || !form.destination) return;
     setSaving(true);
     try {
-      const d = await API("/api/excursions", { method: "POST", body: JSON.stringify(form) });
+      // BUG 1 fix: API() already JSON.stringify's body — pass the raw object, not a stringified one.
+      const d = await API("/api/excursions", { method: "POST", body: form });
+      if (d.error) { window.showToast('Failed to create excursion: ' + d.error, 'error'); return; }
       if (d.id) {
         await load();
         setSelected(d.id);
         setView("detail");
+        window.showToast('Excursion created');
       }
-    } catch (e) {}
+    } catch (e) {
+      window.showToast('Failed to create excursion: ' + (e.message || 'Unknown error'), 'error');
+    }
     setSaving(false);
   };
 
@@ -93,23 +102,32 @@ export default function ExcursionsModule() {
     if (!selected) return;
     const roomChildren = children.filter(c => c.room_id === room.id || c.room_name === room.name);
     try {
-      await API(`/api/excursions/${selected}/children`, {
+      const r = await API(`/api/excursions/${selected}/children`, {
         method: "POST",
-        body: JSON.stringify({ child_ids: roomChildren.map(c => c.id) }),
+        body: { child_ids: roomChildren.map(c => c.id) },
       });
+      if (r?.error) { window.showToast('Failed to assign room: ' + r.error, 'error'); return; }
       loadDetail(selected);
-    } catch (e) {}
+    } catch (e) {
+      window.showToast('Failed to assign room: ' + (e.message || 'Unknown error'), 'error');
+    }
   };
 
   const toggleChild = async (childId) => {
     if (!detail) return;
     const isAssigned = detail.children?.some(c => c.child_id === childId || c.id === childId);
-    if (isAssigned) {
-      await API(`/api/excursions/${selected}/children/${childId}`, { method: "DELETE" });
-    } else {
-      await API(`/api/excursions/${selected}/children`, { method: "POST", body: JSON.stringify({ child_ids: [childId] }) });
+    try {
+      if (isAssigned) {
+        const r = await API(`/api/excursions/${selected}/children/${childId}`, { method: "DELETE" });
+        if (r?.error) { window.showToast('Failed to remove child: ' + r.error, 'error'); return; }
+      } else {
+        const r = await API(`/api/excursions/${selected}/children`, { method: "POST", body: { child_ids: [childId] } });
+        if (r?.error) { window.showToast('Failed to add child: ' + r.error, 'error'); return; }
+      }
+      loadDetail(selected);
+    } catch (e) {
+      window.showToast('Failed to update child assignment: ' + (e.message || 'Unknown error'), 'error');
     }
-    loadDetail(selected);
   };
 
   const toggleEducator = async (educatorId) => {
@@ -117,10 +135,13 @@ export default function ExcursionsModule() {
     const isAssigned = detail.educators?.some(e => e.educator_id === educatorId || e.id === educatorId);
     try {
       if (!isAssigned) {
-        await API(`/api/excursions/${selected}/educators`, { method: "POST", body: JSON.stringify({ educator_id: educatorId, role: "attending" }) });
+        const r = await API(`/api/excursions/${selected}/educators`, { method: "POST", body: { educator_id: educatorId, role: "attending" } });
+        if (r?.error) { window.showToast('Failed to assign educator: ' + r.error, 'error'); return; }
       }
       loadDetail(selected);
-    } catch(e) { toast("Failed to update educator assignment.", "error"); }
+    } catch(e) {
+      window.showToast('Failed to update educator assignment: ' + (e.message || 'Unknown error'), 'error');
+    }
   };
 
   const sendPermissions = async () => {
@@ -129,16 +150,67 @@ export default function ExcursionsModule() {
       const r = await API(`/api/excursions/${selected}/send-permission`, { method: "POST" });
       if (r.error) { window.showToast(r.error, 'error'); return; }
       loadDetail(selected); load();
-      window.showToast('Permission requests sent to parents.', 'error');
-    } catch(e) { window.showToast('Failed to send permissions: ' + e.message, 'error'); }
+      window.showToast('Permission requests sent to parents.');
+    } catch(e) { window.showToast('Failed to send permissions: ' + (e.message || 'Unknown error'), 'error'); }
   };
 
   const updateStatus = async (status) => {
     if (!selected) return;
     try {
-      await API(`/api/excursions/${selected}`, { method: "PUT", body: JSON.stringify({ status }) });
+      const r = await API(`/api/excursions/${selected}`, { method: "PUT", body: { status } });
+      if (r?.error) { window.showToast('Failed to update status: ' + r.error, 'error'); return; }
       loadDetail(selected); load();
-    } catch(e) { toast("Failed to update status.", "error"); }
+    } catch(e) { window.showToast('Failed to update status: ' + (e.message || 'Unknown error'), 'error'); }
+  };
+
+  // BUG 3 — Edit modal state + handler
+  const [editing, setEditing] = useState(null); // edit form data when modal open
+
+  const openEdit = () => {
+    if (!detail) return;
+    setEditing({
+      title: detail.title || "",
+      description: detail.description || "",
+      destination: detail.destination || "",
+      excursion_date: detail.excursion_date || detail.date || "",
+      departure_time: detail.departure_time || "09:00",
+      return_time: detail.return_time || "14:00",
+      transport_method: detail.transport_method || detail.transport || "walking",
+      max_children: detail.max_children || 20,
+      min_educators: detail.min_educators || 2,
+      status: detail.status || "planning",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!selected || !editing) return;
+    try {
+      const r = await API(`/api/excursions/${selected}`, { method: "PUT", body: editing });
+      if (r?.error) { window.showToast('Failed to save changes: ' + r.error, 'error'); return; }
+      window.showToast('Excursion updated');
+      setEditing(null);
+      loadDetail(selected);
+      load();
+    } catch (e) {
+      window.showToast('Failed to save changes: ' + (e.message || 'Unknown error'), 'error');
+    }
+  };
+
+  // BUG 4 — Delete handler
+  const deleteExcursion = async () => {
+    if (!selected) return;
+    if (!(await window.showConfirm("Delete this excursion? This cannot be undone."))) return;
+    try {
+      const r = await API(`/api/excursions/${selected}`, { method: "DELETE" });
+      if (r?.error) { window.showToast('Failed to delete: ' + r.error, 'error'); return; }
+      window.showToast('Excursion deleted');
+      setSelected(null);
+      setDetail(null);
+      setView("list");
+      load();
+    } catch (e) {
+      window.showToast('Failed to delete: ' + (e.message || 'Unknown error'), 'error');
+    }
   };
 
   const excursionsByStatus = {
@@ -289,8 +361,72 @@ export default function ExcursionsModule() {
             onSendPermissions={sendPermissions}
             onUpdateStatus={updateStatus}
             onRefresh={() => loadDetail(selected)}
+            onEdit={openEdit}
+            onDelete={deleteExcursion}
           />
         ) : null
+      )}
+
+      {/* BUG 3 — Edit modal */}
+      {editing && (
+        <div onClick={() => setEditing(null)} style={{ position: "fixed", inset: 0, background: "rgba(60,40,80,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, padding: 28, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
+            <h3 style={{ margin: "0 0 18px", color: "#3D3248", fontSize: 18 }}>Edit Excursion</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Title *</label>
+                <input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Destination *</label>
+                <input value={editing.destination} onChange={e => setEditing({ ...editing, destination: e.target.value })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Date *</label>
+                <input type="date" value={editing.excursion_date} onChange={e => setEditing({ ...editing, excursion_date: e.target.value })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Transport</label>
+                <select value={editing.transport_method} onChange={e => setEditing({ ...editing, transport_method: e.target.value })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }}>
+                  {["walking", "bus", "private_vehicle", "train", "tram"].map(t => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Departure</label>
+                <input type="time" value={editing.departure_time} onChange={e => setEditing({ ...editing, departure_time: e.target.value })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Return</label>
+                <input type="time" value={editing.return_time} onChange={e => setEditing({ ...editing, return_time: e.target.value })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Max Children</label>
+                <input type="number" value={editing.max_children} onChange={e => setEditing({ ...editing, max_children: parseInt(e.target.value, 10) || 0 })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Min Educators</label>
+                <input type="number" value={editing.min_educators} onChange={e => setEditing({ ...editing, min_educators: parseInt(e.target.value, 10) || 0 })}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Description</label>
+                <textarea value={editing.description} onChange={e => setEditing({ ...editing, description: e.target.value })}
+                  rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D9D0C7", fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", resize: "vertical" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button onClick={() => setEditing(null)} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #D9D0C7", background: "#fff", color: "#5C4E6A", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+              <button onClick={saveEdit} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: purple, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Save Changes</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -327,7 +463,7 @@ function ExcursionCard({ ex, onClick }) {
   );
 }
 
-function ExcursionDetail({ excursion, children, educators, onToggleChild, onToggleEducator, onSendPermissions, onUpdateStatus, onRefresh }) {
+function ExcursionDetail({ excursion, children, educators, onToggleChild, onToggleEducator, onSendPermissions, onUpdateStatus, onRefresh, onEdit, onDelete }) {
   const [detailTab, setDetailTab] = useState("overview");
   const assignedChildIds = new Set((excursion.children || []).map(c => c.child_id || c.id));
   const assignedEduIds = new Set((excursion.educators || []).map(e => e.educator_id || e.id));
@@ -383,6 +519,17 @@ function ExcursionDetail({ excursion, children, educators, onToggleChild, onTogg
           </div>
           <div style={{ display: "flex", gap: 8, flexDirection: "column", alignItems: "flex-end" }}>
             {(() => { const [col, bg] = STATUS_COLORS[excursion.status] || ["#555", "#EEE"]; return <Badge text={excursion.status?.replace("_", " ")} color={col} bg={bg} />; })()}
+            {/* BUG 3+4 — Edit / Delete buttons */}
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={onEdit}
+                style={{ background: "#fff", color: purple, border: `1px solid ${purple}`, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                ✎ Edit
+              </button>
+              <button onClick={onDelete}
+                style={{ background: "#fff", color: "#B71C1C", border: "1px solid #FFCDD2", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                🗑 Delete
+              </button>
+            </div>
             {/* Action buttons per status */}
             {excursion.status === "planning" && assignedChildIds.size > 0 && (
               <button onClick={onSendPermissions}
