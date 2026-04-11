@@ -30,13 +30,17 @@ function fmtDate(d) { return new Date(d + "T00:00:00").toLocaleDateString("en-AU
 // ── Live Ratio Widget (for dashboard) ─────────────────────────────────────────
 export function RatioLiveWidget({ onNavigate }) {
   const [live, setLive] = useState(null);
+  const [compliance, setCompliance] = useState(null); // /api/compliance/check
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(() => {
-    API("/api/ratio-report/live")
-      .then(r => setLive(r))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      API("/api/ratio-report/live").catch(() => null),
+      API("/api/compliance/check").catch(() => null),
+    ]).then(([r, c]) => {
+      if (r) setLive(r);
+      if (c && !c.error) setCompliance(c);
+    }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -86,6 +90,47 @@ export function RatioLiveWidget({ onNavigate }) {
           <div style={{ fontSize: 11, color: live?.breach_count > 0 ? BREACH : OK }}>Breaches</div>
         </div>
       </div>
+
+      {/* Service-wide regulatory compliance (NQF / NZ MoE) */}
+      {compliance && (
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12,
+          padding: "10px 12px", borderRadius: 10,
+          background: compliance.overall_compliant ? OK_BG : BREACH_BG,
+          border: `1px solid ${compliance.overall_compliant ? "#BBF7D0" : "#FCA5A5"}`,
+        }}>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase" }}>Jurisdiction</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: DARK, marginTop: 2 }}>
+              {compliance.jurisdiction.country}{compliance.jurisdiction.state ? ` · ${compliance.jurisdiction.state}` : ""}
+            </div>
+          </div>
+          {compliance.ect && compliance.jurisdiction.country === "AU" && (
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase" }}>ECT (service-wide)</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: compliance.ect.is_compliant ? OK : BREACH, marginTop: 2 }}>
+                {compliance.ect.actual_ect_count}/{compliance.ect.required_ect_count} {compliance.ect.is_compliant ? "✓" : "⚠"}
+              </div>
+            </div>
+          )}
+          {compliance.ect && compliance.jurisdiction.country === "NZ" && (
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase" }}>Person Responsible</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: compliance.ect.is_compliant ? OK : BREACH, marginTop: 2 }}>
+                {compliance.ect.actual_persons_responsible}/{compliance.ect.required_persons_responsible} {compliance.ect.is_compliant ? "✓" : "⚠"}
+              </div>
+            </div>
+          )}
+          {compliance.qualification && (
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase" }}>Qual Mix</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: compliance.qualification.is_compliant ? OK : WARN, marginTop: 2 }}>
+                {compliance.qualification.actual_diploma_pct}% Dip+ {compliance.qualification.is_compliant ? "✓" : "⚠"}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Room breakdown */}
       {(live?.rooms || []).map(room => (

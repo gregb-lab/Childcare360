@@ -34,7 +34,9 @@ const Q = {
   working_towards: { l: "Working Towards Cert III", c: "#B87D47", s: "WTC3", lv: 1 },
 };
 const EMP = { permanent: "Permanent", part_time: "Part-Time", casual: "Casual", contract: "Contract" };
-const NQF_RATIOS = { babies: { ratio: 4, ect_required: true }, toddlers: { ratio: 5, ect_required: false }, preschool: { ratio: 11, ect_required: true }, oshc: { ratio: 15, ect_required: false } };
+// Per-room ratios only — ECT is a SERVICE-LEVEL requirement under NQF, not
+// per room. Service-wide ECT compliance comes from /api/compliance/check.
+const NQF_RATIOS = { babies: { ratio: 4 }, toddlers: { ratio: 5 }, preschool: { ratio: 11 }, oshc: { ratio: 15 } };
 const AGE_MAP = { "babies":"babies","0-2":"babies","toddlers":"toddlers","2-3":"toddlers","preschool":"preschool","3-4":"preschool","3-5":"preschool","4-5":"preschool","oshc":"oshc","school_age":"oshc" };
 const ROOM_COLORS = ["#8B6DAF","#6BA38B","#C9929E","#D4A26A","#5B8DB5","#9B7DC0","#C06B73","#4A8A6E"];
 const GANTT_START = 300, GANTT_END = 1200, GANTT_SPAN = GANTT_END - GANTT_START; // 5am–8pm range
@@ -528,7 +530,7 @@ function NQFComplianceTimeline({ dayEntries, rooms }) {
       <h4 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700 }}>🛡️ NQF Compliance Timeline</h4>
       {roomList.map(({ id, name, entries, room }) => {
         const ageKey = AGE_MAP[room?.age_group] || "preschool";
-        const nqf = NQF_RATIOS[ageKey] || { ratio: 11, ect_required: false };
+        const nqf = NQF_RATIOS[ageKey] || { ratio: 11 };
         const children = room?.current_children || room?.child_count || 0;
         const reqEds = Math.max(1, Math.ceil(children / nqf.ratio));
         return (
@@ -549,13 +551,13 @@ function NQFComplianceTimeline({ dayEntries, rooms }) {
                   if (lStart && lEnd && lStart <= hStart && lEnd > hStart) return false; // on break
                   return true;
                 });
-                const hasECT = !nqf.ect_required || present.some(e => e.qualification==="ect"||e.qualification==="diploma");
-                const compliant = present.length >= reqEds && hasECT;
-                const partial = present.length > 0 && (present.length < reqEds || !hasECT);
+                // Per-room ratio only — ECT is service-wide, see banner above
+                const compliant = present.length >= reqEds;
+                const partial = present.length > 0 && present.length < reqEds;
                 const bg = compliant ? "#2E8B57" : partial ? "#F5A623" : (hStart >= 6*60 && hStart < 19*60 && children > 0) ? "#C06B73" : "#E8E0D8";
                 return (
                   <div key={h} style={{ flex: 1, background: bg, borderRight: "1px solid rgba(255,255,255,0.3)" }}
-                    title={`${h}:00 — ${present.length} educator${present.length!==1?"s":""} (need ${reqEds})${!hasECT?" ⚠ no ECT/Diploma":""}`}/>
+                    title={`${h}:00 — ${present.length} educator${present.length!==1?"s":""} (need ${reqEds})`}/>
                 );
               })}
             </div>
@@ -566,7 +568,7 @@ function NQFComplianceTimeline({ dayEntries, rooms }) {
         );
       })}
       <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 9 }}>
-        {[["#2E8B57","Compliant"],["#F5A623","Partial / No ECT"],["#C06B73","Under ratio"],["#E8E0D8","No children"]].map(([c,l])=>(
+        {[["#2E8B57","Compliant"],["#F5A623","Partial"],["#C06B73","Under ratio"],["#E8E0D8","No children"]].map(([c,l])=>(
           <div key={l} style={{ display: "flex", alignItems: "center", gap: 3 }}><div style={{ width: 8, height: 8, borderRadius: 2, background: c }}/>{l}</div>
         ))}
       </div>
@@ -590,7 +592,9 @@ function SmartRosterBuilder({ period, entries, educators, rooms, allDates, onDel
   const today = new Date().toISOString().slice(0,10);
 
   const AGE_MAP = {babies:"babies","0-2":"babies",toddlers:"toddlers","2-3":"toddlers",preschool:"preschool","3-4":"preschool","3-5":"preschool","4-5":"preschool",oshc:"oshc",school_age:"oshc"};
-  const NQF = {babies:{ratio:4,ect_required:true,label:"0-2 yrs"},toddlers:{ratio:5,ect_required:false,label:"2-3 yrs"},preschool:{ratio:11,ect_required:true,label:"3-5 yrs"},oshc:{ratio:15,ect_required:false,label:"OSHC"}};
+  // Per-room ratios only — ECT is a SERVICE-LEVEL requirement, checked
+  // separately via /api/compliance/check.
+  const NQF = {babies:{ratio:4,label:"0-2 yrs"},toddlers:{ratio:5,label:"2-3 yrs"},preschool:{ratio:11,label:"3-5 yrs"},oshc:{ratio:15,label:"OSHC"}};
   const qColors = {ect:"#2E8B57",diploma:"#7E5BA3",cert3:"#D4A26A",working_towards_diploma:"#5B8DB5",working_towards:"#B87D47"};
   const qLabel = {ect:"ECT",diploma:"Diploma",cert3:"Cert III",working_towards_diploma:"Wkg→Dip",working_towards:"Wkg→C3"};
 
@@ -598,24 +602,23 @@ function SmartRosterBuilder({ period, entries, educators, rooms, allDates, onDel
   const dayEntries = selDay ? entries.filter(e => e.date === selDay) : [];
 
   // Compute room compliance for selected day
+  // Per-room: ratio only. Service-wide ECT compliance comes from /api/compliance/check.
   const roomCompliance = rooms.map(room => {
     const roomEnts = dayEntries.filter(e => e.room_id === room.id);
     const ageKey = AGE_MAP[room.age_group] || 'preschool';
-    const nqf = NQF[ageKey] || {ratio:11,ect_required:false,label:"?"};
+    const nqf = NQF[ageKey] || {ratio:11,label:"?"};
     const children = room.current_children || room.child_count || 0;
     const required = children > 0 ? Math.max(1, Math.ceil(children / nqf.ratio)) : 1;
     const hasECT = roomEnts.some(e => e.qualification==='ect'||e.qualification==='diploma');
-    const ectOk = !nqf.ect_required || hasECT;
     const ratioOk = roomEnts.length >= required;
-    const compliant = ratioOk && ectOk;
+    const compliant = ratioOk;
     const coverageHrs = roomEnts.reduce((s,e)=>{
       const sM=tM(e.start_time||"07:00"),eM=tM(e.end_time||"15:00");
       return s+(eM-sM-(e.break_mins||30))/60;
     },0);
     const issues = [];
     if (!ratioOk) issues.push(`Need ${required-roomEnts.length} more educator${required-roomEnts.length>1?"s":""} (ratio 1:${nqf.ratio})`);
-    if (!ectOk) issues.push("ECT/Diploma required for this room");
-    return { ...room, nqf, children, required, assigned: roomEnts.length, hasECT, ectOk, ratioOk, compliant, coverageHrs, issues, entries: roomEnts };
+    return { ...room, nqf, children, required, assigned: roomEnts.length, hasECT, ectOk: true, ratioOk, compliant, coverageHrs, issues, entries: roomEnts };
   });
 
   // Selected room compliance object

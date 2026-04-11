@@ -4295,7 +4295,7 @@ function SettingsView() {
     setTesting(null);
   };
 
-    const STABS = [{id:"service",l:"⚙️ Service"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
+    const STABS = [{id:"service",l:"⚙️ Service"},{id:"regulatory",l:"📜 Regulatory"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
   const purple2="#8B6DAF", lp2="#F0EBF8";
   const inp2={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:12,width:"100%",boxSizing:"border-box"};
   const lbl2={fontSize:11,color:"#7A6E8A",fontWeight:700,display:"block",marginBottom:4};
@@ -4495,6 +4495,11 @@ function SettingsView() {
       {/* ── CREDENTIALS TAB ── */}
       {stab==="credentials" && (
         <CredentialsTab tenantId={auth?.currentTenant?.id} API2={API2} />
+      )}
+
+      {/* ── REGULATORY TAB ── */}
+      {stab==="regulatory" && (
+        <JurisdictionPanel API2={API2} />
       )}
 
       {/* ── MFA TAB ── */}
@@ -4780,6 +4785,210 @@ function SettingsView() {
 
             <ProviderEditForm key={editProv.provider} prov={editProv} onSave={saveProvider} onCancel={()=>setEditProv(null)}/>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── JURISDICTION PANEL — regulatory settings (country/state/places) ─────────
+function JurisdictionPanel({ API2 }) {
+  const [j, setJ] = useState(null);
+  const [rules, setRules] = useState([]);
+  const [ectReq, setEctReq] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const purple2 = "#8B6DAF", lp2 = "#F0EBF8";
+  const inp = { padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, width: "100%", boxSizing: "border-box" };
+  const lbl = { fontSize: 11, color: "#7A6E8A", fontWeight: 700, display: "block", marginBottom: 4 };
+  const card = { background: "#fff", borderRadius: 14, border: "1px solid #EDE8F4", padding: "18px 22px", marginBottom: 14 };
+
+  const reload = async () => {
+    try {
+      const jdata = await API2("/api/compliance/jurisdiction");
+      if (jdata && !jdata.error) setJ(jdata);
+      const rdata = await API2("/api/compliance/rules");
+      if (rdata?.rules) setRules(rdata.rules);
+      const e = await API2("/api/compliance/ect-requirement");
+      if (e && !e.error) setEctReq(e);
+    } catch(err) {}
+  };
+  useEffect(() => { reload(); }, []);
+
+  if (!j) return <div style={{ padding: 24, color: "#8A7F96" }}>Loading regulatory settings…</div>;
+
+  const set = (k, v) => setJ(p => ({ ...p, [k]: v }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await API2("/api/compliance/jurisdiction", { method: "PUT", body: {
+        country: j.country, state: j.state || null,
+        service_type: j.service_type, approved_places: parseInt(j.approved_places) || 0,
+        operating_hours_per_week: parseInt(j.operating_hours_per_week) || 50,
+        is_remote_area: !!j.is_remote_area,
+      }});
+      if (r?.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        reload();
+      } else if (window.showToast) window.showToast(r?.error || "Save failed", "error");
+    } catch(e) {
+      if (window.showToast) window.showToast("Save failed: " + e.message, "error");
+    }
+    setSaving(false);
+  };
+
+  const isAU = j.country === "AU";
+  const AU_STATES = [["NSW","New South Wales"],["VIC","Victoria"],["QLD","Queensland"],["SA","South Australia"],["WA","Western Australia"],["TAS","Tasmania"],["ACT","Australian Capital Territory"],["NT","Northern Territory"]];
+
+  // Group rules for display
+  const ratioRules = rules.filter(r => r.rule_type === "ratio");
+  const ectRules   = rules.filter(r => r.rule_type === "ect");
+  const qualRules  = rules.filter(r => r.rule_type === "qualification_mix");
+  const prRules    = rules.filter(r => r.rule_type === "person_responsible");
+  const faRules    = rules.filter(r => r.rule_type === "first_aid");
+
+  return (
+    <div>
+      {/* Form */}
+      <div style={card}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#3D3248" }}>📜 Regulatory Settings</h3>
+          {saved && <span style={{ fontSize: 11, color: "#16A34A", fontWeight: 700 }}>✓ Saved</span>}
+        </div>
+        <p style={{ margin: "0 0 16px", fontSize: 12, color: "#A89DB5" }}>
+          These settings drive the NQF / NZ MoE compliance engine — ratios, ECT thresholds, and qualification mix.
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div>
+            <label style={lbl}>Country</label>
+            <select value={j.country || "AU"} onChange={e => set("country", e.target.value)} style={inp}>
+              <option value="AU">🇦🇺 Australia</option>
+              <option value="NZ">🇳🇿 New Zealand</option>
+            </select>
+          </div>
+          {isAU && (
+            <div>
+              <label style={lbl}>State / Territory</label>
+              <select value={j.state || ""} onChange={e => set("state", e.target.value || null)} style={inp}>
+                <option value="">— National defaults —</option>
+                {AU_STATES.map(([id, name]) => <option key={id} value={id}>{id} — {name}</option>)}
+              </select>
+            </div>
+          )}
+          <div>
+            <label style={lbl}>Service Type</label>
+            <select value={j.service_type || "LDC"} onChange={e => set("service_type", e.target.value)} style={inp}>
+              <option value="LDC">Long Day Care</option>
+              <option value="PRESCHOOL">Preschool / Kindergarten</option>
+              <option value="OSHC">Outside School Hours Care</option>
+              <option value="FDC">Family Day Care</option>
+              {!isAU && <option value="PLAYCENTRE">Playcentre (NZ)</option>}
+              {!isAU && <option value="KOHANGA_REO">Kohanga Reo (NZ)</option>}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Approved Places</label>
+            <input type="number" value={j.approved_places || 0} onChange={e => set("approved_places", e.target.value)} style={inp} />
+          </div>
+          <div>
+            <label style={lbl}>Operating Hours per Week</label>
+            <input type="number" value={j.operating_hours_per_week || 50} onChange={e => set("operating_hours_per_week", e.target.value)} style={inp} />
+          </div>
+          {isAU && (
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <label style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", margin: 0 }}>
+                <input type="checkbox" checked={!!j.is_remote_area} onChange={e => set("is_remote_area", e.target.checked)} />
+                Remote / very remote area
+              </label>
+            </div>
+          )}
+        </div>
+
+        <button onClick={save} disabled={saving}
+          style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: saving ? "#C4B5D9" : purple2,
+                   color: "#fff", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontSize: 13 }}>
+          {saving ? "Saving…" : "Save Regulatory Settings"}
+        </button>
+      </div>
+
+      {/* Applicable rules summary */}
+      <div style={card}>
+        <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "#3D3248" }}>
+          📋 Rules currently in force for {j.country}{j.state ? ` · ${j.state}` : ""}
+        </h4>
+
+        {ratioRules.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: purple2, marginBottom: 6, textTransform: "uppercase" }}>Ratios (service-wide)</div>
+            {ratioRules.map(r => (
+              <div key={r.id} style={{ fontSize: 12, color: "#5C4E6A", padding: "4px 0", borderBottom: "1px solid #F8F5FC" }}>
+                <strong>{r.age_group}:</strong> 1:{r.ratio_children}
+                {r.state && <span style={{ color: purple2, marginLeft: 6 }}>({r.state} specific)</span>}
+                <div style={{ fontSize: 10, color: "#A89DB5", marginTop: 1 }}>{r.notes}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {ectRules.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: purple2, marginBottom: 6, textTransform: "uppercase" }}>ECT thresholds</div>
+            {ectRules.map(r => (
+              <div key={r.id} style={{ fontSize: 12, color: "#5C4E6A", padding: "4px 0", borderBottom: "1px solid #F8F5FC" }}>
+                <strong>{r.children_min}–{r.children_max === 9999 ? "∞" : r.children_max} children:</strong> {r.ect_requirement?.replace(/_/g," ")}
+                <div style={{ fontSize: 10, color: "#A89DB5", marginTop: 1 }}>{r.notes}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {prRules.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: purple2, marginBottom: 6, textTransform: "uppercase" }}>Person Responsible (NZ)</div>
+            {prRules.map(r => (
+              <div key={r.id} style={{ fontSize: 12, color: "#5C4E6A" }}>{r.notes}</div>
+            ))}
+          </div>
+        )}
+
+        {faRules.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: purple2, marginBottom: 6, textTransform: "uppercase" }}>First aid (NZ)</div>
+            {faRules.map(r => (
+              <div key={r.id} style={{ fontSize: 12, color: "#5C4E6A" }}>{r.notes}</div>
+            ))}
+          </div>
+        )}
+
+        {qualRules.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: purple2, marginBottom: 6, textTransform: "uppercase" }}>Qualification mix</div>
+            {qualRules.map(r => (
+              <div key={r.id} style={{ fontSize: 12, color: "#5C4E6A" }}>{r.notes}</div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Live ECT requirement */}
+      {ectReq && (
+        <div style={{ ...card, background: "#F8F5FC", border: `1px solid ${purple2}40` }}>
+          <h4 style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: purple2 }}>
+            🎓 Current ECT requirement for your enrolled population
+          </h4>
+          <div style={{ fontSize: 13, color: "#3D3248", marginBottom: 6 }}>
+            <strong>{ectReq.children}</strong> active enrolled children →{" "}
+            <strong>
+              {ectReq.country === "NZ"
+                ? `${ectReq.required_persons_responsible} Person(s) Responsible`
+                : `${ectReq.required_ect_count} ECT(s) required`}
+            </strong>
+          </div>
+          <div style={{ fontSize: 11, color: "#7A6E8A" }}>{ectReq.notes}</div>
         </div>
       )}
     </div>

@@ -35,6 +35,48 @@ export function initDatabase() {
   try { db.exec("CREATE TABLE IF NOT EXISTS cert_training_links (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, cert_type TEXT NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, provider TEXT, notes TEXT, cost_est REAL DEFAULT 0, created_by TEXT, created_at TEXT DEFAULT (datetime('now')))"); } catch(e) {}
   try { db.exec("CREATE TABLE IF NOT EXISTS pd_requests (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, educator_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT, provider TEXT, url TEXT, start_date TEXT, end_date TEXT, location TEXT, delivery_mode TEXT DEFAULT 'in_person', cost_est REAL DEFAULT 0, cost_approved REAL, expected_outcomes TEXT, status TEXT DEFAULT 'pending', manager_notes TEXT, manager_feedback TEXT, approved_by TEXT, approved_at TEXT, completed_at TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))"); } catch(e) {}
 
+  // ─── REGULATORY COMPLIANCE ENGINE (AU NQF + NZ) ─────────────────────────────
+  // Per-tenant jurisdiction (country, state, service type, places, hours).
+  try { db.exec(`CREATE TABLE IF NOT EXISTS tenant_jurisdiction (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL UNIQUE,
+    country TEXT NOT NULL DEFAULT 'AU',
+    state TEXT,
+    service_type TEXT DEFAULT 'LDC',
+    approved_places INTEGER DEFAULT 0,
+    operating_hours_per_week INTEGER DEFAULT 50,
+    is_remote_area INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`); } catch(e) {}
+
+  // Regulatory rules: ratios, ECT thresholds, qualification mix.
+  // Lookups always filter by country + (state OR null) + rule_type.
+  try { db.exec(`CREATE TABLE IF NOT EXISTS compliance_rules (
+    id TEXT PRIMARY KEY,
+    country TEXT NOT NULL,
+    state TEXT,
+    rule_type TEXT NOT NULL,
+    age_group TEXT,
+    children_min INTEGER DEFAULT 0,
+    children_max INTEGER DEFAULT 9999,
+    ratio_educators INTEGER,
+    ratio_children INTEGER,
+    ect_requirement TEXT,
+    ect_hours_per_day REAL,
+    ect_pct_of_time REAL,
+    qualification_pct_diploma REAL DEFAULT 0.5,
+    qualification_pct_cert3 REAL DEFAULT 0.5,
+    notes TEXT,
+    effective_from TEXT,
+    effective_to TEXT
+  )`); } catch(e) {}
+  // Index for the hot lookup path
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_compliance_rules_lookup ON compliance_rules(country, state, rule_type, age_group)`); } catch(e) {}
+
+  // Seed compliance rules — INSERT OR IGNORE so re-runs are no-ops
+  seedComplianceRules(db);
+
   // v2.7.0: new critical feature tables
   const v270tables = [
     `CREATE TABLE IF NOT EXISTS visitor_logs (
@@ -5365,6 +5407,79 @@ export function D() {
   return db;
 }
 export function uuid() { return randomUUID(); }
+
+// ─── seedComplianceRules ────────────────────────────────────────────────────
+// Idempotent — uses fixed `id` strings so INSERT OR IGNORE skips re-inserts.
+// Encodes the regulatory research from the brief: AU NQF defaults + state
+// variations, ECT thresholds, qualification mix, NZ teacher-led centre rules.
+function seedComplianceRules(db) {
+  const ins = db.prepare(`INSERT OR IGNORE INTO compliance_rules
+    (id, country, state, rule_type, age_group, children_min, children_max,
+     ratio_educators, ratio_children, ect_requirement, ect_hours_per_day,
+     ect_pct_of_time, qualification_pct_diploma, qualification_pct_cert3, notes)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+
+  // ── AU NATIONAL DEFAULTS — ratios per age band (service-wide)
+  const auRatios = [
+    // [id, state, age_group, ratio_eds, ratio_ch, notes]
+    ['au-natl-ratio-0to24',     null, '0-24',           1, 4,  'Reg 123 — 0-24 months — applies all states'],
+    ['au-natl-ratio-24to36',    null, '24-36',          1, 5,  'Reg 123 — 24-36 months — national default (1:4 in VIC)'],
+    ['au-natl-ratio-36topre',   null, '36-preschool',   1, 11, 'Reg 123 — 36mo to preschool — national default (NSW/TAS/WA: 1:10)'],
+    ['au-natl-ratio-overpre',   null, 'over-preschool', 1, 15, 'Reg 123 — over preschool age — national default (ACT: 1:11; WA: 1:13)'],
+    // VIC
+    ['au-vic-ratio-24to36',     'VIC', '24-36',         1, 4,  'VIC: 1:4 for 2-3 year olds'],
+    // NSW
+    ['au-nsw-ratio-36topre',    'NSW', '36-preschool',  1, 10, 'NSW: 1:10 for 36mo to preschool (Reg 272)'],
+    // TAS
+    ['au-tas-ratio-36topre',    'TAS', '36-preschool',  1, 10, 'TAS: 1:10 for 36mo to preschool'],
+    // WA
+    ['au-wa-ratio-36topre',     'WA',  '36-preschool',  1, 10, 'WA: 1:10 for 36mo to preschool'],
+    ['au-wa-ratio-overpre',     'WA',  'over-preschool',1, 13, 'WA: 1:13 over preschool (1:10 if kindergarten children present)'],
+    // ACT
+    ['au-act-ratio-overpre',    'ACT', 'over-preschool',1, 11, 'ACT: 1:11 over preschool age'],
+  ];
+  for (const [id, state, age, eds, ch, notes] of auRatios) {
+    ins.run(id, 'AU', state, 'ratio', age, 0, 9999, eds, ch, null, null, null, 0.5, 0.5, notes);
+  }
+
+  // ── AU ECT thresholds (service-level, by total children present)
+  const auEct = [
+    // [id, ch_min, ch_max, ect_requirement, hrs_per_day, pct_of_time, notes]
+    ['au-ect-under25',  0,   24,   'ict_or_visit',     null, 0.20, 'Fewer than 25 children: ECT access for 20% of operating time (can be via ICT)'],
+    ['au-ect-25to59',   25,  59,   'full_time_or_60pct', 6.0, 0.60, '25-59 children: full-time ECT or 6 hrs/day (50+ hr/wk service) or 60% of operating time'],
+    ['au-ect-60to79',   60,  79,   'full_time_plus_one', 6.0, 0.60, '60-79 children: as 25-59 PLUS one additional ECT or suitably qualified person'],
+    ['au-ect-80plus',   80,  9999, 'two_full_time',      6.0, 1.00, '80+ children: 2 full-time ECTs required'],
+  ];
+  for (const [id, cmin, cmax, req, hrs, pct, notes] of auEct) {
+    ins.run(id, 'AU', null, 'ect', null, cmin, cmax, null, null, req, hrs, pct, 0.5, 0.5, notes);
+  }
+
+  // ── AU qualification mix (single national rule, all states)
+  ins.run('au-qualmix', 'AU', null, 'qualification_mix', null, 0, 9999, null, null,
+    null, null, null, 0.5, 0.5,
+    'At least 50% of educators counted toward ratio must hold or be working towards an approved Diploma; remainder must hold or be working towards Certificate III');
+
+  // ── NZ — teacher-led centre-based services (Education ECE Regs 2008)
+  const nzRatios = [
+    ['nz-ratio-under2', null, '0-24',           1, 5,  'NZ teacher-led: under 2 years — 1:5'],
+    ['nz-ratio-2plus',  null, 'over-2',         1, 10, 'NZ teacher-led: 2 years and over — 1:10'],
+  ];
+  for (const [id, state, age, eds, ch, notes] of nzRatios) {
+    ins.run(id, 'NZ', state, 'ratio', age, 0, 9999, eds, ch, null, null, null, 0.5, 0.5, notes);
+  }
+  // NZ Person Responsible — equivalent of AU ECT but a different rule shape
+  ins.run('nz-pr', 'NZ', null, 'person_responsible', null, 0, 9999, null, null,
+    'one_per_50', null, null, 0.5, 0.5,
+    'NZ: One Person Responsible per 50 children in attendance, must hold a current practising certificate from the Teaching Council of Aotearoa NZ');
+  // NZ qualification mix
+  ins.run('nz-qualmix', 'NZ', null, 'qualification_mix', null, 0, 9999, null, null,
+    null, null, null, 0.5, 0.5,
+    'NZ: At least 50% of required staff must hold a recognised early learning teaching qualification');
+  // NZ first aid
+  ins.run('nz-firstaid', 'NZ', null, 'first_aid', null, 0, 9999, 1, 25,
+    null, null, null, 0.5, 0.5,
+    'NZ: One first aid qualified staff member per 25 children in attendance');
+}
 
 export function auditLog(userId, tenantId, action, details, ip, ua) {
   D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')

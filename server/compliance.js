@@ -286,4 +286,308 @@ router.get('/attendance-report', (req, res) => {
   res.json({ report, summary });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ██  REGULATORY COMPLIANCE ENGINE — AU NQF + NZ
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// IMPORTANT: Ratios are calculated SERVICE-WIDE, not per room. This is the
+// critical correction from the previous per-room implementation.
+//
+// Source of truth is the compliance_rules table seeded in db.js. Lookups
+// always prefer state-specific rules over national defaults.
+
+const DEFAULT_JURISDICTION = {
+  country: 'AU', state: null, service_type: 'LDC',
+  approved_places: 0, operating_hours_per_week: 50, is_remote_area: 0,
+};
+
+function getJurisdiction(tenantId) {
+  const row = D().prepare('SELECT * FROM tenant_jurisdiction WHERE tenant_id = ?').get(tenantId);
+  return row || { ...DEFAULT_JURISDICTION, tenant_id: tenantId };
+}
+
+// Pick the most specific ratio rule for a given (country, state, ageGroup):
+// state-specific row first, fall back to national (state IS NULL).
+function findRatioRule(country, state, ageGroup) {
+  if (state) {
+    const r = D().prepare(`SELECT * FROM compliance_rules
+      WHERE country=? AND state=? AND rule_type='ratio' AND age_group=? LIMIT 1`)
+      .get(country, state, ageGroup);
+    if (r) return r;
+  }
+  return D().prepare(`SELECT * FROM compliance_rules
+    WHERE country=? AND state IS NULL AND rule_type='ratio' AND age_group=? LIMIT 1`)
+    .get(country, ageGroup);
+}
+
+// AU age-band keys used by the rules table
+function ageBand(ageMonths, country = 'AU') {
+  if (country === 'NZ') return ageMonths < 24 ? '0-24' : 'over-2';
+  if (ageMonths < 24)  return '0-24';
+  if (ageMonths < 36)  return '24-36';
+  if (ageMonths < 60)  return '36-preschool';
+  return 'over-preschool';
+}
+
+function ectThreshold(country, totalChildren) {
+  if (country !== 'AU') return null;
+  return D().prepare(`SELECT * FROM compliance_rules
+    WHERE country='AU' AND rule_type='ect' AND ? BETWEEN children_min AND children_max
+    LIMIT 1`).get(totalChildren);
+}
+
+// Compute the snapshot for "right now" — children present + educators on duty
+function buildLiveSnapshot(tenantId) {
+  const _now = new Date();
+  const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+
+  const children = D().prepare(`
+    SELECT c.id, c.dob, c.room_id,
+           CAST((julianday('now') - julianday(c.dob)) * 12 / 30.44 AS INTEGER) as age_months
+    FROM children c
+    JOIN attendance_sessions a ON a.child_id = c.id
+    WHERE c.tenant_id = ? AND c.active = 1
+      AND a.tenant_id = ? AND a.date = ?
+      AND a.sign_in IS NOT NULL AND a.sign_out IS NULL
+  `).all(tenantId, tenantId, today);
+
+  // Educators currently clocked in (clock_records open today). Falls back to
+  // active educators if no clock records exist (lets demos with no live clock
+  // data still show meaningful compliance).
+  let educators = [];
+  try {
+    educators = D().prepare(`
+      SELECT e.id, e.qualification, e.first_name, e.last_name
+      FROM educators e
+      JOIN clock_records cr ON cr.educator_id = e.id
+      WHERE e.tenant_id = ? AND cr.tenant_id = ?
+        AND date(cr.clock_in) = ? AND cr.clock_out IS NULL
+    `).all(tenantId, tenantId, today);
+  } catch (e) { /* clock_records may not exist */ }
+
+  if (educators.length === 0) {
+    educators = D().prepare(`
+      SELECT id, qualification, first_name, last_name
+      FROM educators WHERE tenant_id = ? AND status = 'active'
+    `).all(tenantId);
+  }
+  return { children, educators, snapshot_date: today };
+}
+
+// Core calculation. Pure-ish: takes a tenantId + optional snapshot, returns a
+// compliance result. No DB writes.
+export function calculateCompliance(tenantId, snapshot) {
+  const j = getJurisdiction(tenantId);
+  const country = j.country || 'AU';
+  const state = j.state || null;
+
+  const snap = snapshot || buildLiveSnapshot(tenantId);
+  const children = snap.children || [];
+  const educators = snap.educators || [];
+
+  // Group children by age band
+  const bands = {};
+  for (const c of children) {
+    const band = ageBand(c.age_months, country);
+    bands[band] = (bands[band] || 0) + 1;
+  }
+
+  // Required educators per band
+  const bandResults = [];
+  let requiredTotal = 0;
+  for (const [band, count] of Object.entries(bands)) {
+    const rule = findRatioRule(country, state, band);
+    if (!rule || !rule.ratio_children) {
+      bandResults.push({ age_group: band, children: count, rule: null,
+        required: 0, ratio_label: 'no rule' });
+      continue;
+    }
+    const required = Math.ceil(count / rule.ratio_children);
+    requiredTotal += required;
+    bandResults.push({
+      age_group: band, children: count,
+      ratio_label: `1:${rule.ratio_children}`,
+      required, rule_id: rule.id, notes: rule.notes,
+    });
+  }
+
+  // Service-level totals
+  const totalChildren = children.length;
+  const totalEducators = educators.length;
+  const ratioCompliant = totalEducators >= requiredTotal;
+
+  // ECT requirement (AU) / Person Responsible (NZ)
+  let ectResult = null;
+  if (country === 'AU') {
+    const t = ectThreshold('AU', totalChildren);
+    const ectActual = educators.filter(e => e.qualification === 'ect').length;
+    if (t) {
+      // Decide required headcount from the requirement string
+      let requiredEcts = 0;
+      switch (t.ect_requirement) {
+        case 'two_full_time':       requiredEcts = 2; break;
+        case 'full_time_plus_one':  requiredEcts = 2; break;
+        case 'full_time_or_60pct':  requiredEcts = 1; break;
+        case 'ict_or_visit':        requiredEcts = 0; break; // 20% access via ICT
+        default:                    requiredEcts = 1;
+      }
+      ectResult = {
+        required_ect_count: requiredEcts,
+        required_pct_of_time: t.ect_pct_of_time,
+        required_hours_per_day: t.ect_hours_per_day,
+        actual_ect_count: ectActual,
+        threshold_id: t.id,
+        threshold_notes: t.notes,
+        is_compliant: ectActual >= requiredEcts,
+      };
+    }
+  } else if (country === 'NZ') {
+    // Person Responsible: 1 per 50
+    const required = Math.max(1, Math.ceil(totalChildren / 50));
+    // Treat ECT-qualified educators as Persons Responsible for the demo
+    // (real check requires a Teaching Council practising certificate field)
+    const actual = educators.filter(e => e.qualification === 'ect' || e.qualification === 'diploma').length;
+    ectResult = {
+      required_persons_responsible: required,
+      actual_persons_responsible: actual,
+      threshold_id: 'nz-pr',
+      threshold_notes: '1 Person Responsible per 50 children, must hold Teaching Council NZ practising certificate',
+      is_compliant: actual >= required,
+    };
+  }
+
+  // Qualification mix (AU + NZ both require ≥50% diploma+)
+  const dipPlus = educators.filter(e => ['ect','diploma','working_towards_diploma'].includes(e.qualification)).length;
+  const cert3Plus = educators.filter(e => ['cert3','working_towards'].includes(e.qualification)).length;
+  const dipPct = totalEducators > 0 ? dipPlus / totalEducators : 0;
+  const cert3Pct = totalEducators > 0 ? cert3Plus / totalEducators : 0;
+  const qualResult = {
+    actual_diploma_pct: Math.round(dipPct * 100),
+    actual_cert3_pct: Math.round(cert3Pct * 100),
+    required_diploma_pct: 50,
+    required_cert3_pct: 50,
+    is_compliant: dipPct >= 0.5,
+  };
+
+  const violations = [];
+  const warnings = [];
+  if (!ratioCompliant) {
+    violations.push({ type: 'ratio',
+      msg: `Service-wide ratio breach: have ${totalEducators} educators, need ${requiredTotal}` });
+  }
+  if (ectResult && !ectResult.is_compliant) {
+    violations.push({ type: country === 'NZ' ? 'person_responsible' : 'ect',
+      msg: country === 'NZ'
+        ? `Need ${ectResult.required_persons_responsible} Person(s) Responsible — have ${ectResult.actual_persons_responsible}`
+        : `Need ${ectResult.required_ect_count} ECT(s) for ${totalChildren} children — have ${ectResult.actual_ect_count}`,
+      threshold: ectResult.threshold_notes });
+  }
+  if (!qualResult.is_compliant && totalEducators > 0) {
+    warnings.push({ type: 'qualification_mix',
+      msg: `Diploma+ educators are ${qualResult.actual_diploma_pct}% — regulation requires ≥50%` });
+  }
+
+  return {
+    snapshot_date: snap.snapshot_date,
+    jurisdiction: { country, state, service_type: j.service_type, approved_places: j.approved_places },
+    totals: { children: totalChildren, educators: totalEducators, required_educators: requiredTotal },
+    age_bands: bandResults,
+    ratio: { is_compliant: ratioCompliant, required: requiredTotal, actual: totalEducators },
+    ect: ectResult,
+    qualification: qualResult,
+    violations,
+    warnings,
+    overall_compliant: violations.length === 0,
+  };
+}
+
+// ── GET /api/compliance/jurisdiction ────────────────────────────────────────
+router.get('/jurisdiction', (req, res) => {
+  try {
+    const j = getJurisdiction(req.tenantId);
+    res.json(j);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/compliance/jurisdiction ────────────────────────────────────────
+router.put('/jurisdiction', requireRole('owner','admin','director','manager'), (req, res) => {
+  try {
+    const { country, state, service_type, approved_places, operating_hours_per_week, is_remote_area } = req.body;
+    if (!country) return res.status(400).json({ error: 'country required' });
+    const existing = D().prepare('SELECT id FROM tenant_jurisdiction WHERE tenant_id = ?').get(req.tenantId);
+    if (existing) {
+      D().prepare(`UPDATE tenant_jurisdiction SET
+        country=COALESCE(?,country), state=?, service_type=COALESCE(?,service_type),
+        approved_places=COALESCE(?,approved_places),
+        operating_hours_per_week=COALESCE(?,operating_hours_per_week),
+        is_remote_area=COALESCE(?,is_remote_area),
+        updated_at=datetime('now') WHERE tenant_id = ?`)
+        .run(country, state || null, service_type, approved_places, operating_hours_per_week,
+             is_remote_area != null ? (is_remote_area ? 1 : 0) : null, req.tenantId);
+    } else {
+      D().prepare(`INSERT INTO tenant_jurisdiction
+        (id, tenant_id, country, state, service_type, approved_places, operating_hours_per_week, is_remote_area)
+        VALUES (?,?,?,?,?,?,?,?)`)
+        .run(uuid(), req.tenantId, country, state || null, service_type || 'LDC',
+             approved_places || 0, operating_hours_per_week || 50, is_remote_area ? 1 : 0);
+    }
+    res.json({ ok: true, jurisdiction: getJurisdiction(req.tenantId) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/compliance/rules ───────────────────────────────────────────────
+router.get('/rules', (req, res) => {
+  try {
+    const j = getJurisdiction(req.tenantId);
+    const rows = D().prepare(`
+      SELECT * FROM compliance_rules
+      WHERE country = ? AND (state IS NULL OR state = ?)
+      ORDER BY rule_type, age_group, children_min, state IS NULL DESC
+    `).all(j.country, j.state || '');
+    res.json({ jurisdiction: j, rules: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/compliance/check — live service-wide compliance ────────────────
+router.get('/check', (req, res) => {
+  try {
+    const result = calculateCompliance(req.tenantId);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/compliance/ect-requirement?children=N ──────────────────────────
+// Returns the ECT/Person Responsible requirement for a hypothetical headcount
+router.get('/ect-requirement', (req, res) => {
+  try {
+    const j = getJurisdiction(req.tenantId);
+    const n = req.query.children
+      ? parseInt(req.query.children, 10)
+      : D().prepare("SELECT COUNT(*) AS n FROM children WHERE tenant_id = ? AND active = 1").get(req.tenantId)?.n || 0;
+    if (j.country === 'NZ') {
+      const required = Math.max(1, Math.ceil(n / 50));
+      return res.json({ country: 'NZ', children: n, required_persons_responsible: required,
+        notes: 'NZ: 1 Person Responsible per 50 children (Teaching Council NZ practising cert)' });
+    }
+    const t = ectThreshold('AU', n);
+    if (!t) return res.json({ country: 'AU', children: n, required_ect_count: 0, notes: 'No matching threshold' });
+    let requiredEcts = 0;
+    switch (t.ect_requirement) {
+      case 'two_full_time':       requiredEcts = 2; break;
+      case 'full_time_plus_one':  requiredEcts = 2; break;
+      case 'full_time_or_60pct':  requiredEcts = 1; break;
+      case 'ict_or_visit':        requiredEcts = 0; break;
+      default:                    requiredEcts = 1;
+    }
+    res.json({
+      country: 'AU', state: j.state, children: n,
+      threshold_id: t.id, ect_requirement: t.ect_requirement,
+      required_ect_count: requiredEcts,
+      ect_hours_per_day: t.ect_hours_per_day,
+      ect_pct_of_time: t.ect_pct_of_time,
+      notes: t.notes,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

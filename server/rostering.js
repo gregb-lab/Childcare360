@@ -203,9 +203,12 @@ r.post('/generate', (req, res) => {
     availability[e.id] = db.prepare('SELECT * FROM educator_availability WHERE educator_id = ? AND tenant_id = ?').all(e.id, req.tenantId);
   });
 
-  // NQF ratio requirements — map age_group strings to ratio config
+  // NQF ratio requirements — map age_group strings to ratio config.
+  // NOTE: ECT is a SERVICE-LEVEL requirement, not per room. The
+  // `prefer_lead_with_ect` flag below is just a roster-quality hint that
+  // prioritises ECT/Diploma educators as the lead in baby + preschool rooms.
   const AGE_MAP = { 'babies': 'babies', '0-2': 'babies', 'toddlers': 'toddlers', '2-3': 'toddlers', 'preschool': 'preschool', '3-4': 'preschool', '3-5': 'preschool', '4-5': 'preschool', 'oshc': 'oshc', 'school_age': 'oshc' };
-  const NQF_RATIOS = { babies: { ratio: 4, ect_required: true }, toddlers: { ratio: 5, ect_required: false }, preschool: { ratio: 11, ect_required: true }, oshc: { ratio: 15, ect_required: false } };
+  const NQF_RATIOS = { babies: { ratio: 4, prefer_lead_with_ect: true }, toddlers: { ratio: 5, prefer_lead_with_ect: false }, preschool: { ratio: 11, prefer_lead_with_ect: true }, oshc: { ratio: 15, prefer_lead_with_ect: false } };
 
   // Generate dates in range
   const dates = [];
@@ -244,7 +247,7 @@ r.post('/generate', (req, res) => {
       if (children === 0) return;
 
       const reqEds = Math.max(1, Math.ceil(children / ratio.ratio));
-      const needECT = ratio.ect_required;
+      const needECT = ratio.prefer_lead_with_ect; // roster-quality hint, not a NQF rule
 
       // Find available educators for this day/room
       const available = educators.filter(e => {
@@ -1085,6 +1088,11 @@ r.delete('/periods/:id', (req, res) => {
 });
 
 // GET /api/rostering/room-compliance/:periodId/:date — real-time compliance for a day
+//
+// IMPORTANT: ECT is a SERVICE-LEVEL requirement under NQF, not per room.
+// This endpoint returns:
+//   compliance[]   — per-room ratio status (children → educators) only
+//   service_ect    — service-wide ECT requirement based on total enrolment
 r.get('/room-compliance/:periodId/:date', (req, res) => {
   try {
     const { periodId, date } = req.params;
@@ -1096,19 +1104,61 @@ r.get('/room-compliance/:periodId/:date', (req, res) => {
     `).all(periodId, date, req.tenantId);
     const rooms = db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM children c WHERE c.room_id=r.id) as child_count FROM rooms r WHERE r.tenant_id=? ORDER BY r.name`).all(req.tenantId);
     const AGE_MAP = {'babies':'babies','0-2':'babies','toddlers':'toddlers','2-3':'toddlers','preschool':'preschool','3-4':'preschool','3-5':'preschool','4-5':'preschool','oshc':'oshc','school_age':'oshc'};
-    const NQF = {babies:{ratio:4,ect_required:true},toddlers:{ratio:5,ect_required:false},preschool:{ratio:11,ect_required:true},oshc:{ratio:15,ect_required:false}};
+    // Per-room ratios only — ECT is checked at service level below.
+    const NQF = {babies:{ratio:4},toddlers:{ratio:5},preschool:{ratio:11},oshc:{ratio:15}};
     const compliance = rooms.map(room => {
       const roomEntries = entries.filter(e => e.room_id === room.id);
       const ageKey = AGE_MAP[room.age_group] || 'preschool';
-      const nqf = NQF[ageKey] || {ratio:11,ect_required:false};
+      const nqf = NQF[ageKey] || {ratio:11};
       const children = room.child_count || 0;
       const required = children > 0 ? Math.max(1, Math.ceil(children / nqf.ratio)) : 0;
-      const hasECT = roomEntries.some(e => e.qualification === 'ect' || e.qualification === 'diploma');
-      const ectOk = !nqf.ect_required || hasECT;
       const ratioOk = roomEntries.length >= required;
-      return { room_id: room.id, room_name: room.name, age_group: room.age_group, children, required, assigned: roomEntries.length, ect_required: nqf.ect_required, ect_ok: ectOk, ratio_ok: ratioOk, compliant: ratioOk && ectOk, entries: roomEntries };
+      return { room_id: room.id, room_name: room.name, age_group: room.age_group, children, required, assigned: roomEntries.length, ratio_ok: ratioOk, compliant: ratioOk, entries: roomEntries };
     });
-    res.json({ compliance, entries });
+
+    // ── SERVICE-LEVEL ECT CHECK ─────────────────────────────────────────────
+    // Look up the ECT threshold from compliance_rules based on total children
+    // enrolled and the tenant's jurisdiction. Compare against ECTs scheduled
+    // on this date.
+    let service_ect = null;
+    try {
+      const j = db.prepare('SELECT country, state FROM tenant_jurisdiction WHERE tenant_id=?').get(req.tenantId)
+                 || { country: 'AU', state: null };
+      const totalChildren = rooms.reduce((s, r) => s + (r.child_count || 0), 0);
+      if (j.country === 'AU') {
+        const t = db.prepare(`SELECT * FROM compliance_rules
+          WHERE country='AU' AND rule_type='ect' AND ? BETWEEN children_min AND children_max LIMIT 1`)
+          .get(totalChildren);
+        if (t) {
+          let requiredEcts = 0;
+          switch (t.ect_requirement) {
+            case 'two_full_time':       requiredEcts = 2; break;
+            case 'full_time_plus_one':  requiredEcts = 2; break;
+            case 'full_time_or_60pct':  requiredEcts = 1; break;
+            case 'ict_or_visit':        requiredEcts = 0; break;
+            default:                    requiredEcts = 1;
+          }
+          const ectsOnDuty = entries.filter(e => e.qualification === 'ect').length;
+          service_ect = {
+            country: 'AU', total_children: totalChildren,
+            threshold_id: t.id, ect_requirement: t.ect_requirement,
+            required_ect_count: requiredEcts, actual_ect_count: ectsOnDuty,
+            is_compliant: ectsOnDuty >= requiredEcts, notes: t.notes,
+          };
+        }
+      } else if (j.country === 'NZ') {
+        const required = Math.max(1, Math.ceil(totalChildren / 50));
+        const actual = entries.filter(e => e.qualification === 'ect' || e.qualification === 'diploma').length;
+        service_ect = {
+          country: 'NZ', total_children: totalChildren,
+          required_persons_responsible: required, actual_persons_responsible: actual,
+          is_compliant: actual >= required,
+          notes: '1 Person Responsible per 50 children (NZ Teaching Council practising cert)',
+        };
+      }
+    } catch (e) { /* compliance_rules / tenant_jurisdiction may not exist on first run */ }
+
+    res.json({ compliance, entries, service_ect });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
