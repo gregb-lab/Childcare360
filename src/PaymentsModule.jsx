@@ -81,7 +81,7 @@ function PaymentsTab() {
   const saveKeys=async()=>{
     const r=await API("/api/payments/setup",{method:"POST",body:keys});
     if(r.ok){setShowSetup(false);load();}
-    else alert(r.error||"Failed");
+    else window.showToast(r.error||"Failed", 'error');
   };
 
   const createRequest=async()=>{
@@ -96,7 +96,7 @@ function PaymentsTab() {
 
   const sendLink=async(id)=>{
     const r=await API(`/api/payments/requests/${id}/send`,{method:"POST"}).catch(e=>console.error('API error:',e));
-    if(r?.ok){alert(`✓ Payment link generated:\n${r?.payment_url}`);load();}
+    if(r?.ok){window.showToast(`✓ Payment link generated:\n${r?.payment_url}`, 'error');load();}
   };
 
   const markPaid=async(id)=>{
@@ -106,7 +106,7 @@ function PaymentsTab() {
 
   const bulkCreate=async()=>{
     const r=await API("/api/payments/requests/bulk-from-invoices",{method:"POST"}).catch(e=>console.error('API error:',e));
-    alert(r?.message||"Done");load();
+    window.showToast(r?.message||"Done", 'error');load();
   };
 
   const STATUS_C={pending:WA,sent:IN,paid:OK,cancelled:MU};
@@ -305,13 +305,13 @@ function WaitlistPipelineTab() {
   const makeOffer=async()=>{
     if(!offering)return;
     const r=await API(`/api/waitlist-auto/offer/${offering.id}`,{method:"POST",body:offerForm});
-    if(r.ok){alert(`✓ ${r.message}`);setOffering(null);load();}
-    else alert(r.error);
+    if(r.ok){window.showToast(`✓ ${r.message}`, 'error');setOffering(null);load();}
+    else window.showToast(r.error, 'error');
   };
 
   const accept=async(id)=>{
     const r=await API(`/api/waitlist-auto/accept/${id}`,{method:"POST",body:{start_date:new Date(Date.now()+14*86400000).toISOString().split("T")[0]}});
-    if(r.ok){alert(`✓ ${r.message}`);load();}
+    if(r.ok){window.showToast(`✓ ${r.message}`, 'error');load();}
   };
 
   const decline=async(id)=>{
@@ -321,7 +321,7 @@ function WaitlistPipelineTab() {
 
   const bulkNotify=async()=>{
     const r=await API("/api/waitlist-auto/bulk-notify",{method:"POST",body:{message:"A place may be becoming available soon. Please contact us to discuss your child's enrolment."}}).catch(e=>console.error('API error:',e));
-    alert(r?.message||"Done");
+    window.showToast(r?.message||"Done", 'error');
   };
 
   const PRIO_C={high:DA,normal:IN,low:MU};

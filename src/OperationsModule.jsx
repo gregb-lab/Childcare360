@@ -23,7 +23,12 @@ const btnD = { padding:"9px 18px", borderRadius:9, border:"none", background:DAN
 const inp = { padding:"8px 12px", borderRadius:8, border:"1px solid #DDD6EE", fontSize:13, width:"100%", boxSizing:"border-box", fontFamily:"inherit" };
 const lbl = { fontSize:11, color:MUTED, fontWeight:700, display:"block", marginBottom:4, textTransform:"uppercase" };
 
-const today = () => new Date().toISOString().split("T")[0];
+// Local date — toISOString() is UTC and returns yesterday for the first ~10h
+// of the day in AEST. Build the YYYY-MM-DD from local components.
+const today = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+};
 const fmtTime = t => t ? t.slice(0,5) : "—";
 const fmtDate = d => d ? new Date(d+"T12:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}) : "—";
 

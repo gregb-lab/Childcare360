@@ -321,9 +321,9 @@ function SessionsTab() {
   }, []);
 
   const revoke = async (id) => {
-    if (!confirm('Revoke this session? The user will be logged out immediately.')) return;
+    if (!(await window.showConfirm('Revoke this session? The user will be logged out immediately.'))) return;
     try { await API(`/sessions/${id}`, { method: 'DELETE' }); }
-    catch(e) { alert('Failed to revoke session.'); return; }
+    catch(e) { window.showToast('Failed to revoke session.', 'error'); return; }
     setSessions(s => s.filter(x => x.id !== id));
   };
 

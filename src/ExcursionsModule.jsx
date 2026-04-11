@@ -127,10 +127,10 @@ export default function ExcursionsModule() {
     if (!selected) return;
     try {
       const r = await API(`/api/excursions/${selected}/send-permission`, { method: "POST" });
-      if (r.error) { alert(r.error); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
       loadDetail(selected); load();
-      alert('Permission requests sent to parents.');
-    } catch(e) { alert('Failed to send permissions: ' + e.message); }
+      window.showToast('Permission requests sent to parents.', 'error');
+    } catch(e) { window.showToast('Failed to send permissions: ' + e.message, 'error'); }
   };
 
   const updateStatus = async (status) => {

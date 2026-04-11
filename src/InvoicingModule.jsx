@@ -75,7 +75,7 @@ function InvoicesTab({ invoices, onRefresh }) {
       const r = await API("/api/invoicing/payments",{method:"POST",body:{invoiceId:id,amount,method:"card"}});
       if (r.error) { toast(r.error, "error"); return; }
       onRefresh();
-    } catch(e) { alert("Payment failed: " + e.message); }
+    } catch(e) { window.showToast("Payment failed: " + e.message, 'error'); }
   };
 
   const exportCSV = () => {

@@ -151,7 +151,7 @@ export default function RatioReportModule() {
         setExpandedDates({ [r.report[0].date]: true });
       }
     } catch (e) {
-      alert("Error: " + e.message);
+      window.showToast("Error: " + e.message, 'error');
     } finally {
       setLoading(false);
     }

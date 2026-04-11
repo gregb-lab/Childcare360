@@ -100,10 +100,10 @@ function BulkSendTab() {
     const r=await API("/api/bulk-comms/send",{method:"POST",body:{...form,channels:["in_app"]}});
     setSending(false);
     if(r.ok){
-      alert(`✓ ${r.message}`);
+      window.showToast(`✓ ${r.message}`, 'error');
       setForm({subject:"",body:"",message_type:"general",target_audience:"all_families",target_room_ids:[]});
       load();
-    } else alert(r.error||"Failed to send");
+    } else window.showToast(r.error||"Failed to send", 'error');
   };
 
   const applyTemplate=t=>{

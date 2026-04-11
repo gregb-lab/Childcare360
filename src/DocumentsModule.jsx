@@ -69,12 +69,12 @@ export default function DocumentsModule() {
   useEffect(() => { load(); }, [load]);
 
   const approveDoc = async (id) => {
-    try { await API(`/api/documents/${id}/approve`, { method: "PUT" }); } catch(e) { alert("Action failed."); return; }
+    try { await API(`/api/documents/${id}/approve`, { method: "PUT" }); } catch(e) { window.showToast("Action failed.", 'error'); return; }
     load();
   };
 
   const denyDoc = async (id) => {
-    try { await API(`/api/documents/${id}/deny`, { method: "PUT", body: JSON.stringify({ reason: "Denied by centre manager" }) }); } catch(e) { alert("Action failed."); return; }
+    try { await API(`/api/documents/${id}/deny`, { method: "PUT", body: JSON.stringify({ reason: "Denied by centre manager" }) }); } catch(e) { window.showToast("Action failed.", 'error'); return; }
     load();
   };
 

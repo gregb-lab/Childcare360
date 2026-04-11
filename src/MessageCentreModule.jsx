@@ -245,10 +245,10 @@ function BroadcastTab() {
     const r=await API("/api/bulk-comms/send",{method:"POST",body:{...form,channels:["in_app"]}});
     setSending(false);
     if(r.ok){
-      alert(`✓ ${r.message}`);
+      window.showToast(`✓ ${r.message}`, 'error');
       setForm({subject:"",body:"",message_type:"general",target_audience:"all_families",target_room_ids:[]});
       API("/api/bulk-comms/history").then(h=>setHistory(h.messages||[]));
-    } else alert(r.error||"Failed");
+    } else window.showToast(r.error||"Failed", 'error');
   };
 
   const TYPE_C={general:IN,emergency:DA,fee_reminder:WA,policy_update:P,event:"#9333EA"};

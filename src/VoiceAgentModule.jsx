@@ -546,9 +546,9 @@ function DebugPanel() {
   const forceActive = async () => {
     try {
       const d = await API('/force-active', { method: 'POST', body: JSON.stringify({}) });
-      alert(d.ok ? 'Active set to ON in database. Refresh debug to confirm.' : 'Error: ' + d.error);
+      window.showToast(d.ok ? 'Active set to ON in database. Refresh debug to confirm.' : 'Error: ' + d.error, 'error');
       run();
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) { window.showToast('Error: ' + e.message, 'error'); }
   };
 
   return (

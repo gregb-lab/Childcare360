@@ -291,7 +291,7 @@ function ToursView() {
   const bookTour=async()=>{
     if(!form.family_name||!form.booked_date||!form.booked_time)return;
     const r=await API("/api/crm/tours",{method:"POST",body:form});
-    if(r.error){alert(r.error);return;}
+    if(r.error){window.showToast(r.error, 'error');return;}
     setShowForm(false);
     setForm({family_name:"",family_email:"",family_phone:"",child_name:"",booked_date:"",booked_time:"09:00"});
     load();

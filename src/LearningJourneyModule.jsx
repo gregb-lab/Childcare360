@@ -750,7 +750,7 @@ function StoryDetailView({ story: s, children, onClose, onEdit, onRefresh }) {
   };
 
   const deletePhoto = async (photoId) => {
-    if (!confirm("Delete this photo?")) return;
+    if (!(await window.showConfirm("Delete this photo?"))) return;
     await API(`/api/learning/photos/${photoId}`, { method:"DELETE" });
     setPhotos(prev => prev.filter(p => p.id !== photoId));
     onRefresh();
@@ -760,7 +760,7 @@ function StoryDetailView({ story: s, children, onClose, onEdit, onRefresh }) {
     setPublishing(true);
     try {
       const r = await API(`/api/learning/stories/${s.id}/publish`,{method:"POST"});
-      if (r.error) { alert(r.error); } else { onRefresh(); }
+      if (r.error) { window.showToast(r.error, 'error'); } else { onRefresh(); }
     } catch(e) { toast("Failed to publish story.", "error"); }
     setPublishing(false);
   };
@@ -1108,8 +1108,8 @@ function WeeklyReportsView({ children, families, multiFamilies }) {
     const we = new Date(new Date(ws)); we.setDate(we.getDate()+6);
     try {
       const r = await API(`/api/learning/weekly/${selectedChild}/generate`,{method:"POST",body:{week_start:ws, week_end:we.toISOString().slice(0,10)}});
-      if (r.error) { alert(r.error); return; }
-    } catch(e) { alert('Failed to generate report: '+e.message); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
+    } catch(e) { window.showToast('Failed to generate report: '+e.message, 'error'); return; }
     await load(selectedChild);
     setGenerating(false);
   };
@@ -1189,7 +1189,7 @@ function FamiliesView({ families, children, stories, onFamilyFilter, onRefresh }
   const sync = async () => {
     setSyncing(true);
     try { await API("/api/learning/families/sync",{method:"POST"}); onRefresh(); }
-    catch(e) { alert('Sync failed: '+e.message); }
+    catch(e) { window.showToast('Sync failed: '+e.message, 'error'); }
     setSyncing(false);
   };
 

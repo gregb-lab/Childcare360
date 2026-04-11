@@ -123,9 +123,9 @@ function AgeGroupSettingsModal({ onClose, onChanged }) {
   };
 
   const del = async (g) => {
-    if (!confirm(`Delete "${g.label}" age group? This cannot be undone.`)) return;
+    if (!(await window.showConfirm(`Delete "${g.label}" age group? This cannot be undone.`))) return;
     const r = await API(`/api/age-groups/${g.id}`, { method: "DELETE" });
-    if (r.error) { alert(r.error); return; }
+    if (r.error) { window.showToast(r.error, 'error'); return; }
     await load(); onChanged();
   };
 
@@ -293,7 +293,7 @@ function RoomEditModal({ room, ageGroups: ageGroupsProp, onSave, onClose }) {
   const g = ageGroups.find(x => x.group_id === form.ageGroup);
 
   const handleSave = async () => {
-    if (!form.name?.trim()) { alert("Room name is required"); return; }
+    if (!form.name?.trim()) { window.showToast("Room name is required", 'error'); return; }
     try {
       setSaving(true);
       await onSave(form);
@@ -465,7 +465,7 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
     setShowAssign(false);
   };
   const removeEducator = async (educatorId) => {
-    try { await API(`/api/rooms/${room.id}/educators/${educatorId}`,{method:"DELETE"}); } catch(e) { alert("Failed to remove educator."); return; }
+    try { await API(`/api/rooms/${room.id}/educators/${educatorId}`,{method:"DELETE"}); } catch(e) { window.showToast("Failed to remove educator.", 'error'); return; }
     setEducators(prev=>prev.filter(e=>e.id!==educatorId));
   };
 
@@ -789,7 +789,7 @@ export default function RoomsModule() {
   };
 
   const deleteRoom = async(room)=>{
-    try{const r=await API(`/api/rooms/${room.id}`,{method:"DELETE"});if(r.error){alert(r.error);}else{setRooms(prev=>prev.filter(rm=>rm.id!==room.id));if(selectedRoomId===room.id){setSelectedRoomId(null);setViewDetail(false);}}}catch(e){alert("Delete failed");}
+    try{const r=await API(`/api/rooms/${room.id}`,{method:"DELETE"});if(r.error){window.showToast(r.error, 'error');}else{setRooms(prev=>prev.filter(rm=>rm.id!==room.id));if(selectedRoomId===room.id){setSelectedRoomId(null);setViewDetail(false);}}}catch(e){alert("Delete failed");}
     setDeleteConfirm(null);
   };
 

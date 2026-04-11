@@ -621,7 +621,7 @@ function CasualTab() {
   const submitNew=async()=>{
     if(!form.child_id||!form.requested_date)return;
     const r=await API("/api/admin/casual",{method:"POST",body:form});
-    if(r.error){alert(r.error);return;}
+    if(r.error){window.showToast(r.error, 'error');return;}
     setShowNew(false);load();
   };
 

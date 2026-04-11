@@ -72,7 +72,7 @@ export default function TodoModule() {
   };
 
   const del = async (id) => {
-    if (!confirm("Delete this item?")) return;
+    if (!(await window.showConfirm("Delete this item?"))) return;
     try { await API(`/api/v2/todo/${id}`, { method: "DELETE" }); toast("Deleted"); load(); }
     catch (e) { toast("Failed", "error"); }
   };

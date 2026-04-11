@@ -417,7 +417,7 @@ function RiskTab() {
       }});
       setSaving(false);
       if(r.ok){setShowNew(false);load();}
-      else alert(r.error);
+      else window.showToast(r.error, 'error');
     } catch(e) { console.error('API error:', e); }
   };
 
@@ -673,7 +673,7 @@ function ScheduledReportsTab() {
   };
 
   const del=async(id)=>{
-    if(!confirm("Delete this scheduled report?"))return;
+    if(!(await window.showConfirm("Delete this scheduled report?")))return;
     await API(`/api/reports-builder/schedules/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
     load();
   };

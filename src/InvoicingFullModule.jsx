@@ -145,13 +145,13 @@ function InvoicesTab({onRefresh}) {
   const recordPayment=async(id,amount,method)=>{
     const r=await API(`/api/invoicing-full/invoices/${id}/pay`,{method:"POST",body:{amount,method}});
     if(r.ok){load();openDetail(id);onRefresh?.();}
-    else alert(r.error);
+    else window.showToast(r.error, 'error');
   };
 
   const createInvoice=async()=>{
     const r=await API("/api/invoicing-full/invoices",{method:"POST",body:newForm});
     if(r.ok){setShowCreate(false);load();onRefresh?.();openDetail(r.id);}
-    else alert(r.error);
+    else window.showToast(r.error, 'error');
   };
 
   const addLineItem=()=>setNewForm(p=>({...p,line_items:[...p.line_items,{description:"",quantity:1,unit_price:"",item_type:"fee",date:""}]}));

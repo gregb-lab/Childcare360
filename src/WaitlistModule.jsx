@@ -65,7 +65,7 @@ export default function WaitlistModule() {
     if (!form.child_name || !form.parent_name) return;
     try {
       const r = await API("/api/waitlist", { method: "POST", body: form });
-      if (r.error) { alert(r.error); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
     } catch(e) { toast("Failed to add to waitlist.", "error"); return; }
     setShowAdd(false);
     setForm({ child_name: "", child_dob: "", parent_name: "", parent_email: "", parent_phone: "", preferred_room: "", preferred_days: [], notes: "", priority: "normal" });
@@ -73,7 +73,7 @@ export default function WaitlistModule() {
   };
 
   const removeFromWaitlist = async (id) => {
-    if (!confirm("Remove from waitlist?")) return;
+    if (!(await window.showConfirm("Remove from waitlist?"))) return;
     try { await API(`/api/waitlist/${id}`, { method: "DELETE" }); }
     catch(e) { toast("Failed to remove entry.", "error"); return; }
     load();
@@ -83,9 +83,9 @@ export default function WaitlistModule() {
     setAiLoading(true);
     try {
       const r = await API("/api/waitlist/ai-reenrolment-plan", { method: "POST", body: { year: planYear } });
-      if (r.error) { alert("AI plan failed: " + r.error); } else { setAiPlan(r); setTab("planner"); }
+      if (r.error) { window.showToast("AI plan failed: " + r.error, 'error'); } else { setAiPlan(r); setTab("planner"); }
     } catch (e) {
-      alert("AI plan failed: " + e.message);
+      window.showToast("AI plan failed: " + e.message, 'error');
     }
     setAiLoading(false);
   };
@@ -95,7 +95,7 @@ export default function WaitlistModule() {
     if (isNew) {
       // Move from waitlist to enrolment
       try { await API(`/api/waitlist/${childId}/convert`, { method: "POST", body: { room_id: roomId } }); }
-      catch(e) { alert('Conversion failed.'); return; }
+      catch(e) { window.showToast('Conversion failed.', 'error'); return; }
     } else {
       try { await API(`/api/children/${childId}`, { method: "PUT", body: { room_id: roomId } }); }
       catch(e) { console.error('Child room update failed:', e); }

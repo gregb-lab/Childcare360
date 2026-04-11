@@ -521,7 +521,7 @@ function TransitionsTab() {
     const r=await API(`/api/childdev/transitions/${active.id}/auto-draft`,{method:"POST"}).catch(e=>console.error('API error:',e));
     await loadReport(active.id);
     setDrafting(false);
-    alert(`✓ Auto-drafted ${r?.drafted_sections} sections from ${r?.milestone_count} milestone records`);
+    window.showToast(`✓ Auto-drafted ${r?.drafted_sections} sections from ${r?.milestone_count} milestone records`, 'error');
   };
 
   const save=async()=>{

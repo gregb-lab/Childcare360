@@ -93,7 +93,7 @@ function EventsTab() {
   };
 
   const del=async(id)=>{
-    if(!confirm("Delete this event?"))return;
+    if(!(await window.showConfirm("Delete this event?")))return;
     await API(`/api/engagement/events/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
     setSelected(null);load();
   };

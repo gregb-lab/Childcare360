@@ -23,6 +23,15 @@ import { requireAuth, requireTenant } from './middleware.js';
 const r = Router();
 r.use(requireAuth, requireTenant);
 
+// ── Local date helper ─────────────────────────────────────────────────────────
+// Always use server-local date for "today" — toISOString() is UTC and returns
+// yesterday for the first ~10h of the day in AEST. Same fix as children.js,
+// daily-updates.js, etc.
+const localDate = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+};
+
 // ── Pagination helper ─────────────────────────────────────────────────────────
 const paginate = (req) => {
   const page  = Math.max(1, parseInt(req.query.page)  || 1);
@@ -39,7 +48,7 @@ r.get('/visitors', (req, res) => {
   try {
     const { date, status } = req.query;
     const { limit, offset, page } = paginate(req);
-    const d = date || new Date().toISOString().split('T')[0];
+    const d = date || localDate();
 
     const rows = D().prepare(`
       SELECT vl.*, e.first_name as host_first, e.last_name as host_last
@@ -69,7 +78,7 @@ r.post('/visitors', (req, res) => {
 
     const id = uuid();
     const now = new Date();
-    const date = now.toISOString().split('T')[0];
+    const date = localDate();
     const time = now.toTimeString().slice(0,8);
 
     D().prepare(`
@@ -216,7 +225,7 @@ r.put('/evacuation/:id/headcount/:hcId', (req, res) => {
     `).get(req.params.id);
 
     D().prepare('UPDATE evacuation_drills SET all_accounted=?, missing_count=? WHERE id=? AND tenant_id=?')
-      .run(stats.acc >= stats.total ? 1 : 0, stats.total - stats.acc, req.params.id);
+      .run(stats.acc >= stats.total ? 1 : 0, stats.total - stats.acc, req.params.id, req.tenantId);
 
     res.json({ ok: true, accounted: stats.acc, total: stats.total });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -229,7 +238,7 @@ r.put('/evacuation/:id/headcount/:hcId', (req, res) => {
 // GET /api/operations/sleep?date=YYYY-MM-DD&room_id=
 r.get('/sleep', (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const date = req.query.date || localDate();
     const roomFilter = req.query.room_id ? 'AND c.room_id=?' : '';
     const params = req.query.room_id
       ? [req.tenantId, date, req.query.room_id]
@@ -267,7 +276,7 @@ r.post('/sleep', (req, res) => {
     if (!child_id) return res.status(400).json({ error: 'child_id required' });
 
     const now = new Date();
-    const date = now.toISOString().split('T')[0];
+    const date = localDate();
     const time = now.toTimeString().slice(0,5);
 
     // Calculate next check due (2hr intervals for under-2, no requirement otherwise)
@@ -413,7 +422,7 @@ r.put('/hazards/:id', (req, res) => {
 
 r.get('/rp-log', (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const date = req.query.date || localDate();
     const rows = D().prepare(`
       SELECT rl.*, e.first_name, e.last_name, e.qualification,
              e.first_aid, e.cpr_expiry, e.anaphylaxis_expiry, e.first_aid_expiry
@@ -430,7 +439,7 @@ r.post('/rp-log', (req, res) => {
   try {
     const { educator_id, start_time, end_time, notes } = req.body;
     if (!educator_id || !start_time) return res.status(400).json({ error: 'educator_id and start_time required' });
-    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const date = req.query.date || localDate();
     const id = uuid();
     D().prepare(`
       INSERT OR IGNORE INTO rp_daily_log (id,tenant_id,date,educator_id,start_time,end_time,notes)
@@ -463,7 +472,7 @@ r.put('/rp-log/:id', (req, res) => {
 
 r.get('/handover', (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const date = req.query.date || localDate();
     const rows = D().prepare(`
       SELECT hf.*, r.name as room_name
       FROM handover_forms hf
@@ -482,7 +491,7 @@ r.post('/handover', (req, res) => {
             outstanding_tasks, messages_for_families, general_notes, submitted_by } = req.body;
 
     const id = uuid();
-    const date = new Date().toISOString().split('T')[0];
+    const date = localDate();
     D().prepare(`
       INSERT INTO handover_forms
         (id,tenant_id,date,shift_type,room_id,submitted_by,children_present,
@@ -515,7 +524,7 @@ r.put('/handover/:id/acknowledge', (req, res) => {
 
 r.get('/room-checkins', (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const date = req.query.date || localDate();
     const rows = D().prepare(`
       SELECT rc.*, e.first_name, e.last_name, e.qualification, r.name as room_name, r.age_group
       FROM room_checkins rc
@@ -533,8 +542,7 @@ r.post('/room-checkins', (req, res) => {
     const { educator_id, room_id, clock_record_id } = req.body;
     if (!educator_id || !room_id) return res.status(400).json({ error: 'educator_id and room_id required' });
 
-    const now = new Date();
-    const date = now.toISOString().split('T')[0];
+    const date = localDate();
     const id = uuid();
 
     // Auto-close any open check-in for this educator today
@@ -589,7 +597,7 @@ r.get('/shift-bids', (req, res) => {
 r.get('/open-shifts', (req, res) => {
   try {
     const { limit, offset, page } = paginate(req);
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDate();
 
     const shifts = D().prepare(`
       SELECT re.*, r.name as room_name, r.age_group,
@@ -686,7 +694,7 @@ r.get('/attendance-patterns', (req, res) => {
     const weeks = Math.min(12, parseInt(req.query.weeks) || 4);
     const since = new Date();
     since.setDate(since.getDate() - (weeks * 7));
-    const sinceStr = since.toISOString().split('T')[0];
+    const sinceStr = `${since.getFullYear()}-${String(since.getMonth()+1).padStart(2,'0')}-${String(since.getDate()).padStart(2,'0')}`;
 
     const byDay = D().prepare(`
       SELECT

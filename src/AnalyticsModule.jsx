@@ -380,8 +380,8 @@ function ScheduleTab() {
     setPublishing(true);
     const r=await API("/api/schedule/publish",{method:"POST",body:{week_start:weekStart,message:pubMsg}});
     setPublishing(false);
-    if(r.ok){alert(`✓ ${r.message}`);setPubMsg("");loadHistory();}
-    else alert(r.error);
+    if(r.ok){window.showToast(`✓ ${r.message}`, 'error');setPubMsg("");loadHistory();}
+    else window.showToast(r.error, 'error');
   };
 
   const prevWeek=()=>{const d=new Date(weekStart+"T12:00");d.setDate(d.getDate()-7);setWeekStart(d.toISOString().split("T")[0]);};

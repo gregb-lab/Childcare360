@@ -770,7 +770,7 @@ function DocumentsTab({ educator, onSaved }) {
   };
 
   const delDoc = async id => {
-    if (!confirm("Delete this document?")) return;
+    if (!(await window.showConfirm("Delete this document?"))) return;
     try { await API(`/api/educators/${educator.id}/documents/${id}`, { method: "DELETE" }); onSaved(); toast("Deleted"); }
     catch(e) { toast("Delete failed", "error"); }
   };
@@ -1515,7 +1515,7 @@ export default function EducatorsModule() {
                <button onClick={()=>setEditMode(true)} style={btnS}>Edit</button>
                {edu.status !== "inactive"
                  ? <button onClick={()=>setShowTerminate(true)} style={{ background:"#FFEBEE",color:"#B71C1C",border:"1px solid #FFCDD2",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Terminate</button>
-                 : <button onClick={async()=>{ if(!confirm("Reinstate this educator?")) return; const r=await API(`/api/educators/${selected}/reinstate`,{method:"POST"}); if(r.ok){loadDetail(selected);loadEducators();toast("Educator reinstated");} else toast(r.error,"error"); }} style={{ background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Reinstate</button>}
+                 : <button onClick={async()=>{ if(!(await window.showConfirm("Reinstate this educator?"))) return; const r=await API(`/api/educators/${selected}/reinstate`,{method:"POST"}); if(r.ok){loadDetail(selected);loadEducators();toast("Educator reinstated");} else toast(r.error,"error"); }} style={{ background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Reinstate</button>}
              </>
             :<div style={{ display:"flex",gap:8 }}>
               <button onClick={saveEdit} style={btnP}>Save</button>
@@ -1788,7 +1788,7 @@ function TerminationTab({ educator, onSaved }) {
   };
 
   const delDoc = async id => {
-    if (!confirm("Delete this document?")) return;
+    if (!(await window.showConfirm("Delete this document?"))) return;
     try {
       await API(`/api/educators/${educator.id}/termination-documents/${id}`, { method: "DELETE" });
       setDocs(d => d.filter(x => x.id !== id)); toast("Deleted");

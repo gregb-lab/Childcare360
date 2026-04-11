@@ -1264,8 +1264,8 @@ function CcsSubmissionsTab({ data, onRefresh }) {
   const submitReport = async (id) => {
     try {
       const r = await API(`/api/platform/ccs/submit/${id}`, { method: "POST" });
-      if (r.error) { alert(r.error); return; }
-    } catch(e) { alert("CCS submit failed: " + e.message); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
+    } catch(e) { window.showToast("CCS submit failed: " + e.message, 'error'); return; }
     onRefresh();
   };
   const submitAll = async () => {
@@ -1273,8 +1273,8 @@ function CcsSubmissionsTab({ data, onRefresh }) {
     if (draftIds.length === 0) return;
     try {
       const r = await API("/api/platform/ccs/submit-batch", { method: "POST", body: { ids: draftIds } });
-      if (r.error) { alert(r.error); return; }
-    } catch(e) { alert("Batch submit failed: " + e.message); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
+    } catch(e) { window.showToast("Batch submit failed: " + e.message, 'error'); return; }
     onRefresh();
   };
 
@@ -1467,7 +1467,7 @@ function ProvisionModal({ onClose, onDone }) {
     try {
       let res;
       try { res = await API("/api/platform/tenants", { method: "POST", body: form }); }
-      catch(e) { alert("Failed to create centre: " + e.message); setCreating(false); return; }
+      catch(e) { window.showToast("Failed to create centre: " + e.message, 'error'); setCreating(false); return; }
       if (res.error) throw new Error(res.error);
       onDone();
     } catch (e) { setError(e.message); }

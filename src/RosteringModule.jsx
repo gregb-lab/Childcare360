@@ -337,7 +337,7 @@ function EditorForm({ ed, onDone }) {
 
   const u=(k,v)=>setF(p=>({...p,[k]:v}));
   const save=async()=>{
-    if(!f.first_name||!f.last_name) return alert("Name is required");
+    if(!f.first_name||!f.last_name) return window.showToast("Name is required", 'error');
     try {
       setSaving(true);
       const body={...f,first_aid:f.first_aid?1:0,is_under_18:f.is_under_18?1:0,is_lunch_cover:f.is_lunch_cover?1:0,availability:avail};
@@ -1495,7 +1495,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
   const approve = async id => { try { await API("/api/rostering/periods/" + id + "/approve", { method: "PUT" }); reload(); loadP(id); toast("Roster approved"); } catch (e) { toast("Approve failed", "error"); } };
   const publish = async id => { try { await API("/api/rostering/periods/" + id + "/publish", { method: "PUT" }); reload(); loadP(id); toast("Roster published"); } catch (e) { toast("Publish failed", "error"); } };
   const unpublish = async id => { try { await API("/api/rostering/periods/" + id + "/unpublish", { method: "PUT" }); reload(); loadP(id); toast("Roster reverted to draft"); } catch (e) { toast("Unpublish failed", "error"); } };
-  const deletePeriod = async id => { if (!confirm("Delete this roster period and all its shifts? This cannot be undone.")) return; try { await API("/api/rostering/periods/" + id, { method: "DELETE" }); reload(); localStorage.removeItem("c360_last_period_id"); toast("Period deleted"); } catch (e) { toast("Delete failed", "error"); } };
+  const deletePeriod = async id => { if (!(await window.showConfirm("Delete this roster period and all its shifts? This cannot be undone."))) return; try { await API("/api/rostering/periods/" + id, { method: "DELETE" }); reload(); localStorage.removeItem("c360_last_period_id"); toast("Period deleted"); } catch (e) { toast("Delete failed", "error"); } };
 
   // Template actions
   const saveAsTemplate = async () => {
@@ -1515,7 +1515,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
     } catch (e) { toast("Failed to apply", "error"); }
   };
   const deleteTemplate = async (id) => {
-    if (!confirm("Delete this template?")) return;
+    if (!(await window.showConfirm("Delete this template?"))) return;
     try { await API("/api/rostering/templates/" + id, { method: "DELETE" }); reload(); toast("Template deleted"); } catch (e) { toast("Failed", "error"); }
   };
 
@@ -2162,7 +2162,7 @@ function SickCoverTab({ educators = [], fills = [], reload }) {
 
 /* ═══ PROPOSALS ═══ */
 function ProposalsTab({ proposals, reload }) {
-  const resolve=async(id,opt)=>{try{await API("/api/rostering/change-proposals/"+id+"/resolve",{method:"POST",body:{selected_option:opt}});reload();}catch(e){alert("Resolve failed.");}};
+  const resolve=async(id,opt)=>{try{await API("/api/rostering/change-proposals/"+id+"/resolve",{method:"POST",body:{selected_option:opt}});reload();}catch(e){window.showToast("Resolve failed.", 'error');}};
   return (
     <div>
       {proposals.length===0&&<div style={{...card,padding:30,textAlign:"center",color:"#A89DB5"}}><div style={{fontSize:36,marginBottom:8}}>🔔</div><p>No change proposals.</p></div>}

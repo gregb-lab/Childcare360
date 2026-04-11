@@ -302,7 +302,7 @@ function CheckInForm({ today, todayStr, onSaved }) {
     setSaving(true);
     try {
       const r = await API("/api/wellbeing/checkin", { method: "POST", body: { ...f, date: todayStr, concerns: JSON.stringify(f.concerns) } });
-      if (r.error) { alert(r.error); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
     } catch(e) { toast("Failed to submit check-in.", "error"); return; }
     setSaving(false);
     setDone(true);

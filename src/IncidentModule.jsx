@@ -103,7 +103,7 @@ export default function IncidentModule() {
   };
 
   const del = async (id) => {
-    if (!confirm("Delete this incident record? This cannot be undone.")) return;
+    if (!(await window.showConfirm("Delete this incident record? This cannot be undone."))) return;
     try { await API(`/api/incidents/${id}`, { method: "DELETE" }); toast("Deleted"); load(); }
     catch(e) { toast("Delete failed", "error"); }
   };

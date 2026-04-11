@@ -110,7 +110,7 @@ function AIWriterTab() {
       setFinalText(r.generated_text);
       API("/api/ai-assistant/history").then(h=>setHistory(h.sessions||[]));
     } else {
-      alert(r.error||"Generation failed");
+      window.showToast(r.error||"Generation failed", 'error');
     }
   };
 
@@ -125,7 +125,7 @@ function AIWriterTab() {
       eylf_links:result?.eylf_suggested||[],
     }});
     setSaving(false);
-    alert("✓ Saved"+(form.session_type==="observation"?" as observation":""));
+    window.showToast("✓ Saved"+(form.session_type==="observation"?" as observation":""), 'error');
     } catch(e) { console.error('API error:', e); }
   };
 

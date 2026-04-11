@@ -140,7 +140,7 @@ export default function ChildrenModule() {
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
                 <h2 style={{ margin: 0, color: "#3D3248", fontSize: 20 }}>{selected.first_name} {selected.last_name}</h2>
                 <button
-                  onClick={async () => { if (!confirm(`Archive ${selected.first_name} ${selected.last_name}? They will be removed from active lists but their records are preserved.`)) return; await API(`/api/children/${selected.id}`, { method: "DELETE" }); setSelected(null); load(); }} // error: caught by caller
+                  onClick={async () => { if (!(await window.showConfirm(`Archive ${selected.first_name} ${selected.last_name}? They will be removed from active lists but their records are preserved.`))) return; await API(`/api/children/${selected.id}`, { method: "DELETE" }); setSelected(null); load(); }} // error: caught by caller
                   style={{ marginLeft: 12, padding: "5px 12px", borderRadius: 8, border: "1px solid #FFCDD2", background: "#FFF5F5", color: "#C06B73", cursor: "pointer", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
                   Archive Child
                 </button>
@@ -332,7 +332,7 @@ function AuthorisedPersonsSection({ child }) {
   useEffect(() => { load(); }, [child.id]);
 
   const save = async () => {
-    if (!form.name.trim()) { alert("Name is required"); return; }
+    if (!form.name.trim()) { window.showToast("Name is required", 'error'); return; }
     setSaving(true);
     try {
       await API(`/api/children/${child.id}/collection-persons`, { method: "POST", body: form });
@@ -345,7 +345,7 @@ function AuthorisedPersonsSection({ child }) {
   };
 
   const remove = async (id) => {
-    if (!confirm("Remove this person?")) return;
+    if (!(await window.showConfirm("Remove this person?"))) return;
     await API(`/api/children/${child.id}/collection-persons/${id}`, { method: "DELETE" }).catch(() => {});
     setPersons(p => p.filter(x => x.id !== id));
   };
@@ -793,7 +793,7 @@ function MedicalPlansSection({ child }) {
   };
   const update = async (id, f) => {
     if (f._delete) {
-      if (!confirm("Delete this medical plan? This cannot be undone.")) return;
+      if (!(await window.showConfirm("Delete this medical plan? This cannot be undone."))) return;
       try { await API("/api/children/" + child.id + "/medical-plans/" + id, { method: "DELETE" }); }
       catch(e) { toast("Failed to delete.", "error"); return; }
       await load(); setEditPlan(null); setViewPlan(null); return;
@@ -913,15 +913,15 @@ function MedicalPlanForm({ planTypes, initialData, childId, onSave, onClose }) {
   const [uploading, setUploading] = useState(false);
   const u = (k, v) => setF(function(p) { return Object.assign({}, p, { [k]: v }); });
   const uploadFile = async (file) => {
-    if (!childId) { alert("Save the child first before uploading"); return; }
+    if (!childId) { window.showToast("Save the child first before uploading", 'error'); return; }
     setUploading(true);
     const fd = new FormData(); fd.append("file", file);
     try {
       const resp = await fetch("/api/children/" + childId + "/upload", { method: "POST", headers: { "Authorization": "Bearer " + localStorage.getItem("c360_token"), "x-tenant-id": localStorage.getItem("c360_tenant") }, body: fd });
       const d = await resp.json();
       if (d.url) { u("document_url", d.url); toast("Document uploaded"); }
-      else alert(d.error || "Upload failed");
-    } catch(e) { alert("Upload failed"); }
+      else window.showToast(d.error || "Upload failed", 'error');
+    } catch(e) { window.showToast("Upload failed", 'error'); }
     setUploading(false);
   };
   return (
@@ -966,14 +966,14 @@ function MedicalPlanForm({ planTypes, initialData, childId, onSave, onClose }) {
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
         {initialData && (
-          <button onClick={() => { if(confirm("Delete this medical plan?")) onSave({ ...f, _delete: true }); }}
+          <button onClick={async () => { if((await window.showConfirm("Delete this medical plan?"))) onSave({ ...f, _delete: true }); }}
             style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             🗑 Delete Plan
           </button>
         )}
         <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
           <button onClick={onClose} style={btnS}>Cancel</button>
-          <button onClick={() => { if (!f.condition_name) { alert("Condition Name is required"); return; } onSave(f); }} style={btnP}>{initialData ? "Update Plan" : "Save Plan"}</button>
+          <button onClick={() => { if (!f.condition_name) { window.showToast("Condition Name is required", 'error'); return; } onSave(f); }} style={btnP}>{initialData ? "Update Plan" : "Save Plan"}</button>
         </div>
       </div>
     </div>
@@ -984,7 +984,7 @@ function MedicationForm({ childId, onSaved, onClose }) {
   const [f, setF] = useState({ name: "", dose: "", frequency: "", location: "", expiry_date: "", instructions: "", active: true });
   const save = async () => {
     let r;
-    try { r = await API(`/api/children/${childId}/medications`, { method: "POST", body: f }); if(r.error){alert(r.error);return;} }
+    try { r = await API(`/api/children/${childId}/medications`, { method: "POST", body: f }); if(r.error){window.showToast(r.error, 'error');return;} }
     catch(e) { toast("Failed to save medication.", "error"); return; }
     if (r.id) onSaved();
   };
@@ -1010,7 +1010,7 @@ function EquipmentForm({ childId, onSaved, onClose }) {
   const [f, setF] = useState({ name: "", location: "", expiry_date: "", notes: "" });
   const save = async () => {
     let r;
-    try { r = await API(`/api/children/${childId}/equipment`, { method: "POST", body: f }); if(r.error){alert(r.error);return;} }
+    try { r = await API(`/api/children/${childId}/equipment`, { method: "POST", body: f }); if(r.error){window.showToast(r.error, 'error');return;} }
     catch(e) { toast("Failed to save equipment.", "error"); return; }
     if (r.id) onSaved();
   };
@@ -1130,10 +1130,10 @@ function DietaryForm({ childId, onSaved, onClose }) {
   const [f, setF] = useState({ name: "", category: "allergy", severity: "mild", description: "", is_anaphylactic: false, risk_minimisation_plan_url: "", risk_minimisation_plan_date: "", medical_communication_plan_url: "", medical_communication_plan_date: "", action_required: "" });
   const [saving, setSaving] = useState(false);
   const save = async () => {
-    if (!f.name.trim()) { alert("Name is required"); return; }
+    if (!f.name.trim()) { window.showToast("Name is required", 'error'); return; }
     setSaving(true);
     let r;
-    try { r = await API(`/api/children/${childId}/dietary`, { method: "POST", body: f }); if(r.error){alert(r.error);return;} }
+    try { r = await API(`/api/children/${childId}/dietary`, { method: "POST", body: f }); if(r.error){window.showToast(r.error, 'error');return;} }
     catch(e) { toast("Failed to save dietary requirement.", "error"); return; }
     setSaving(false);
     if (r.id) onSaved();
@@ -1212,7 +1212,7 @@ function ParentalRequestForm({ childId, onSaved, onClose }) {
   const [f, setF] = useState({ category: "cultural", title: "", description: "", active: true });
   const save = async () => {
     let r;
-    try { r = await API(`/api/children/${childId}/parental-requests`, { method: "POST", body: f }); if(r.error){alert(r.error);return;} }
+    try { r = await API(`/api/children/${childId}/parental-requests`, { method: "POST", body: f }); if(r.error){window.showToast(r.error, 'error');return;} }
     catch(e) { toast("Failed to save request.", "error"); return; }
     if (r.id) onSaved();
   };
@@ -1298,8 +1298,8 @@ function ImmunisationTab({ child }) {
 
   const saveRecord = async () => {
     const vName = addVaccine === 'other' ? addCustom.trim() : addVaccine;
-    if (!vName) { alert('Please enter a vaccine name'); return; }
-    if (!addDate) { alert('Please enter the date given'); return; }
+    if (!vName) { window.showToast('Please enter a vaccine name', 'error'); return; }
+    if (!addDate) { window.showToast('Please enter the date given', 'error'); return; }
     setSaving(true);
     try {
       const body = { vaccine_name: vName, date_given: addDate, given_date: addDate, batch_number: addBatch || null, provider: addProvider || null, status: 'given' };
@@ -1307,17 +1307,17 @@ function ImmunisationTab({ child }) {
         ? `/api/children/${child.id}/immunisations/${editingId}`
         : `/api/children/${child.id}/immunisations`;
       const r = await API(url, { method: editingId ? 'PUT' : 'POST', body });
-      if (r && r.error) { alert(r.error); setSaving(false); return; }
+      if (r && r.error) { window.showToast(r.error, 'error'); setSaving(false); return; }
       await load();
       setShowAdd(false);
       setAddVaccine('');
       setEditingId(null);
-    } catch(e) { alert('Failed to save: ' + e.message); }
+    } catch(e) { window.showToast('Failed to save: ' + e.message, 'error'); }
     setSaving(false);
   };
 
   const deleteRecord = async (id) => {
-    if (!confirm('Delete this immunisation record?')) return;
+    if (!(await window.showConfirm('Delete this immunisation record?'))) return;
     await API(`/api/children/${child.id}/immunisations/${id}`, { method: 'DELETE' }).catch(() => {});
     setRecords(p => p.filter(r => r.id !== id));
   };
@@ -1523,7 +1523,7 @@ function PermissionsTab({ child }) {
 
 function PermissionsList({ childId, perms, onRefresh }) {
   const del = async (id) => {
-    if (!confirm("Remove this permission?")) return;
+    if (!(await window.showConfirm("Remove this permission?"))) return;
     await API(`/api/children/${childId}/permissions/${id}`, { method: "DELETE" });
     onRefresh();
   };
@@ -1752,12 +1752,12 @@ function AddChildModal({ rooms, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!f.first_name || !f.last_name || !f.dob) return alert("First name, last name and date of birth are required");
+    if (!f.first_name || !f.last_name || !f.dob) return window.showToast("First name, last name and date of birth are required", 'error');
     setSaving(true);
     try {
       const r = await API("/api/children", { method: "POST", body: f });
-      if (r.error) { alert(r.error); return; }
-    } catch(e) { alert('Failed to add child: ' + e.message); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
+    } catch(e) { window.showToast('Failed to add child: ' + e.message, 'error'); return; }
     setSaving(false); onSaved();
   };
 
@@ -1816,7 +1816,7 @@ function EducatorNotesTab({ child }) {
   };
 
   const del = async (id) => {
-    if (!confirm("Delete this note?")) return;
+    if (!(await window.showConfirm("Delete this note?"))) return;
     await API(`/api/register/educator-notes/${id}`, { method: "DELETE" }).catch(e=>console.error('API error:',e));
     load();
   };

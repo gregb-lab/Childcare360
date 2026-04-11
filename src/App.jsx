@@ -42,6 +42,46 @@ function ToastContainer() {
     </div>
   );
 }
+
+// ─── Global Confirm Dialog ───────────────────────────────────────────────────
+// Usage: const ok = await window.showConfirm('Delete this item?');
+// Drop-in replacement for window.confirm() that uses an in-app modal instead
+// of the native browser dialog. Returns Promise<boolean>.
+function ConfirmDialog() {
+  const [state, setState] = useState(null); // { msg, resolve } | null
+  useEffect(() => {
+    window.showConfirm = (msg) => new Promise(resolve => setState({ msg: String(msg ?? ''), resolve }));
+    return () => { delete window.showConfirm; };
+  }, []);
+  if (!state) return null;
+  const respond = (val) => { state.resolve(val); setState(null); };
+  return (
+    <div onClick={() => respond(false)}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(61,50,72,0.45)', zIndex: 10000,
+               display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 14, padding: '22px 24px', minWidth: 320, maxWidth: 480,
+                 boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #EDE8F4' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#FEF2F2',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        color: '#DC2626', fontSize: 18, fontWeight: 700 }}>?</div>
+          <div style={{ flex: 1, fontSize: 14, color: '#3D3248', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+            {state.msg}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={() => respond(false)} autoFocus
+            style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #DDD6EE', background: '#fff',
+                     color: '#7A6E8A', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Cancel</button>
+          <button onClick={() => respond(true)}
+            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff',
+                     cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>Confirm</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 const InvoicingDashboard = lazy(() => import("./InvoicingModule.jsx").then(m => ({ default: m.InvoicingDashboard })));
 const OwnerPortal = lazy(() => import("./OwnerPortalModule.jsx").then(m => ({ default: m.OwnerPortal })));
 const StaffPortalModule = lazy(() => import("./StaffPortalModule.jsx"));
@@ -1049,8 +1089,10 @@ export default function ChildcareRosterApp() {
       {showModal === "educator" && <EducatorModal educator={editItem} onSave={saveEducator} onClose={() => { setShowModal(null); setEditItem(null); }} />}
       {showModal === "room" && <RoomModal room={editItem} onSave={saveRoom} onClose={() => { setShowModal(null); setEditItem(null); }} />}
       <ToastContainer />
+      <ConfirmDialog />
       <style>{`
         @keyframes slideInRight { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </div>
   );
@@ -3857,7 +3899,7 @@ function InnerRosteringSettings({ config, reload, API_r }) {
   });
   const [saving,setSaving]=useState(false);
   const u=(k,v)=>setF(p=>({...p,[k]:v}));
-  const save=async()=>{setSaving(true);try{const r=await API_r("/api/rostering/ai-config",{method:"PUT",body:{...f,agent_type:"sick_cover"}});if(r.error){alert(r.error);}}catch(e){alert("Save failed: "+e.message);}setSaving(false);reload();};
+  const save=async()=>{setSaving(true);try{const r=await API_r("/api/rostering/ai-config",{method:"PUT",body:{...f,agent_type:"sick_cover"}});if(r.error){window.showToast(r.error, 'error');}}catch(e){alert("Save failed: "+e.message);}setSaving(false);reload();};
   const F=({label,k,type,ph,opts,span,info})=>(
     <div style={{gridColumn:span?"span "+span:undefined}}>
       <label style={lbl}>{label}</label>
@@ -4134,7 +4176,7 @@ function DataManagementPanel() {
     }).then(r => r.json());
   };
   const handleReseed = async () => {
-    if (!confirm("This will CLEAR all existing demo data and reseed with 9 rooms, 96 children, 15 educators, and full history. Continue?")) return;
+    if (!(await window.showConfirm("This will CLEAR all existing demo data and reseed with 9 rooms, 96 children, 15 educators, and full history. Continue?"))) return;
     setSeeding(true); setResult(null);
     try {
       const r = await API3("/api/settings/reseed", { method: "POST" });
@@ -4232,7 +4274,7 @@ function SettingsView() {
     } catch(e) { toast('Failed to save provider: ' + e.message, 'error'); }
   };
   const deleteProvider = async (provider) => {
-    if(!confirm(`Remove ${provider} provider?`)) return;
+    if(!(await window.showConfirm(`Remove ${provider} provider?`))) return;
     try {
       await API2(`/api/ai/providers/${provider}`,{method:"DELETE"});
       setProviders(p=>p.filter(x=>x.provider!==provider));
@@ -4691,7 +4733,7 @@ function SettingsView() {
               <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🗑️ Remove Demo Children</div>
               <div style={{fontSize:11,color:"#8A7F96",marginBottom:12}}>Deletes the original sample children (not from CN rooms). Keeps all imported CN children intact.</div>
               <button disabled={dataWorking} onClick={async()=>{
-                if(!confirm('Remove demo children? This keeps all CN-imported children and removes original sample data.')) return;
+                if(!(await window.showConfirm('Remove demo children? This keeps all CN-imported children and removes original sample data.'))) return;
                 setDataWorking(true); setDataMsg(null);
                 try {
                   const r = await API2('/api/children/delete-demo',{method:'DELETE'});
@@ -4707,7 +4749,7 @@ function SettingsView() {
               <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👩‍🏫 Import Real Educators</div>
               <div style={{fontSize:11,color:"#8A7F96",marginBottom:12}}>Replaces all demo educators with the 22 real CN educators from the compliance spreadsheet. Includes qualifications, WWCC, first aid, and room assignments.</div>
               <button disabled={dataWorking} onClick={async()=>{
-                if(!confirm('This will DELETE all current educators for this centre and replace with the 22 real CN educators from the compliance spreadsheet. Continue?')) return;
+                if(!(await window.showConfirm('This will DELETE all current educators for this centre and replace with the 22 real CN educators from the compliance spreadsheet. Continue?'))) return;
                 setDataWorking(true); setDataMsg(null);
                 try {
                   const r = await fetch('/run-seed-educators?token=childcare360seed');
@@ -4897,7 +4939,7 @@ function RoomModal({ room, onSave, onClose }) {
 
   const handleSave = async () => {
     try {
-    if (!form.name?.trim()) { alert("Room name is required"); return; }
+    if (!form.name?.trim()) { window.showToast("Room name is required", 'error'); return; }
     setSaving(true);
     await onSave(form);
     setSaving(false);

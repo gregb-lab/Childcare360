@@ -62,7 +62,7 @@ export default function ChecklistsModule() {
   };
 
   const deleteChecklist = async (id) => {
-    if (!confirm("Archive this checklist?")) return;
+    if (!(await window.showConfirm("Archive this checklist?"))) return;
     await api2(`/api/checklists/${id}`, { method: "DELETE" });
     load();
   };

@@ -312,10 +312,10 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
     setSaving(true);
     try {
       const r = await API(`/api/enrolment/applications/${a.id}`, { method: "PUT", body: { status: newStatus, reviewNotes } });
-      if (r.error) { alert(r.error); setSaving(false); return; }
+      if (r.error) { window.showToast(r.error, 'error'); setSaving(false); return; }
       await onRefresh();
       setReviewing(false);
-    } catch(e) { alert('Failed to save review: ' + e.message); }
+    } catch(e) { window.showToast('Failed to save review: ' + e.message, 'error'); }
     setSaving(false);
   };
 
@@ -324,10 +324,10 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
     setConverting(true);
     try {
       const r = await API(`/api/enrolment/applications/${a.id}`, { method: "PUT", body: { status: "approved", reviewNotes: reviewNotes || "Approved — child record created." } });
-      if (r.error) { alert(r.error); setConverting(false); return; }
+      if (r.error) { window.showToast(r.error, 'error'); setConverting(false); return; }
       toast(`${a.child_first_name} enrolled successfully! Child record created.`);
       await onRefresh();
-    } catch(e) { alert("Failed to approve: " + e.message); }
+    } catch(e) { window.showToast("Failed to approve: " + e.message, 'error'); }
     setConverting(false);
   };
 
@@ -524,7 +524,7 @@ function WaitlistView({ waitlist, rooms, onRefresh }) {
   const remove = async (id) => {
     if (!window.confirm("Remove from waitlist?")) return;
     try { await API(`/api/waitlist/${id}`, { method: "DELETE" }); }
-    catch(e) { alert('Failed to remove: ' + e.message); return; }
+    catch(e) { window.showToast('Failed to remove: ' + e.message, 'error'); return; }
     onRefresh();
   };
 
@@ -630,8 +630,8 @@ function AddWaitlistForm({ rooms, onSaved, onCancel }) {
     setSaving(true);
     try {
       const r = await API("/api/waitlist", { method: "POST", body: f });
-      if (r.error) { alert(r.error); return; }
-    } catch(e) { alert('Failed to add to waitlist: ' + e.message); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
+    } catch(e) { window.showToast('Failed to add to waitlist: ' + e.message, 'error'); return; }
     onSaved();
     setSaving(false);
   };

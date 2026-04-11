@@ -61,7 +61,7 @@ export function ComplianceDashboard({ rooms }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div><h2 style={{margin:0,color:"#3D3248",fontSize:22,fontWeight:700}}>📋 Compliance & Documents</h2>
           <p style={{margin:"4px 0 0",color:"#8A7F96",fontSize:13}}>Automated monitoring — replaces daily manual checks</p></div>
-        <Btn primary onClick={async () => { try { await API("/api/compliance/scan",{method:"POST"}); await load(); } catch(e) { alert('Scan failed: '+e.message); } }}>🔍 Run Scan</Btn>
+        <Btn primary onClick={async () => { try { await API("/api/compliance/scan",{method:"POST"}); await load(); } catch(e) { window.showToast('Scan failed: '+e.message, 'error'); } }}>🔍 Run Scan</Btn>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>

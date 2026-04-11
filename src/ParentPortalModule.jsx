@@ -619,7 +619,7 @@ function ParentChild({ child, onSaved }) {
     setSaving(true);
     try {
       await API(`/api/parent/children/${child.id}`, { method: "PUT", body: f });
-    } catch(e) { alert("Failed to update: " + e.message); return; }
+    } catch(e) { window.showToast("Failed to update: " + e.message, 'error'); return; }
     setSaving(false); onSaved();
   };
 
@@ -927,8 +927,8 @@ function ParentMessages({ messages, onRefresh }) {
     if (!newMsg.trim()) return;
     try {
       const r = await API("/api/parent/messages", { method: "POST", body: { subject, body: newMsg } });
-      if (r.error) { alert(r.error); return; }
-    } catch(e) { alert("Failed to send message."); return; }
+      if (r.error) { window.showToast(r.error, 'error'); return; }
+    } catch(e) { window.showToast("Failed to send message.", 'error'); return; }
     setNewMsg(""); setSubject(""); setShowCompose(false); onRefresh();
   };
 

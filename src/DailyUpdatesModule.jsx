@@ -100,7 +100,7 @@ export default function DailyUpdatesModule() {
     return true;
   };
   const deleteUpdate = async (id) => {
-    if (!confirm("Delete this update?")) return;
+    if (!(await window.showConfirm("Delete this update?"))) return;
     const r = await API(`/api/daily-updates/${id}`, { method: "DELETE" });
     if (r?.error) { toast(r.error, "error"); return; }
     if (selectedChild) {
