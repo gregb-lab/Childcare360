@@ -465,8 +465,10 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
     setShowAssign(false);
   };
   const removeEducator = async (educatorId) => {
+    if (!(await window.showConfirm("Remove this educator from the room?"))) return;
     try { await API(`/api/rooms/${room.id}/educators/${educatorId}`,{method:"DELETE"}); } catch(e) { window.showToast("Failed to remove educator.", 'error'); return; }
     setEducators(prev=>prev.filter(e=>e.id!==educatorId));
+    window.showToast("Educator removed");
   };
 
   const roomChildren = children.filter(c=>c.room_id===room.id);

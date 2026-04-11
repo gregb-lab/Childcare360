@@ -117,7 +117,9 @@ function AdminView() {
   };
 
   const removePin = async (childId) => {
+    if (!(await window.showConfirm("Remove PIN for this child?"))) return;
     await API(`/api/kiosk/pins/${childId}`, { method: "DELETE" });
+    window.showToast("PIN removed");
     load();
   };
 
