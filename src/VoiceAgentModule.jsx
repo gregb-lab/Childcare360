@@ -254,7 +254,7 @@ function SettingsTab() {
   const provider = form.voice_provider || 'twilio';
 
   return (
-    <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24, maxWidth: 760 }}>
+    <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24 }}>
 
       {/* Active toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 12, marginBottom: 24,
@@ -298,6 +298,9 @@ function SettingsTab() {
         </div>
       </Section>
 
+      {/* ── 2-COLUMN LAYOUT: provider config (left) | personality + save (right) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}>
+      <div>
       {/* ── TWILIO + ELEVENLABS CONFIG ── */}
       {provider === 'twilio' && (<>
 
@@ -495,7 +498,10 @@ function SettingsTab() {
           </Section>
         )}
       </>)}
+      </div>
 
+      {/* ── RIGHT COLUMN: agent personality + save + debug ── */}
+      <div>
       {/* ── SHARED: AGENT PERSONALITY ── */}
       <Section title="🤖 Agent Personality" hint="How the AI sounds and what it knows — applies to both providers">
         <Field label="AI Persona" hint="Instructions for personality and knowledge">
@@ -527,6 +533,8 @@ function SettingsTab() {
       }}>{saving ? 'Saving…' : 'Save Settings'}</button>
 
       <DebugPanel />
+      </div>
+      </div>
     </div>
   );
 }
