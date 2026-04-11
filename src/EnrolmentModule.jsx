@@ -61,6 +61,8 @@ export default function EnrolmentModule() {
   const [selectedApp, setSelectedApp] = useState(null);
 
   const [enrolledCount, setEnrolledCount] = useState(0);
+  // BUG-ENR-04 — modal state for "+ New Application"
+  const [showNewApp, setShowNewApp] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -98,6 +100,7 @@ export default function EnrolmentModule() {
             <p style={{ margin: "2px 0 0", fontSize: 12, color: "#8A7F96" }}>Application pipeline, approvals, and waitlist management</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            {view === "pipeline" && <button onClick={() => setShowNewApp(true)} style={btnP()}>+ New Application</button>}
             {view !== "new_waitlist" && <button onClick={() => setView("new_waitlist")} style={btnS}>+ Add to Waitlist</button>}
             {(view === "application" || view === "new_waitlist") && <button onClick={() => setView("pipeline")} style={btnS}>← Back</button>}
           </div>
@@ -122,6 +125,7 @@ export default function EnrolmentModule() {
             onOpen={openApp}
             onRefresh={load}
             enrolledCount={enrolledCount}
+            waitlistCount={waitlist.filter(w => w.status === "waiting").length}
           />
         )}
         {view === "waitlist" && <WaitlistView waitlist={waitlist} rooms={rooms} onRefresh={load} />}
@@ -135,6 +139,112 @@ export default function EnrolmentModule() {
           />
         )}
       </div>
+
+      {/* BUG-ENR-04 — New Application modal */}
+      {showNewApp && (
+        <NewApplicationModal
+          rooms={rooms}
+          onClose={() => setShowNewApp(false)}
+          onSaved={(newId) => { setShowNewApp(false); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── NEW APPLICATION MODAL ────────────────────────────────────────────────
+function NewApplicationModal({ rooms, onClose, onSaved }) {
+  const [f, setF] = useState({
+    child_first_name: "", child_last_name: "", child_dob: "", child_gender: "",
+    parent1_name: "", parent1_email: "", parent1_phone: "",
+    preferred_room: "", preferred_start_date: "", additional_notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const u = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+  const save = async () => {
+    if (!f.child_first_name.trim() || !f.parent1_name.trim()) {
+      toast("Child first name and parent name are required", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const r = await API("/api/enrolment/applications", { method: "POST", body: f });
+      if (r.error) { toast("Failed to create application: " + r.error, "error"); setSaving(false); return; }
+      toast("Application created");
+      onSaved(r.id);
+    } catch (e) {
+      toast("Failed to create application: " + (e.message || "Unknown error"), "error");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(60,40,80,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
+        <h3 style={{ margin: "0 0 18px", color: "#3D3248", fontSize: 18 }}>+ New Enrolment Application</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={lbl}>Child First Name *</label>
+            <input style={inp} value={f.child_first_name} onChange={e => u("child_first_name", e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Child Last Name</label>
+            <input style={inp} value={f.child_last_name} onChange={e => u("child_last_name", e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Date of Birth</label>
+            <input type="date" style={inp} value={f.child_dob} onChange={e => u("child_dob", e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Gender</label>
+            <select style={inp} value={f.child_gender} onChange={e => u("child_gender", e.target.value)}>
+              <option value="">—</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+              <option value="X">Other / Prefer not to say</option>
+            </select>
+          </div>
+          <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #F0EBF8", paddingTop: 8, marginTop: 4 }}>
+            <div style={{ ...lbl, marginBottom: 8 }}>Parent / Guardian</div>
+          </div>
+          <div>
+            <label style={lbl}>Parent Name *</label>
+            <input style={inp} value={f.parent1_name} onChange={e => u("parent1_name", e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Parent Email</label>
+            <input type="email" style={inp} value={f.parent1_email} onChange={e => u("parent1_email", e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Parent Phone</label>
+            <input style={inp} value={f.parent1_phone} onChange={e => u("parent1_phone", e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Preferred Room</label>
+            <select style={inp} value={f.preferred_room} onChange={e => u("preferred_room", e.target.value)}>
+              <option value="">—</option>
+              {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Preferred Start Date</label>
+            <input type="date" style={inp} value={f.preferred_start_date} onChange={e => u("preferred_start_date", e.target.value)} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={lbl}>Notes</label>
+            <textarea style={{ ...inp, minHeight: 60, fontFamily: "inherit", resize: "vertical" }}
+              value={f.additional_notes} onChange={e => u("additional_notes", e.target.value)} />
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <button onClick={onClose} style={btnS}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{ ...btnP(), opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Creating…" : "Create Application"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -142,7 +252,7 @@ export default function EnrolmentModule() {
 function tryParse(v) { try { return JSON.parse(v || "[]"); } catch { return []; } }
 
 // ─── PIPELINE VIEW ────────────────────────────────────────────────────────────
-function PipelineView({ applications, allApplications, counts, rooms, statusFilter, setStatusFilter, loading, onOpen, onRefresh, enrolledCount = 0 }) {
+function PipelineView({ applications, allApplications, counts, rooms, statusFilter, setStatusFilter, loading, onOpen, onRefresh, enrolledCount = 0, waitlistCount = 0 }) {
   const [selected, setSelected] = useState(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
   const toggleSel = (id) => setSelected(p => { const s=new Set(p); s.has(id)?s.delete(id):s.add(id); return s; });
@@ -151,7 +261,7 @@ function PipelineView({ applications, allApplications, counts, rooms, statusFilt
 
   const bulkAction = async (newStatus) => {
     if(!selected.size) return;
-    if(!window.confirm(`Set ${selected.size} application(s) to "${newStatus}"?`)) return;
+    if (!(await window.showConfirm(`Set ${selected.size} application(s) to "${newStatus}"?`))) return;
     setBulkWorking(true);
     let done=0;
     for(const id of selected) {
@@ -174,7 +284,10 @@ function PipelineView({ applications, allApplications, counts, rooms, statusFilt
           <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>Pipeline Applications</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#D97706" }}>{allApplications.filter(a => a.status === "waitlisted").length}</div>
+          {/* BUG-ENR-03: was filtering applications for status="waitlisted" but
+              waitlist entries live in a separate `waitlist` table — counter
+              now reads waitlistCount passed from the parent. */}
+          <div style={{ fontSize: 28, fontWeight: 800, color: "#D97706" }}>{waitlistCount}</div>
           <div style={{ fontSize: 11, color: "#8A7F96", fontWeight: 600 }}>On Waitlist</div>
         </div>
       </div>
@@ -304,6 +417,112 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
 
+  // BUG-ENR-06: optimistic local copy of consent flags so checkboxes can
+  // toggle instantly while the PATCH is in flight.
+  const [consents, setConsents] = useState({
+    authorised_medical_treatment: !!a.authorised_medical_treatment || !!a.consent_medical,
+    authorised_ambulance: !!a.authorised_ambulance || !!a.consent_ambulance,
+    sunscreen_consent: !!a.sunscreen_consent || !!a.consent_sunscreen,
+    photo_consent: !!a.photo_consent || !!a.consent_photos,
+    excursion_consent: !!a.excursion_consent || !!a.consent_excursions,
+  });
+  // BUG-ENR-05 + ENR-07: documents and emergency contacts loaded from server
+  const [documents, setDocuments] = useState([]);
+  const [emergencyContacts, setEmergencyContacts] = useState([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ name: "", relationship: "", phone: "", mobile: "" });
+
+  const loadDocs = useCallback(async () => {
+    try {
+      const r = await API(`/api/enrolment/applications/${a.id}/documents`);
+      if (Array.isArray(r)) setDocuments(r);
+    } catch (e) { /* non-fatal */ }
+  }, [a.id]);
+
+  const loadContacts = useCallback(async () => {
+    try {
+      const r = await API(`/api/enrolment/applications/${a.id}/emergency-contacts`);
+      if (Array.isArray(r)) setEmergencyContacts(r);
+    } catch (e) { /* non-fatal */ }
+  }, [a.id]);
+
+  useEffect(() => { loadDocs(); loadContacts(); }, [loadDocs, loadContacts]);
+
+  // BUG-ENR-06 — toggle a single consent and PATCH it back
+  const toggleConsent = async (field) => {
+    const newVal = !consents[field];
+    setConsents(p => ({ ...p, [field]: newVal })); // optimistic
+    try {
+      const r = await API(`/api/enrolment/applications/${a.id}`, {
+        method: "PUT",
+        body: { [field]: newVal },
+      });
+      if (r.error) throw new Error(r.error);
+      toast(`${field.replace(/_/g, " ")} ${newVal ? "given" : "withdrawn"}`);
+    } catch (e) {
+      // Roll back on failure
+      setConsents(p => ({ ...p, [field]: !newVal }));
+      window.showToast("Failed to update consent: " + e.message, "error");
+    }
+  };
+
+  // BUG-ENR-05 — upload a document as base64 data URL
+  const uploadDocument = async (file) => {
+    if (!file) return;
+    setUploadingDoc(true);
+    try {
+      const reader = new FileReader();
+      const dataUrl = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+      const r = await API(`/api/enrolment/applications/${a.id}/documents`, {
+        method: "POST",
+        body: { file_name: file.name, mime_type: file.type, file_size: file.size, data_url: dataUrl },
+      });
+      if (r.error) throw new Error(r.error);
+      toast("Document uploaded");
+      loadDocs();
+    } catch (e) {
+      window.showToast("Failed to upload: " + (e.message || "Unknown error"), "error");
+    }
+    setUploadingDoc(false);
+  };
+
+  const deleteDocument = async (docId) => {
+    if (!(await window.showConfirm("Delete this document?"))) return;
+    try {
+      await API(`/api/enrolment/applications/${a.id}/documents/${docId}`, { method: "DELETE" });
+      loadDocs();
+    } catch (e) { window.showToast("Failed to delete", "error"); }
+  };
+
+  // BUG-ENR-07 — emergency contact CRUD
+  const saveContact = async () => {
+    if (!contactForm.name.trim()) { toast("Name required", "error"); return; }
+    try {
+      const r = await API(`/api/enrolment/applications/${a.id}/emergency-contacts`, {
+        method: "POST",
+        body: contactForm,
+      });
+      if (r.error) throw new Error(r.error);
+      setContactForm({ name: "", relationship: "", phone: "", mobile: "" });
+      setShowAddContact(false);
+      toast("Emergency contact added");
+      loadContacts();
+    } catch (e) { window.showToast("Failed to add contact: " + e.message, "error"); }
+  };
+
+  const deleteContact = async (contactId) => {
+    if (!(await window.showConfirm("Remove this emergency contact?"))) return;
+    try {
+      await API(`/api/enrolment/applications/${a.id}/emergency-contacts/${contactId}`, { method: "DELETE" });
+      loadContacts();
+    } catch (e) { window.showToast("Failed to remove", "error"); }
+  };
+
   const room = rooms.find(r => r.id === a.preferred_room);
   const days = tryParse(a.preferred_days);
   const authorisedPickup = tryParse(a.authorised_pickup);
@@ -320,7 +539,7 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
   };
 
   const convertToChild = async () => {
-    if (!window.confirm(`Approve enrolment for ${a.child_first_name} ${a.child_last_name||""} and create their child record?`)) return;
+    if (!(await window.showConfirm(`Approve enrolment for ${a.child_first_name} ${a.child_last_name||""} and create their child record?`))) return;
     setConverting(true);
     try {
       const r = await API(`/api/enrolment/applications/${a.id}`, { method: "PUT", body: { status: "approved", reviewNotes: reviewNotes || "Approved — child record created." } });
@@ -347,12 +566,21 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
 
   const Grid = ({ cols = 3, children }) => <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "0 16px" }}>{children}</div>;
 
-  const Consent = ({ label, value }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-      <span style={{ width: 18, height: 18, borderRadius: "50%", background: value ? "#6BA38B20" : "#F5F5F5", border: `2px solid ${value ? "#6BA38B" : "#DDD"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, flexShrink: 0 }}>{value ? "✓" : "✗"}</span>
-      <span style={{ fontSize: 12, color: value ? "#3D3248" : "#9A8FB0" }}>{label}</span>
-    </div>
-  );
+  // BUG-ENR-06: Consent is now a real clickable checkbox that PATCHes back to
+  // the server. Pulls its current state from the optimistic `consents` map
+  // rather than the static `a.*` props.
+  const Consent = ({ label, field }) => {
+    const value = consents[field];
+    return (
+      <label onClick={() => toggleConsent(field)}
+        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer", padding: "6px 8px", borderRadius: 6 }}
+        onMouseEnter={e => e.currentTarget.style.background = "#F8F5FC"}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        <span style={{ width: 18, height: 18, borderRadius: 4, background: value ? "#6BA38B" : "#fff", border: `2px solid ${value ? "#6BA38B" : "#C9BEE0"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff", flexShrink: 0 }}>{value ? "✓" : ""}</span>
+        <span style={{ fontSize: 12, color: value ? "#3D3248" : "#7A6E8A", fontWeight: value ? 600 : 400 }}>{label}</span>
+      </label>
+    );
+  };
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto" }}>
@@ -462,7 +690,7 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
         </Section>
       )}
 
-      {/* Emergency contacts */}
+      {/* Emergency contacts — BUG-ENR-07: now editable */}
       <Section title="🚨 Emergency Contacts">
         <Grid cols={2}>
           {a.emergency_contact1_name && (
@@ -477,7 +705,51 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
               <div style={{ fontSize: 11, color: "#9A8FB0" }}>{a.emergency_contact2_relationship} · {a.emergency_contact2_phone}</div>
             </div>
           )}
+          {emergencyContacts.map(c => (
+            <div key={c.id} style={{ padding: "10px 14px", background: lp2, borderRadius: 10, border: "1px solid #EDE8F4", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#3D3248", marginBottom: 4 }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: "#9A8FB0" }}>
+                  {c.relationship || "—"}{c.phone && ` · ${c.phone}`}{c.mobile && ` · ${c.mobile}`}
+                </div>
+              </div>
+              <button onClick={() => deleteContact(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#B45960", fontSize: 14, marginLeft: 8 }}>✕</button>
+            </div>
+          ))}
         </Grid>
+
+        {/* Add contact form / button */}
+        <div style={{ marginTop: 12 }}>
+          {!showAddContact ? (
+            <button onClick={() => setShowAddContact(true)} style={btnS}>+ Add Emergency Contact</button>
+          ) : (
+            <div style={{ padding: 14, background: lp2, borderRadius: 10, border: "1px solid #EDE8F4" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={lbl}>Name *</label>
+                  <input style={inp} value={contactForm.name} onChange={e => setContactForm(p => ({ ...p, name: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={lbl}>Relationship</label>
+                  <input style={inp} value={contactForm.relationship} onChange={e => setContactForm(p => ({ ...p, relationship: e.target.value }))} placeholder="e.g. Grandparent" />
+                </div>
+                <div>
+                  <label style={lbl}>Phone</label>
+                  <input style={inp} value={contactForm.phone} onChange={e => setContactForm(p => ({ ...p, phone: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={lbl}>Mobile</label>
+                  <input style={inp} value={contactForm.mobile} onChange={e => setContactForm(p => ({ ...p, mobile: e.target.value }))} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                <button onClick={() => { setShowAddContact(false); setContactForm({ name: "", relationship: "", phone: "", mobile: "" }); }} style={btnS}>Cancel</button>
+                <button onClick={saveContact} style={btnP()}>Save Contact</button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {authorisedPickup.length > 0 && (
           <div style={{ marginTop: 12 }}>
             <div style={lbl}>Authorised for Pickup</div>
@@ -488,15 +760,45 @@ function ApplicationDetailView({ app: a, rooms, onClose, onRefresh }) {
         )}
       </Section>
 
-      {/* Consents */}
+      {/* Consents — BUG-ENR-06: now editable */}
       <Section title="✅ Consents & Permissions">
+        <div style={{ fontSize: 11, color: "#9A8FB0", marginBottom: 8 }}>Click any consent to toggle. Changes save automatically.</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
-          <Consent label="Authorised medical treatment" value={a.authorised_medical_treatment} />
-          <Consent label="Authorised ambulance" value={a.authorised_ambulance} />
-          <Consent label="Sunscreen consent" value={a.sunscreen_consent} />
-          <Consent label="Photo consent" value={a.photo_consent} />
-          <Consent label="Excursion consent" value={a.excursion_consent} />
+          <Consent label="Authorised medical treatment" field="authorised_medical_treatment" />
+          <Consent label="Authorised ambulance" field="authorised_ambulance" />
+          <Consent label="Sunscreen consent" field="sunscreen_consent" />
+          <Consent label="Photo consent" field="photo_consent" />
+          <Consent label="Excursion consent" field="excursion_consent" />
         </div>
+      </Section>
+
+      {/* BUG-ENR-05 — Documents */}
+      <Section title="📎 Documents">
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <label style={{ ...btnS, display: "inline-flex", alignItems: "center", gap: 6, cursor: uploadingDoc ? "wait" : "pointer", opacity: uploadingDoc ? 0.6 : 1 }}>
+            {uploadingDoc ? "Uploading…" : "+ Upload Document"}
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={e => uploadDocument(e.target.files?.[0])} disabled={uploadingDoc} style={{ display: "none" }} />
+          </label>
+          <div style={{ fontSize: 11, color: "#9A8FB0" }}>PDF, JPG, PNG, DOC, DOCX</div>
+        </div>
+        {documents.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#9A8FB0", padding: "12px 0" }}>No documents uploaded yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {documents.map(d => (
+              <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: lp2, borderRadius: 8, border: "1px solid #EDE8F4" }}>
+                <span style={{ fontSize: 18 }}>📄</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#3D3248", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.file_name}</div>
+                  <div style={{ fontSize: 10, color: "#9A8FB0" }}>
+                    {d.file_size ? `${Math.round(d.file_size / 1024)} KB · ` : ""}{fmtDate(d.created_at)}
+                  </div>
+                </div>
+                <button onClick={() => deleteDocument(d.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#B45960", fontSize: 14 }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
       </Section>
 
       {a.additional_notes && (
@@ -514,7 +816,7 @@ function WaitlistView({ waitlist, rooms, onRefresh }) {
   const [converting, setConverting] = useState(null);
 
   const convertToApp = async (id) => {
-    if (!window.confirm("Convert this waitlist entry to an enrolment application?")) return;
+    if (!(await window.showConfirm("Convert this waitlist entry to an enrolment application?"))) return;
     setConverting(id);
     await API(`/api/waitlist/${id}/convert`, { method: "POST" });
     await onRefresh();
@@ -522,7 +824,7 @@ function WaitlistView({ waitlist, rooms, onRefresh }) {
   };
 
   const remove = async (id) => {
-    if (!window.confirm("Remove from waitlist?")) return;
+    if (!(await window.showConfirm("Remove from waitlist?"))) return;
     try { await API(`/api/waitlist/${id}`, { method: "DELETE" }); }
     catch(e) { window.showToast('Failed to remove: ' + e.message, 'error'); return; }
     onRefresh();

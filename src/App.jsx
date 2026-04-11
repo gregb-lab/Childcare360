@@ -4,7 +4,10 @@ import _ from "lodash";
 const PlanningWizardView = lazy(() => import("./LearningModule.jsx").then(m => ({ default: m.PlanningWizardView })));
 const ObservationsView   = lazy(() => import("./LearningModule.jsx").then(m => ({ default: m.ObservationsView })));
 const LearningJourneyModule = lazy(() => import("./LearningJourneyModule.jsx"));
-const EnrolmentModule = lazy(() => import("./EnrolmentModule.jsx"));
+// BUG-ENR-00: lazy chunk was failing to load on sidebar nav (blank white page).
+// Switched to an eager import so the module is bundled into the main chunk
+// and can't suffer from a stale-chunk cache miss.
+import EnrolmentModule from "./EnrolmentModule.jsx";
 const StaffWellbeingModule = lazy(() => import("./StaffWellbeingModule.jsx"));
 const WaitlistModule = lazy(() => import("./WaitlistModule.jsx"));
 const ParentPortalModule = lazy(() => import("./ParentPortalModule.jsx"));

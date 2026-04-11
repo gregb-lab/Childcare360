@@ -5941,5 +5941,15 @@ function initLearningTables(db) {
       created_at TEXT DEFAULT (datetime('now'))
     )`,
     'CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id)',
+
+    // ── BUG-ENR-06 — spec-named consent columns on enrolment_applications ──
+    // The legacy schema uses *_consent / authorised_* names; the spec calls
+    // for consent_* names. Add the new ones so the UI checkboxes can write
+    // to them; the PUT handler also still accepts the legacy keys.
+    'ALTER TABLE enrolment_applications ADD COLUMN consent_medical INTEGER DEFAULT 0',
+    'ALTER TABLE enrolment_applications ADD COLUMN consent_ambulance INTEGER DEFAULT 0',
+    'ALTER TABLE enrolment_applications ADD COLUMN consent_sunscreen INTEGER DEFAULT 0',
+    'ALTER TABLE enrolment_applications ADD COLUMN consent_photos INTEGER DEFAULT 0',
+    'ALTER TABLE enrolment_applications ADD COLUMN consent_excursions INTEGER DEFAULT 0',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

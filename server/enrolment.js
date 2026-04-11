@@ -82,33 +82,286 @@ router.get('/applications', requireAuth, requireTenant, requireRole('owner','adm
 });
 
 // ── CENTRE: review application ──────────────────────────────────────────────
+//
+// BUG-ENR-02 fix: previously this handler had no try/catch, no transaction,
+// and would silently fail when child_dob or child_last_name were null
+// (children.dob is NOT NULL, last_name is NOT NULL). It also blindly wrote
+// status='approved' BEFORE attempting the children INSERT, leaving the
+// application in an inconsistent state when the INSERT threw.
+//
+// Fix: wrap status update + child + parent contacts in a single
+// better-sqlite3 transaction so partial writes can't happen, default the
+// NOT NULL fields, and return a proper error JSON.
+//
+// Also accepts partial consent updates from the UI: any of the
+// authorised_*/sunscreen_consent/photo_consent/excursion_consent /
+// consent_* keys in the body will be persisted.
 router.put('/applications/:id', requireAuth, requireTenant, requireRole('owner','admin','director'), (req, res) => {
-  const { status, reviewNotes } = req.body;
-  D().prepare("UPDATE enrolment_applications SET status=?,reviewed_by=?,reviewed_at=datetime('now'),review_notes=?,updated_at=datetime('now') WHERE id=? AND tenant_id=?")
-    .run(status, req.userId, reviewNotes, req.params.id, req.tenantId);
-  // If approved, create the child record
-  if (status === 'approved') {
-    const app = D().prepare('SELECT * FROM enrolment_applications WHERE id=?').get(req.params.id);
-    if (app) {
-      const childId = uuid();
-      D().prepare('INSERT INTO children (id,tenant_id,first_name,last_name,dob,room_id,allergies,enrolled_date) VALUES(?,?,?,?,?,?,?,?)')
-        .run(childId, req.tenantId, app.child_first_name, app.child_last_name, app.child_dob, app.preferred_room, app.child_allergies, new Date().toISOString().split('T')[0]);
-      // Create parent contacts
-      if (app.parent1_name) {
-        D().prepare('INSERT INTO parent_contacts (id,tenant_id,child_id,name,relationship,email,phone,is_primary,receives_notifications) VALUES(?,?,?,?,?,?,?,1,1)')
-          .run(uuid(), req.tenantId, childId, app.parent1_name, 'parent', app.parent1_email, app.parent1_phone);
-      }
-      if (app.parent2_name) {
-        D().prepare('INSERT INTO parent_contacts (id,tenant_id,child_id,name,relationship,email,phone,is_primary,receives_notifications) VALUES(?,?,?,?,?,?,?,0,1)')
-          .run(uuid(), req.tenantId, childId, app.parent2_name, 'parent', app.parent2_email, app.parent2_phone);
-      }
-      auditLog(req.userId, req.tenantId, 'enrolment_approved', { appId: req.params.id, childId }, req.ip, req.headers['user-agent']);
+  try {
+    const db = D();
+    const { status, reviewNotes } = req.body;
+
+    // Allow partial consent updates via the same endpoint
+    const consentFields = [
+      'authorised_medical_treatment', 'authorised_ambulance',
+      'sunscreen_consent', 'photo_consent', 'excursion_consent',
+      'consent_medical', 'consent_ambulance', 'consent_sunscreen',
+      'consent_photos', 'consent_excursions',
+    ];
+    const consentUpdates = {};
+    for (const f of consentFields) {
+      if (req.body[f] !== undefined) consentUpdates[f] = req.body[f] ? 1 : 0;
     }
+
+    const runUpdate = db.transaction(() => {
+      // 1. Update the application row
+      if (status !== undefined || reviewNotes !== undefined) {
+        db.prepare(`
+          UPDATE enrolment_applications
+          SET status = COALESCE(?, status),
+              reviewed_by = ?,
+              reviewed_at = datetime('now'),
+              review_notes = COALESCE(?, review_notes),
+              updated_at = datetime('now')
+          WHERE id = ? AND tenant_id = ?
+        `).run(status || null, req.userId, reviewNotes || null, req.params.id, req.tenantId);
+      }
+
+      // 2. Apply any consent updates
+      if (Object.keys(consentUpdates).length) {
+        const setClause = Object.keys(consentUpdates).map(f => `${f} = ?`).join(', ');
+        const values = Object.values(consentUpdates);
+        db.prepare(
+          `UPDATE enrolment_applications SET ${setClause}, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+        ).run(...values, req.params.id, req.tenantId);
+      }
+
+      // 3. If approved, create the child record + parent contacts
+      if (status === 'approved') {
+        const app = db.prepare(
+          'SELECT * FROM enrolment_applications WHERE id = ? AND tenant_id = ?'
+        ).get(req.params.id, req.tenantId);
+        if (!app) throw new Error('Application not found');
+
+        // Don't create duplicate child records if approved twice
+        const alreadyEnrolled = db.prepare(
+          "SELECT id FROM children WHERE tenant_id = ? AND first_name = ? AND COALESCE(last_name,'') = COALESCE(?,'') AND COALESCE(dob,'') = COALESCE(?,'')"
+        ).get(req.tenantId, app.child_first_name, app.child_last_name || '', app.child_dob || '');
+
+        let childId = alreadyEnrolled?.id;
+        if (!childId) {
+          childId = uuid();
+          // children.dob and children.last_name are NOT NULL — provide
+          // safe fallbacks rather than crashing on incomplete applications.
+          const safeDob = app.child_dob || new Date().toISOString().split('T')[0];
+          const safeLast = app.child_last_name || '';
+          // Look up the room — preferred_room may be a name like "Toddlers"
+          // or a real room_id. If it doesn't match a real room we leave room_id
+          // null rather than inserting garbage.
+          let roomId = null;
+          if (app.preferred_room) {
+            const room = db.prepare(
+              "SELECT id FROM rooms WHERE tenant_id = ? AND (id = ? OR LOWER(name) = LOWER(?))"
+            ).get(req.tenantId, app.preferred_room, app.preferred_room);
+            roomId = room?.id || null;
+          }
+          db.prepare(`
+            INSERT INTO children (id, tenant_id, first_name, last_name, dob, room_id, allergies, enrolled_date)
+            VALUES (?,?,?,?,?,?,?,?)
+          `).run(childId, req.tenantId, app.child_first_name, safeLast, safeDob,
+                 roomId, app.child_allergies || null,
+                 new Date().toISOString().split('T')[0]);
+
+          if (app.parent1_name) {
+            db.prepare(`
+              INSERT INTO parent_contacts
+                (id, tenant_id, child_id, name, relationship, email, phone, is_primary, receives_notifications)
+              VALUES (?,?,?,?,?,?,?,1,1)
+            `).run(uuid(), req.tenantId, childId, app.parent1_name, 'parent',
+                   app.parent1_email || null, app.parent1_phone || null);
+          }
+          if (app.parent2_name) {
+            db.prepare(`
+              INSERT INTO parent_contacts
+                (id, tenant_id, child_id, name, relationship, email, phone, is_primary, receives_notifications)
+              VALUES (?,?,?,?,?,?,?,0,1)
+            `).run(uuid(), req.tenantId, childId, app.parent2_name, 'parent',
+                   app.parent2_email || null, app.parent2_phone || null);
+          }
+        }
+        return childId;
+      }
+      return null;
+    });
+
+    const childId = runUpdate();
+    if (childId) {
+      try {
+        auditLog(req.userId, req.tenantId, 'enrolment_approved',
+          { appId: req.params.id, childId }, req.ip, req.headers['user-agent']);
+      } catch (e) { /* non-fatal */ }
+    }
+    res.json({ success: true, child_id: childId || null });
+  } catch (err) {
+    console.error('[enrolment:approve]', err);
+    res.status(500).json({ error: err.message });
   }
-  res.json({ success: true });
 });
 
-export default router;
+// ── CENTRE: create a new application directly (BUG-ENR-04) ────────────────
+// Used by the manager-side "+ New Application" form. Mirrors the parent /apply
+// route but lighter — only the fields the form actually collects.
+router.post('/applications', requireAuth, requireTenant, requireRole('owner','admin','director'), (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.child_first_name || !b.parent1_name) {
+      return res.status(400).json({ error: 'child_first_name and parent1_name required' });
+    }
+    const id = uuid();
+    D().prepare(`
+      INSERT INTO enrolment_applications
+        (id, tenant_id, status,
+         child_first_name, child_last_name, child_dob, child_gender,
+         preferred_room, preferred_start_date,
+         parent1_name, parent1_email, parent1_phone,
+         additional_notes, submitted_at)
+      VALUES (?,?,?, ?,?,?,?, ?,?, ?,?,?, ?, datetime('now'))
+    `).run(id, req.tenantId, b.status || 'submitted',
+           b.child_first_name, b.child_last_name || null, b.child_dob || null, b.child_gender || null,
+           b.preferred_room || null, b.preferred_start_date || null,
+           b.parent1_name, b.parent1_email || null, b.parent1_phone || null,
+           b.additional_notes || null);
+    res.json({ id, ok: true });
+  } catch (err) {
+    console.error('[enrolment:create-application]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── BUG-ENR-05 — DOCUMENT UPLOAD ──────────────────────────────────────────
+// Stored as a base64 data_url in enrolment_documents — same convention used
+// by educator_documents and child_documents elsewhere in the codebase. The
+// upload UI sends JSON with { file_name, mime_type, file_size, data_url }.
+router.get('/applications/:id/documents', requireAuth, requireTenant, (req, res) => {
+  try {
+    D().exec(`CREATE TABLE IF NOT EXISTS enrolment_documents (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      application_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT,
+      file_size INTEGER DEFAULT 0,
+      data_url TEXT,
+      uploaded_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+    const rows = D().prepare(`
+      SELECT id, file_name, mime_type, file_size, uploaded_by, created_at
+      FROM enrolment_documents
+      WHERE application_id = ? AND tenant_id = ?
+      ORDER BY created_at DESC
+    `).all(req.params.id, req.tenantId);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/applications/:id/documents', requireAuth, requireTenant, (req, res) => {
+  try {
+    const { file_name, mime_type, file_size, data_url } = req.body || {};
+    if (!file_name || !data_url) {
+      return res.status(400).json({ error: 'file_name and data_url required' });
+    }
+    D().exec(`CREATE TABLE IF NOT EXISTS enrolment_documents (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      application_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT,
+      file_size INTEGER DEFAULT 0,
+      data_url TEXT,
+      uploaded_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+    const id = uuid();
+    D().prepare(`
+      INSERT INTO enrolment_documents
+        (id, tenant_id, application_id, file_name, mime_type, file_size, data_url, uploaded_by)
+      VALUES (?,?,?,?,?,?,?,?)
+    `).run(id, req.tenantId, req.params.id, file_name, mime_type || null,
+           file_size || 0, data_url, req.userId || null);
+    res.json({ id, ok: true });
+  } catch (err) {
+    console.error('[enrolment:upload-doc]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/applications/:id/documents/:docId', requireAuth, requireTenant, (req, res) => {
+  try {
+    D().prepare(
+      'DELETE FROM enrolment_documents WHERE id = ? AND application_id = ? AND tenant_id = ?'
+    ).run(req.params.docId, req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── BUG-ENR-07 — EMERGENCY CONTACTS ───────────────────────────────────────
+router.get('/applications/:id/emergency-contacts', requireAuth, requireTenant, (req, res) => {
+  try {
+    D().exec(`CREATE TABLE IF NOT EXISTS enrolment_emergency_contacts (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      application_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      relationship TEXT,
+      phone TEXT,
+      mobile TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+    const rows = D().prepare(`
+      SELECT * FROM enrolment_emergency_contacts
+      WHERE application_id = ? AND tenant_id = ?
+      ORDER BY created_at ASC
+    `).all(req.params.id, req.tenantId);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/applications/:id/emergency-contacts', requireAuth, requireTenant, (req, res) => {
+  try {
+    const { name, relationship, phone, mobile } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'name required' });
+    D().exec(`CREATE TABLE IF NOT EXISTS enrolment_emergency_contacts (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      application_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      relationship TEXT,
+      phone TEXT,
+      mobile TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+    const id = uuid();
+    D().prepare(`
+      INSERT INTO enrolment_emergency_contacts
+        (id, tenant_id, application_id, name, relationship, phone, mobile)
+      VALUES (?,?,?,?,?,?,?)
+    `).run(id, req.tenantId, req.params.id, name, relationship || null, phone || null, mobile || null);
+    res.json({ id, ok: true });
+  } catch (err) {
+    console.error('[enrolment:add-emergency]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/applications/:id/emergency-contacts/:contactId', requireAuth, requireTenant, (req, res) => {
+  try {
+    D().prepare(
+      'DELETE FROM enrolment_emergency_contacts WHERE id = ? AND application_id = ? AND tenant_id = ?'
+    ).run(req.params.contactId, req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ── WAITLIST ROUTES ─────────────────────────────────────────────────────────
 
@@ -145,3 +398,7 @@ router.post('/waitlist/:id/convert', requireAuth, requireTenant, (req, res) => {
   D().prepare("UPDATE waitlist SET status='converted',updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(req.params.id, req.tenantId);
   res.json({ id: appId, ok: true });
 });
+
+// Export at the bottom of the file (was previously mid-file at line 111,
+// which worked accidentally because routers are mutable but is bad practice).
+export default router;
