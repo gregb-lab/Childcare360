@@ -66,6 +66,32 @@ function MedicationsTab() {
     child_id:"", name:"", dosage:"", frequency:"", route:"oral",
     prescriber:"", start_date:"", end_date:"", instructions:"", emergency_only:false
   });
+  const [editingMed, setEditingMed] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
+  const startEdit = (m) => {
+    setEditingMed(m.id);
+    setEditForm({
+      name: m.name || "",
+      dosage: m.dosage || "",
+      frequency: m.frequency || "",
+      route: m.route || "oral",
+      prescriber: m.prescriber || "",
+      start_date: m.start_date || "",
+      end_date: m.end_date || "",
+      instructions: m.instructions || m.notes || "",
+    });
+  };
+  const cancelEdit = () => { setEditingMed(null); setEditForm({}); };
+  const saveMedEdit = async () => {
+    try {
+      await API(`/medications/${editingMed}`, { method: "PUT", body: editForm });
+      toast("Medication updated");
+      setEditingMed(null);
+      setEditForm({});
+      load();
+    } catch(e) { toast(e.message, "error"); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,7 +115,7 @@ function MedicationsTab() {
   };
 
   const deactivate = async (id) => {
-    if(!window.confirm("Remove this medication?")) return;
+    if(!(await window.showConfirm("Remove this medication?"))) return;
     try { await API(`/medications/${id}`,{method:"DELETE"}); toast("Removed"); load(); }
     catch(e) { toast(e.message,"error"); }
   };
@@ -164,7 +190,27 @@ function MedicationsTab() {
       ) : Object.entries(grouped).map(([childName, childMeds])=>(
         <div key={childName} style={card}>
           <div style={{fontWeight:700,fontSize:14,color:"#3D3248",marginBottom:10}}>👦 {childName}</div>
-          {childMeds.map(m=>(
+          {childMeds.map(m=> editingMed === m.id ? (
+            <div key={m.id} style={{padding:"12px 0",borderBottom:"1px solid #F0EBF8",background:"#F8F5FC",borderRadius:8,paddingLeft:12,paddingRight:12,marginBottom:6}}>
+              <div style={{fontSize:11,fontWeight:700,color:purple,marginBottom:8}}>Editing — {m.name}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                <div><label style={lbl}>Name</label><input style={inp} value={editForm.name} onChange={e=>setEditForm(p=>({...p,name:e.target.value}))} /></div>
+                <div><label style={lbl}>Dosage</label><input style={inp} value={editForm.dosage} onChange={e=>setEditForm(p=>({...p,dosage:e.target.value}))} /></div>
+                <div><label style={lbl}>Frequency</label><input style={inp} value={editForm.frequency} onChange={e=>setEditForm(p=>({...p,frequency:e.target.value}))} /></div>
+                <div><label style={lbl}>Route</label><input style={inp} value={editForm.route} onChange={e=>setEditForm(p=>({...p,route:e.target.value}))} /></div>
+                <div><label style={lbl}>Prescriber</label><input style={inp} value={editForm.prescriber} onChange={e=>setEditForm(p=>({...p,prescriber:e.target.value}))} /></div>
+                <div><label style={lbl}>End Date</label><input type="date" style={inp} value={editForm.end_date} onChange={e=>setEditForm(p=>({...p,end_date:e.target.value}))} /></div>
+                <div style={{gridColumn:"1/-1"}}>
+                  <label style={lbl}>Instructions</label>
+                  <textarea style={{...inp,height:50,resize:"vertical"}} value={editForm.instructions} onChange={e=>setEditForm(p=>({...p,instructions:e.target.value}))} />
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={saveMedEdit} style={{padding:"6px 14px",background:purple,color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:11}}>Save</button>
+                <button onClick={cancelEdit} style={{padding:"6px 14px",background:"#fff",color:"#7A6E8A",border:"1px solid #DDD6EE",borderRadius:7,cursor:"pointer",fontSize:11}}>Cancel</button>
+              </div>
+            </div>
+          ) : (
             <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"10px 0",borderBottom:"1px solid #F0EBF8"}}>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -176,17 +222,23 @@ function MedicationsTab() {
                   {m.dosage && `${m.dosage} · `}{m.route && `${m.route} · `}{m.frequency}
                   {m.prescriber && ` · Dr. ${m.prescriber}`}
                 </div>
-                {m.instructions && <div style={{fontSize:11,color:"#5C4E6A",marginTop:4,fontStyle:"italic"}}>{m.instructions}</div>}
+                {(m.instructions || m.notes) && <div style={{fontSize:11,color:"#5C4E6A",marginTop:4,fontStyle:"italic"}}>{m.instructions || m.notes}</div>}
                 {(m.start_date||m.end_date) && (
                   <div style={{fontSize:10,color:"#A89DB5",marginTop:3}}>
                     {m.start_date && `From ${fmtDate(m.start_date)}`}{m.end_date && ` → ${fmtDate(m.end_date)}`}
                   </div>
                 )}
               </div>
-              <button onClick={()=>deactivate(m.id)}
-                style={{padding:"4px 10px",borderRadius:7,border:"1px solid #FFCDD2",background:"#FFF5F5",color:"#C06B73",cursor:"pointer",fontSize:11,flexShrink:0}}>
-                Remove
-              </button>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                <button onClick={()=>startEdit(m)}
+                  style={{padding:"4px 10px",borderRadius:7,border:"1px solid #DDD6EE",background:"#F8F5FF",color:purple,cursor:"pointer",fontSize:11}}>
+                  Edit
+                </button>
+                <button onClick={()=>deactivate(m.id)}
+                  style={{padding:"4px 10px",borderRadius:7,border:"1px solid #FFCDD2",background:"#FFF5F5",color:"#C06B73",cursor:"pointer",fontSize:11}}>
+                  Remove
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -244,7 +296,7 @@ function MedLogTab() {
   };
 
   const deleteLog = async (id) => {
-    if(!window.confirm("Delete this log entry?")) return;
+    if(!(await window.showConfirm("Delete this administration record?"))) return;
     try { await API(`/medication-log/${id}`,{method:"DELETE"}); toast("Deleted"); load(); }
     catch(e) { toast(e.message,"error"); }
   };
@@ -353,7 +405,7 @@ function MedLogTab() {
                   <td style={{padding:"8px 12px",fontWeight:600,color:"#3D3248"}}>{l.child_name}</td>
                   <td style={{padding:"8px 12px"}}>{l.med_name}</td>
                   <td style={{padding:"8px 12px",color:"#8A7F96"}}>{l.dose_given||l.dosage||"—"}</td>
-                  <td style={{padding:"8px 12px"}}>{l.administered_by||"—"}</td>
+                  <td style={{padding:"8px 12px"}}>{l.administered_by_display||l.given_by||l.administered_by||"—"}</td>
                   <td style={{padding:"8px 12px",color:"#8A7F96"}}>{l.witnessed_by||"—"}</td>
                   <td style={{padding:"8px 12px",textAlign:"center"}}>
                     {l.parent_notified
@@ -379,7 +431,8 @@ function MedLogTab() {
 // ─── EQUIPMENT TAB (existing) ─────────────────────────────────────────────────
 function EquipmentTab() {
   const [items, setItems] = useState([]);
-  const [alerts, setAlerts] = useState([]);
+  // Alerts response is an object: { expired, expiring7, expiring30 }
+  const [alerts, setAlerts] = useState({ expired: [], expiring7: [], expiring30: [] });
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState({status:"active"});
@@ -393,7 +446,12 @@ function EquipmentTab() {
         API("/equipment-alerts"),
       ]);
       if(Array.isArray(eq)) setItems(eq);
-      if(Array.isArray(al)) setAlerts(al);
+      // Server returns { expired:[], expiring7:[], expiring30:[] } — not an array.
+      if(al && typeof al === "object" && !Array.isArray(al)) setAlerts({
+        expired: al.expired || [],
+        expiring7: al.expiring7 || [],
+        expiring30: al.expiring30 || [],
+      });
     } catch(e) {} finally { setLoading(false); }
   }, [filter.status]);
 
@@ -411,14 +469,25 @@ function EquipmentTab() {
 
   const CATS = {first_aid:"🩺 First Aid",epipen:"💉 EpiPen",aed:"⚡ AED",fire:"🔥 Fire Safety",other:"📦 Other"};
 
+  const alertCount = (alerts.expired?.length||0) + (alerts.expiring7?.length||0) + (alerts.expiring30?.length||0);
   return (
     <div>
-      {alerts.length>0 && (
+      {alertCount>0 && (
         <div style={{...card,background:"#FFF5F5",border:"1px solid #FFCDD2",marginBottom:12}}>
-          <div style={{fontWeight:700,color:"#B71C1C",marginBottom:8}}>⚠️ {alerts.length} item{alerts.length!==1?"s":""} need attention</div>
-          {alerts.map(a=>(
+          <div style={{fontWeight:700,color:"#B71C1C",marginBottom:8}}>⚠️ {alertCount} item{alertCount!==1?"s":""} need attention</div>
+          {alerts.expired?.map(a=>(
             <div key={a.id} style={{fontSize:12,color:"#5C4E6A",padding:"3px 0"}}>
-              {CATS[a.category]||"📦"} <strong>{a.name}</strong> — {a.alert_reason}
+              {CATS[a.category]||"📦"} <strong>{a.name}</strong> — <span style={{color:"#B71C1C",fontWeight:700}}>EXPIRED</span> {a.expiry_date}
+            </div>
+          ))}
+          {alerts.expiring7?.map(a=>(
+            <div key={a.id} style={{fontSize:12,color:"#5C4E6A",padding:"3px 0"}}>
+              {CATS[a.category]||"📦"} <strong>{a.name}</strong> — <span style={{color:"#E65100",fontWeight:700}}>expires in ≤7 days</span> ({a.expiry_date})
+            </div>
+          ))}
+          {alerts.expiring30?.map(a=>(
+            <div key={a.id} style={{fontSize:12,color:"#5C4E6A",padding:"3px 0"}}>
+              {CATS[a.category]||"📦"} <strong>{a.name}</strong> — expires within 30 days ({a.expiry_date})
             </div>
           ))}
         </div>

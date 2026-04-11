@@ -44,17 +44,24 @@ r.get('/equipment/:id', (req, res) => {
 r.post('/equipment', (req, res) => {
   const { name, category = 'medication', description, location, quantity = 1,
           expiry_date, batch_number, supplier, child_id, requires_prescription = 0,
-          storage_instructions, disposal_instructions, notes } = req.body;
+          storage_instructions, disposal_instructions, notes,
+          status = 'active' } = req.body;
+  // Frontend EquipmentTab sends `last_checked` (date), but the column is
+  // `last_checked_date`. It also sends `next_check` which has no column at all
+  // — silently dropped. Map the field name and accept status here so neither
+  // is lost on save.
+  const last_checked_date = req.body.last_checked_date || req.body.last_checked || null;
   if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuid();
   D().prepare(`INSERT INTO equipment_register
     (id,tenant_id,category,name,description,location,quantity,expiry_date,batch_number,supplier,
-     child_id,requires_prescription,storage_instructions,disposal_instructions,notes,created_by)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+     child_id,requires_prescription,storage_instructions,disposal_instructions,notes,
+     last_checked_date,status,created_by)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, req.tenantId, category, name, description, location, quantity,
          expiry_date || null, batch_number, supplier, child_id || null,
          requires_prescription ? 1 : 0, storage_instructions, disposal_instructions,
-         notes, req.userId);
+         notes, last_checked_date, status, req.userId);
   res.json({ id, ok: true });
 });
 
@@ -201,22 +208,53 @@ r.get('/medications', requireAuth, requireTenant, (req, res) => {
 
 r.post('/medications', requireAuth, requireTenant, (req, res) => {
   try {
-    const { child_id, medication_name, dosage, frequency, prescribing_doctor, start_date, end_date, notes } = req.body;
-    if (!child_id || !medication_name) return res.status(400).json({ error: 'child_id and medication_name required' });
+    const { child_id, dosage, frequency, start_date, end_date, route } = req.body;
+    // Frontend sends `name`/`prescriber`/`instructions`; older callers may
+    // send `medication_name`/`prescribing_doctor`/`notes`. Coalesce both shapes.
+    const name = req.body.name || req.body.medication_name;
+    const prescriber = req.body.prescriber || req.body.prescribing_doctor || null;
+    const notes = req.body.notes || req.body.instructions || null;
+    if (!child_id || !name) return res.status(400).json({ error: 'child_id and medication name required' });
     const id = uuid();
-    D().prepare(`INSERT INTO medications (id,tenant_id,child_id,name,dosage,frequency,prescriber,start_date,end_date,notes,active)
-      VALUES(?,?,?,?,?,?,?,?,?,?,1)`).run(id,req.tenantId,child_id,medication_name,dosage||'',frequency||'',prescribing_doctor||'',start_date||null,end_date||null,notes||'');
-    res.json({ id });
+    // Write to both `name` (NOT NULL) and `medication_name` so any legacy
+    // reader sees the row. Same for instructions/notes.
+    D().prepare(`INSERT INTO medications
+      (id,tenant_id,child_id,name,medication_name,dosage,frequency,route,prescriber,start_date,end_date,notes,instructions,active,status)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,'active')`)
+      .run(id, req.tenantId, child_id, name, name, dosage||'', frequency||'',
+           route||'oral', prescriber, start_date||null, end_date||null, notes, notes);
+    res.json({ id, ok: true, name });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 r.put('/medications/:id', requireAuth, requireTenant, (req, res) => {
   try {
-    const { medication_name, dosage, frequency, prescribing_doctor, end_date, notes, active } = req.body;
-    D().prepare(`UPDATE medications SET name=COALESCE(?,name), dosage=COALESCE(?,dosage),
-      frequency=COALESCE(?,frequency), prescriber=COALESCE(?,prescriber),
-      end_date=COALESCE(?,end_date), notes=COALESCE(?,notes), active=COALESCE(?,active)
-      WHERE id=? AND tenant_id=?`).run(medication_name,dosage,frequency,prescribing_doctor,end_date,notes,active,req.params.id,req.tenantId);
+    const { dosage, frequency, end_date, active, route, start_date } = req.body;
+    // Same coalesce as POST so the edit form (sending `name`/`prescriber`/`instructions`)
+    // and any legacy caller both work.
+    const name = req.body.name ?? req.body.medication_name ?? null;
+    const prescriber = req.body.prescriber ?? req.body.prescribing_doctor ?? null;
+    const notes = req.body.notes ?? req.body.instructions ?? null;
+    D().prepare(`UPDATE medications SET
+      name=COALESCE(?,name), medication_name=COALESCE(?,medication_name),
+      dosage=COALESCE(?,dosage), frequency=COALESCE(?,frequency),
+      route=COALESCE(?,route), prescriber=COALESCE(?,prescriber),
+      start_date=COALESCE(?,start_date), end_date=COALESCE(?,end_date),
+      notes=COALESCE(?,notes), instructions=COALESCE(?,instructions),
+      active=COALESCE(?,active), updated_at=datetime('now')
+      WHERE id=? AND tenant_id=?`)
+      .run(name, name, dosage ?? null, frequency ?? null, route ?? null,
+           prescriber, start_date ?? null, end_date ?? null,
+           notes, notes, active ?? null, req.params.id, req.tenantId);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.delete('/medications/:id', requireAuth, requireTenant, (req, res) => {
+  try {
+    const r2 = D().prepare('DELETE FROM medications WHERE id=? AND tenant_id=?')
+      .run(req.params.id, req.tenantId);
+    if (!r2.changes) return res.status(404).json({ error: 'Medication not found' });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -224,29 +262,67 @@ r.put('/medications/:id', requireAuth, requireTenant, (req, res) => {
 r.get('/medication-log', requireAuth, requireTenant, (req, res) => {
   try {
     const { child_id, date } = req.query;
-    let sql = `SELECT ml.*, m.name AS medication_name, m.dosage, c.first_name, c.last_name,
-               e.first_name as given_by_first, e.last_name as given_by_last
+    // Surface `given_by` as administered_by for the frontend display — the
+    // real `administered_by` column is a FK to users.id and is usually null
+    // when the name was typed free-text at the kiosk.
+    let sql = `SELECT ml.*, m.name AS med_name, m.dosage, c.first_name, c.last_name,
+               c.first_name || ' ' || c.last_name as child_name,
+               COALESCE(ml.administered_by, ml.given_by) AS administered_by_display
                FROM medication_log ml
                JOIN medications m ON m.id=ml.medication_id
                JOIN children c ON c.id=ml.child_id
-               LEFT JOIN educators e ON e.id=ml.given_by
                WHERE ml.tenant_id=?`;
     const params = [req.tenantId];
     if (child_id) { sql += ' AND ml.child_id=?'; params.push(child_id); }
-    if (date) { sql += ' AND ml.given_at LIKE ?'; params.push(date + '%'); }
-    sql += ' ORDER BY ml.given_at DESC LIMIT 100';
+    if (date) { sql += ' AND (ml.time_given LIKE ? OR ml.given_at LIKE ?)'; params.push(date + '%', date + '%'); }
+    sql += ' ORDER BY ml.created_at DESC LIMIT 100';
     res.json(D().prepare(sql).all(...params));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── UUID shape guard — administered_by/witnessed_by are FKs to users.id,
+//    so we can only populate them when the caller actually sends a user id.
+//    Free-text names go into `given_by` (no FK) and the notes field.
+const isUuid = (v) => typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v);
+
 r.post('/medication-log', requireAuth, requireTenant, (req, res) => {
   try {
-    const { medication_id, child_id, given_at, given_by, dose_given, parent_notified, notes } = req.body;
+    const { medication_id, child_id, dose_given, parent_notified } = req.body;
     if (!medication_id || !child_id) return res.status(400).json({ error: 'medication_id and child_id required' });
+    const _now = new Date();
+    const localNow = `${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}`;
+    const time_given = req.body.time_given || req.body.given_at || localNow;
+
+    // `administered_by`/`witnessed_by` are FK columns; only accept them if they
+    // look like UUIDs. Typed names are preserved in `given_by` (no FK) and notes.
+    const administered_by_fk = isUuid(req.body.administered_by) ? req.body.administered_by : null;
+    const witnessed_by_fk    = isUuid(req.body.witnessed_by)    ? req.body.witnessed_by    : null;
+    const given_by_name = req.body.administered_by_name || req.body.given_by || (isUuid(req.body.administered_by) ? null : req.body.administered_by) || null;
+    const witnessed_by_name = req.body.witnessed_by_name || null;
+
+    // Fold witnessed_by name into notes when we can't store it in the FK column.
+    let notes = req.body.notes || '';
+    if (witnessed_by_name && !witnessed_by_fk) {
+      notes = notes ? `${notes}\n(Witnessed by: ${witnessed_by_name})` : `Witnessed by: ${witnessed_by_name}`;
+    }
+
     const id = uuid();
-    D().prepare(`INSERT INTO medication_log (id,tenant_id,medication_id,child_id,given_at,given_by,dose_given,parent_notified,notes)
-      VALUES(?,?,?,?,?,?,?,?,?)`).run(id,req.tenantId,medication_id,child_id,given_at||new Date().toISOString(),given_by||null,dose_given||'',parent_notified?1:0,notes||'');
-    res.json({ id });
+    D().prepare(`INSERT INTO medication_log
+      (id,tenant_id,medication_id,child_id,time_given,given_at,administered_by,given_by,witnessed_by,dose_given,parent_notified,notes)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, req.tenantId, medication_id, child_id, time_given, time_given,
+           administered_by_fk, given_by_name, witnessed_by_fk, dose_given||'',
+           parent_notified ? 1 : 0, notes);
+    res.json({ id, ok: true, time_given });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.delete('/medication-log/:id', requireAuth, requireTenant, (req, res) => {
+  try {
+    const r2 = D().prepare('DELETE FROM medication_log WHERE id=? AND tenant_id=?')
+      .run(req.params.id, req.tenantId);
+    if (!r2.changes) return res.status(404).json({ error: 'Log entry not found' });
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
