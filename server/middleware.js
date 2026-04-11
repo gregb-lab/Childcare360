@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { D, auditLog } from './db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'childcare360-dev-secret-change-in-production';
@@ -102,6 +102,89 @@ setInterval(() => {
 }, 300000);
 
 export { JWT_SECRET, JWT_EXPIRY, REFRESH_EXPIRY_DAYS };
+
+// ─── Public API key auth — used by /v1/* routes only ───────────────────────
+// Accepts the key from either:
+//   Authorization: Bearer c360_sk_xxxxx
+//   X-API-Key:      c360_sk_xxxxx
+//
+// Looks the SHA256 hash up in api_keys, attaches tenant context, and bumps
+// the per-key usage counter (best-effort, non-blocking on the response).
+// Logs the request to api_request_log so the developer portal can show
+// usage history. Response status code and timing are filled in via res.on('finish').
+export function requireApiKey(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const apiKeyHeader = req.headers['x-api-key'];
+  const rawKey = apiKeyHeader || (authHeader?.startsWith('Bearer c360_') ? authHeader.slice(7) : null);
+
+  if (!rawKey) return res.status(401).json({ error: 'API key required' });
+
+  const keyHash = createHash('sha256').update(rawKey).digest('hex');
+  const key = D().prepare(
+    'SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1'
+  ).get(keyHash);
+
+  if (!key) return res.status(401).json({ error: 'Invalid API key' });
+  if (key.expires_at && new Date(key.expires_at) < new Date()) {
+    return res.status(401).json({ error: 'API key expired' });
+  }
+  if (key.requests_this_month >= key.requests_per_month_limit) {
+    return res.status(429).json({ error: 'Monthly request limit exceeded' });
+  }
+
+  // Attach tenant context — same shape as requireAuth so downstream handlers
+  // can use req.tenantId and req.apiScopes uniformly.
+  req.tenantId = key.tenant_id;
+  req.apiKeyId = key.id;
+  try { req.apiScopes = JSON.parse(key.scopes || '["read"]'); }
+  catch { req.apiScopes = ['read']; }
+
+  // Bump usage counter (best-effort)
+  try {
+    D().prepare(`
+      UPDATE api_keys
+      SET requests_this_month = requests_this_month + 1,
+          last_used_at = datetime('now'),
+          last_used_ip = ?
+      WHERE id = ?
+    `).run(req.ip || null, key.id);
+  } catch (e) { /* non-fatal */ }
+
+  // Log the request — write status_code + response_time on finish so the
+  // developer portal can show errors and latency. Use a placeholder row id
+  // so we can update the same row instead of inserting twice.
+  const logId = randomUUID();
+  const start = Date.now();
+  try {
+    D().prepare(`
+      INSERT INTO api_request_log
+        (id, tenant_id, api_key_id, method, path, ip_address, user_agent, created_at)
+      VALUES (?,?,?,?,?,?,?, datetime('now'))
+    `).run(logId, key.tenant_id, key.id, req.method, req.path,
+           req.ip || null, req.headers['user-agent'] || null);
+  } catch (e) { /* non-fatal */ }
+
+  res.on('finish', () => {
+    try {
+      D().prepare(`
+        UPDATE api_request_log
+        SET status_code = ?, response_time_ms = ?
+        WHERE id = ?
+      `).run(res.statusCode, Date.now() - start, logId);
+    } catch (e) { /* non-fatal */ }
+  });
+
+  next();
+}
+
+export function requireScope(scope) {
+  return (req, res, next) => {
+    if (!req.apiScopes?.includes(scope)) {
+      return res.status(403).json({ error: `Scope '${scope}' required` });
+    }
+    next();
+  };
+}
 
 // ─── Password complexity validator ───────────────────────────────────────────
 export function validatePassword(password) {

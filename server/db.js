@@ -5892,5 +5892,54 @@ function initLearningTables(db) {
     // attendance / clock_records — flags for live run sheet recompute
     'ALTER TABLE attendance_sessions ADD COLUMN notified_run_sheet INTEGER DEFAULT 0',
     'ALTER TABLE clock_records ADD COLUMN notified_run_sheet INTEGER DEFAULT 0',
+
+    // ── v2.23 — Developer API portal: api_keys, api_request_log, webhooks ──
+    `CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      key_prefix TEXT NOT NULL,
+      name TEXT NOT NULL,
+      scopes TEXT DEFAULT '["read"]',
+      tier TEXT DEFAULT 'read',
+      requests_per_month_limit INTEGER DEFAULT 50000,
+      requests_this_month INTEGER DEFAULT 0,
+      last_used_at TEXT,
+      last_used_ip TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id)',
+    'CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)',
+
+    `CREATE TABLE IF NOT EXISTS api_request_log (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      api_key_id TEXT NOT NULL,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      status_code INTEGER,
+      response_time_ms INTEGER,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_api_log_tenant_date ON api_request_log(tenant_id, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_api_log_key ON api_request_log(api_key_id)',
+
+    `CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      events TEXT DEFAULT '[]',
+      is_active INTEGER DEFAULT 1,
+      secret TEXT NOT NULL,
+      last_triggered_at TEXT,
+      failure_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id)',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

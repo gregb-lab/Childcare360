@@ -100,6 +100,7 @@ const BulkCommsModule = lazy(() => import("./BulkCommsModule.jsx"));
 const ReportsBuilderModule = lazy(() => import("./ReportsBuilderModule.jsx"));
 const AIAssistantModule = lazy(() => import("./AIAssistantModule.jsx"));
 const ChecklistsModule = lazy(() => import("./ChecklistsModule.jsx"));
+const DeveloperAPIModule = lazy(() => import("./DeveloperAPIModule.jsx"));
 const AnalyticsModule = lazy(() => import("./AnalyticsModule.jsx"));
 const InvoicingFullModule = lazy(() => import("./InvoicingFullModule.jsx"));
 const MessageCentreModule = lazy(() => import("./MessageCentreModule.jsx"));
@@ -441,7 +442,7 @@ export default function ChildcareRosterApp() {
       "educators","roster","compliance","ratio_report","wellbeing","payroll","staff_wellbeing",
       "invoicing","invoicing_full","reports","analytics","ccs","payments",
       "message_centre","comms","bulk_comms","messaging","documents","voice",
-      "risk_assessments","reports_builder","admin_power","checklists","notifications","soc2",
+      "risk_assessments","reports_builder","developer_api","admin_power","checklists","notifications","soc2",
       "owner_portal","hq_dashboard",
       "parent","staff","settings","rostering","leave_requests"
     ];
@@ -703,6 +704,7 @@ export default function ChildcareRosterApp() {
     { label: "Compliance & Safety", items: [
         { id: "risk_assessments", label: "⚠️ Risk Assessments", icon: "shield" },
         { id: "reports_builder", label: "📊 Report Builder", icon: "chart" },
+        { id: "developer_api", label: "🚀 Developer API", icon: "settings" },
         { id: "admin_power", label: "🏢 Admin Power", icon: "dashboard" },
         { id: "notifications", label: "🔔 Notifications", icon: "observation" },
         { id: "soc2", label: "🔒 SOC2 Compliance", icon: "shield" },
@@ -1070,6 +1072,7 @@ export default function ChildcareRosterApp() {
           {activeTab === "comms" && <Suspense fallback={null}><CommsModule /></Suspense>}
           {activeTab === "bulk_comms" && <Suspense fallback={null}><BulkCommsModule /></Suspense>}
           {activeTab === "reports_builder" && <Suspense fallback={null}><ReportsBuilderModule /></Suspense>}
+          {activeTab === "developer_api" && <Suspense fallback={null}><DeveloperAPIModule /></Suspense>}
           {activeTab === "ai_assistant" && <Suspense fallback={null}><AIAssistantModule /></Suspense>}
           {activeTab === "analytics" && <Suspense fallback={null}><AnalyticsModule /></Suspense>}
           {activeTab === "invoicing_full" && <Suspense fallback={null}><InvoicingFullModule /></Suspense>}

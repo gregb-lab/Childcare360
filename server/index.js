@@ -28,6 +28,8 @@ import staffFeaturesRoutes from './staff-features.js';
 import runsheetRoutes from './runsheet.js';
 import runsheetLiveRoutes from './runsheet-live.js';
 import preferencesRoutes from './preferences.js';
+import developerRoutes from './developer.js';
+import publicApiRoutes from './publicapi.js';
 import reportsRoutes from './reports.js';
 import incidentRoutes from './incidents.js';
 import wellbeingRoutes from './wellbeing.js';
@@ -541,6 +543,12 @@ app.use('/api/runsheet-live', runsheetLiveRoutes);
 // /api/roster/nc-requirements, etc — mounted at /api so paths are absolute. Order matters: this
 // must come AFTER /api/educators so the educators router gets first crack at its own routes.
 app.use('/api', preferencesRoutes);
+// Developer portal — manager-side key/webhook management (JWT auth)
+app.use('/api/developer', developerRoutes);
+// Public developer API — external integrators authenticate with API keys.
+// Mounted at /v1 (NOT /api/v1) so the public surface is clearly separated
+// from the internal /api/* routes that require a session JWT.
+app.use('/v1', publicApiRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/parent', parentRoutes);
