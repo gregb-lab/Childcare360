@@ -83,8 +83,31 @@ function AttendanceTab() {
     ? Math.round(data.weekly.reduce((s,w)=>s+(w.attendance_rate||0),0)/data.weekly.length)
     : 0;
 
+  // Pattern C top row — 4 stat cards. All values derived from the same `data`
+  // payload that drives the chart, so no extra API calls needed.
+  const totalPresent = (data.daily || []).reduce((s, d) => s + (d.present || 0), 0);
+  const totalAbsent = (data.daily || []).reduce((s, d) => s + (d.absent || 0), 0);
+  const peakDay = (data.daily || []).reduce((max, d) => (d.present || 0) > (max?.present || 0) ? d : max, null);
+  const totalDays = (data.daily || []).length;
+  const avgPresent = totalDays > 0 ? Math.round(totalPresent / totalDays) : 0;
+
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* Pattern C — 4 stat cards across the top */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16}}>
+        {[
+          ["Avg Daily Present", avgPresent, P],
+          ["Avg Attendance Rate", `${avgRate}%`, avgRate>=80?OK:avgRate>=60?WA:DA],
+          ["Peak Day", peakDay?.present || 0, IN],
+          ["Total Absences", totalAbsent, totalAbsent>0?WA:OK],
+        ].map(([l,v,c])=>(
+          <div key={l} style={{...card,textAlign:"center",borderTop:`3px solid ${c}`,marginBottom:0}}>
+            <div style={{fontSize:26,fontWeight:900,color:c}}>{v}</div>
+            <div style={{fontSize:11,color:MU,marginTop:4,fontWeight:600,textTransform:"uppercase"}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Controls */}
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{display:"flex",gap:6}}>

@@ -105,7 +105,30 @@ function EventsTab() {
     (byMonth[m]=byMonth[m]||[]).push(e);
   });
 
+  // Pattern C — derive stat cards from existing events data
+  const todayStr = new Date().toISOString().slice(0,10);
+  const upcomingCount = events.filter(e => e.event_date && e.event_date >= todayStr).length;
+  const totalRsvps = events.reduce((s, e) => s + (e.rsvp_count || 0), 0);
+  const rsvpRequired = events.filter(e => e.rsvp_required).length;
+  const thisMonth = events.filter(e => e.event_date?.slice(0,7) === todayStr.slice(0,7)).length;
+
   return (
+    <div>
+      {/* Pattern C — 4 stat cards across the top */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:20}}>
+        {[
+          ["Upcoming Events", upcomingCount, P],
+          ["This Month", thisMonth, OK],
+          ["Total RSVPs", totalRsvps, "#0284C7"],
+          ["RSVP Required", rsvpRequired, WARN],
+        ].map(([l,v,c])=>(
+          <div key={l} style={{...card,textAlign:"center",borderTop:`3px solid ${c}`,marginBottom:0}}>
+            <div style={{fontSize:26,fontWeight:900,color:c}}>{v}</div>
+            <div style={{fontSize:11,color:MUTED,marginTop:4,fontWeight:600,textTransform:"uppercase"}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
     <div style={{display:"flex",gap:20}}>
       {/* Left: event list */}
       <div style={{flex:1,display:"flex",flexDirection:"column",gap:14}}>
@@ -255,6 +278,7 @@ function EventsTab() {
           )}
         </div>
       )}
+    </div>
     </div>
   );
 }

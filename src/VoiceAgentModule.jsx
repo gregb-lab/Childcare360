@@ -500,8 +500,38 @@ function SettingsTab() {
       </>)}
       </div>
 
-      {/* ── RIGHT COLUMN: agent personality + save + debug ── */}
+      {/* ── RIGHT COLUMN: status + agent personality + save + debug ── */}
       <div>
+      {/* ── STATUS PANEL ── */}
+      <div style={{ background: form.active ? '#F0FDF4' : '#FFF8F0', border: `1px solid ${form.active ? '#86EFAC' : '#FED7AA'}`, borderRadius: 12, padding: '14px 18px', marginBottom: 18 }}>
+        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Connection Status</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 22 }}>{form.active ? '🟢' : '🔴'}</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: form.active ? '#15803d' : '#92400e' }}>
+              {form.active ? 'Active' : 'Inactive'}
+            </div>
+            <div style={{ fontSize: 11, color: form.active ? '#166534' : '#a16207' }}>
+              Provider: {provider === 'retell' ? 'Retell AI' : 'Twilio + ElevenLabs'}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, paddingTop: 10, borderTop: `1px solid ${form.active ? '#bbf7d0' : '#fed7aa'}` }}>
+          <div>
+            <div style={{ fontSize: 10, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase' }}>Voice</div>
+            <div style={{ fontSize: 11, color: '#374151', fontWeight: 600, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {provider === 'twilio' ? (form.elevenlabs_voice_id ? '✓ ElevenLabs' : (form.tts_voice || 'Default')) : (form.retell_voice_id ? '✓ Retell' : 'Not set')}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase' }}>Language</div>
+            <div style={{ fontSize: 11, color: '#374151', fontWeight: 600, marginTop: 2 }}>
+              {form.call_language || 'en-AU'}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── SHARED: AGENT PERSONALITY ── */}
       <Section title="🤖 Agent Personality" hint="How the AI sounds and what it knows — applies to both providers">
         <Field label="AI Persona" hint="Instructions for personality and knowledge">

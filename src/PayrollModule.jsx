@@ -41,6 +41,8 @@ export default function PayrollModule() {
   const [loading,  setLoading]  = useState(false);
   const [exporting,setExporting]= useState(false);
   const [expType,  setExpType]  = useState("csv");
+  // Pattern B — selected educator id for the master/detail layout
+  const [selectedEducatorId, setSelectedEducatorId] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -127,129 +129,137 @@ export default function PayrollModule() {
             ))}
           </div>
 
-          {/* Pattern B — staff list/detail left (2fr), export history right (1fr) */}
-          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:20,alignItems:"start"}}>
-          <div>
-          {/* Per-educator breakdown */}
-          <div style={card}>
-            <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:14}}>
-              Educator Breakdown — {data.period?.start} to {data.period?.end}
-            </div>
-            {data.educators?.length === 0
-              ? <div style={{color:MU,textAlign:"center",padding:"30px 0",fontSize:13}}>
-                  No clock records found for this period
-                </div>
-              : <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                  <thead><tr style={{background:"#F8F5FC"}}>
-                    {["Educator","Qualification","Ordinary","Overtime","Total","Rate","Gross","Super"].map(h=>(
-                      <th key={h} style={{padding:"8px 10px",textAlign:"left",color:MU,fontWeight:700,fontSize:11}}>{h}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {data.educators?.map(e=>(
-                      <tr key={e.educator_id} style={{borderBottom:"1px solid #F0EBF8"}}>
-                        <td style={{padding:"8px 10px",fontWeight:600,color:DARK}}>{e.name}</td>
-                        <td style={{padding:"8px 10px"}}>
-                          <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:20,
+          {/* Pattern B — 320px staff list (master) + 1fr selected staff detail */}
+          {(() => {
+            const eds = data.educators || [];
+            const selectedEd = eds.find(e => e.educator_id === selectedEducatorId) || eds[0];
+            return (
+              <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:0,minHeight:520,border:"1px solid #EDE8F4",borderRadius:14,overflow:"hidden",background:"#fff"}}>
+                {/* MASTER: staff list */}
+                <div style={{borderRight:"1px solid #EDE8F4",overflowY:"auto",background:"#FDFBF9"}}>
+                  <div style={{padding:"12px 16px",borderBottom:"1px solid #EDE8F4",fontWeight:700,fontSize:12,color:MU,textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                    Staff ({eds.length})
+                  </div>
+                  {eds.length === 0 ? (
+                    <div style={{padding:30,textAlign:"center",color:MU,fontSize:12}}>No clock records for this period</div>
+                  ) : eds.map(e => {
+                    const active = (selectedEd?.educator_id === e.educator_id);
+                    return (
+                      <button key={e.educator_id} onClick={() => setSelectedEducatorId(e.educator_id)}
+                        style={{display:"block",width:"100%",textAlign:"left",padding:"12px 16px",border:"none",borderBottom:"1px solid #F0EBF8",cursor:"pointer",fontFamily:"inherit",
+                          background: active ? "#F3E8FF" : "transparent",
+                          borderLeft: active ? `3px solid ${P}` : "3px solid transparent"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                          <span style={{fontWeight:700,fontSize:13,color:DARK,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</span>
+                          <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,
                             background:(QUAL_COLORS[e.qualification]||MU)+"20",
                             color:QUAL_COLORS[e.qualification]||MU}}>
                             {e.qualification}
                           </span>
-                        </td>
-                        <td style={{padding:"8px 10px",color:MU}}>{fmtH(e.ordinary_hours)}</td>
-                        <td style={{padding:"8px 10px",color:e.overtime_hours>0?WA:MU}}>{fmtH(e.overtime_hours)}</td>
-                        <td style={{padding:"8px 10px",fontWeight:600}}>{fmtH(e.total_hours)}</td>
-                        <td style={{padding:"8px 10px",color:MU}}>{fmt$(e.base_hourly_rate)}/h</td>
-                        <td style={{padding:"8px 10px",fontWeight:700,color:OK}}>{fmt$(e.gross_pay)}</td>
-                        <td style={{padding:"8px 10px",color:IN}}>{fmt$(e.gross_pay*0.115)}</td>
-                      </tr>
-                    ))}
-                    <tr style={{background:"#F8F5FC",fontWeight:700}}>
-                      <td colSpan={4} style={{padding:"10px",color:DARK}}>TOTALS</td>
-                      <td style={{padding:"10px",color:DARK}}>{fmtH(data.totals?.total_hours)}</td>
-                      <td style={{padding:"10px"}}/>
-                      <td style={{padding:"10px",color:OK}}>{fmt$(data.totals?.total_gross)}</td>
-                      <td style={{padding:"10px",color:IN}}>{fmt$(data.totals?.total_gross*0.115)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-            }
-          </div>
+                        </div>
+                        <div style={{fontSize:11,color:MU,display:"flex",justifyContent:"space-between"}}>
+                          <span>{fmtH(e.total_hours)}</span>
+                          <span style={{color:OK,fontWeight:600}}>{fmt$(e.gross_pay)}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-          {/* Shift detail per educator */}
-          {data.educators?.map(e=>(
-            e.shifts?.length > 0 && (
-              <details key={e.educator_id} style={{...card,marginTop:10}}>
-                <summary style={{cursor:"pointer",fontWeight:600,fontSize:13,color:DARK,userSelect:"none"}}>
-                  {e.name} — {e.shifts.length} shifts · {fmtH(e.total_hours)} · {fmt$(e.gross_pay)}
-                </summary>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginTop:10}}>
-                  <thead><tr style={{background:"#F8F5FC"}}>
-                    {["Date","Clock In","Clock Out","Break","Net Hours"].map(h=>(
-                      <th key={h} style={{padding:"6px 10px",textAlign:"left",color:MU,fontWeight:700,fontSize:11}}>{h}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {e.shifts.map((s,i)=>(
-                      <tr key={i} style={{borderBottom:"1px solid #F0EBF8"}}>
-                        <td style={{padding:"6px 10px",color:DARK}}>{new Date(s.date+"T12:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"})}</td>
-                        <td style={{padding:"6px 10px",color:MU}}>{s.clock_in?.slice(0,5)||"—"}</td>
-                        <td style={{padding:"6px 10px",color:MU}}>{s.clock_out?.slice(0,5)||"—"}</td>
-                        <td style={{padding:"6px 10px",color:MU}}>{s.break_minutes?`${s.break_minutes}m`:"—"}</td>
-                        <td style={{padding:"6px 10px",fontWeight:600}}>{fmtH(s.hours)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
-            )
-          ))}
-          </div>
-          {/* Export history (right column) */}
-          {exports.length > 0 && (
-            <div style={card}>
-              <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:12}}>Export History</div>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {exports.map(e=>(
-                  <div key={e.id} style={{padding:"10px 12px",background:"#FDFBF9",borderRadius:8,border:"1px solid #F0EBF8"}}>
-                    <div style={{fontSize:11,fontWeight:700,color:P,textTransform:"uppercase",marginBottom:3}}>{e.export_type}</div>
-                    <div style={{fontSize:12,color:DARK,fontWeight:600}}>{e.period_start} → {e.period_end}</div>
-                    <div style={{fontSize:11,color:MU,marginTop:3}}>{e.educator_count} educators · {fmtH(e.total_hours)} · <span style={{color:OK,fontWeight:700}}>{fmt$(e.total_cost_cents/100)}</span></div>
-                    <div style={{fontSize:10,color:MU,marginTop:2}}>{new Date(e.generated_at).toLocaleDateString("en-AU")}</div>
-                  </div>
-                ))}
+                {/* DETAIL: selected staff full breakdown */}
+                <div style={{padding:"20px 24px",overflowY:"auto"}}>
+                  {!selectedEd ? (
+                    <div style={{textAlign:"center",color:MU,padding:60,fontSize:13}}>Select a staff member to view their pay details</div>
+                  ) : (
+                    <>
+                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
+                        <div>
+                          <div style={{fontSize:18,fontWeight:800,color:DARK}}>{selectedEd.name}</div>
+                          <div style={{fontSize:12,color:MU,marginTop:3}}>
+                            {selectedEd.qualification} · {data.period?.start} → {data.period?.end}
+                          </div>
+                        </div>
+                        <button style={bp} onClick={doExport} disabled={exporting}>
+                          {exporting?"Exporting…":"⬇ Export Period"}
+                        </button>
+                      </div>
+
+                      {/* Hours summary */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
+                        {[
+                          ["Ordinary Hours", fmtH(selectedEd.ordinary_hours), MU],
+                          ["Overtime Hours", fmtH(selectedEd.overtime_hours), selectedEd.overtime_hours>0?WA:MU],
+                          ["Gross Pay", fmt$(selectedEd.gross_pay), OK],
+                          ["Super (11.5%)", fmt$(selectedEd.gross_pay*0.115), IN],
+                        ].map(([l,v,c])=>(
+                          <div key={l} style={{padding:"12px 14px",background:"#FDFBF9",borderRadius:10,border:"1px solid #F0EBF8",textAlign:"center"}}>
+                            <div style={{fontSize:18,fontWeight:800,color:c}}>{v}</div>
+                            <div style={{fontSize:10,color:MU,marginTop:3,fontWeight:600,textTransform:"uppercase"}}>{l}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Shift detail */}
+                      <div style={{fontWeight:700,fontSize:13,color:DARK,marginBottom:8}}>
+                        Shifts ({selectedEd.shifts?.length || 0}) · Rate: {fmt$(selectedEd.base_hourly_rate)}/h
+                      </div>
+                      {selectedEd.shifts?.length > 0 ? (
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                          <thead><tr style={{background:"#F8F5FC"}}>
+                            {["Date","Clock In","Clock Out","Break","Net Hours"].map(h=>(
+                              <th key={h} style={{padding:"7px 10px",textAlign:"left",color:MU,fontWeight:700,fontSize:11}}>{h}</th>
+                            ))}
+                          </tr></thead>
+                          <tbody>
+                            {selectedEd.shifts.map((s,i)=>(
+                              <tr key={i} style={{borderBottom:"1px solid #F0EBF8"}}>
+                                <td style={{padding:"7px 10px",color:DARK}}>{new Date(s.date+"T12:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"})}</td>
+                                <td style={{padding:"7px 10px",color:MU}}>{s.clock_in?.slice(0,5)||"—"}</td>
+                                <td style={{padding:"7px 10px",color:MU}}>{s.clock_out?.slice(0,5)||"—"}</td>
+                                <td style={{padding:"7px 10px",color:MU}}>{s.break_minutes?`${s.break_minutes}m`:"—"}</td>
+                                <td style={{padding:"7px 10px",fontWeight:600}}>{fmtH(s.hours)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div style={{padding:"20px",textAlign:"center",color:MU,fontSize:12}}>No individual shifts recorded</div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
+            );
+          })()}
+
+          {/* Export history below the master/detail */}
+          {exports.length > 0 && (
+            <div style={{...card,marginTop:20}}>
+              <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:12}}>Export History</div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr style={{background:"#F8F5FC"}}>
+                  {["Period","Format","Educators","Total Hours","Total Cost","Generated"].map(h=>(
+                    <th key={h} style={{padding:"7px 10px",textAlign:"left",color:MU,fontWeight:700,fontSize:11}}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {exports.map(e=>(
+                    <tr key={e.id} style={{borderBottom:"1px solid #F0EBF8"}}>
+                      <td style={{padding:"7px 10px",color:DARK}}>{e.period_start} → {e.period_end}</td>
+                      <td style={{padding:"7px 10px"}}><span style={{fontWeight:700,color:P,textTransform:"uppercase",fontSize:10}}>{e.export_type}</span></td>
+                      <td style={{padding:"7px 10px",color:MU}}>{e.educator_count}</td>
+                      <td style={{padding:"7px 10px",color:MU}}>{fmtH(e.total_hours)}</td>
+                      <td style={{padding:"7px 10px",fontWeight:600,color:OK}}>{fmt$(e.total_cost_cents/100)}</td>
+                      <td style={{padding:"7px 10px",color:MU}}>{new Date(e.generated_at).toLocaleDateString("en-AU")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-          </div>
         </>
       )}
 
-      {/* Legacy export history (replaced by side panel above when data is loaded) */}
-      {!data && exports.length > 0 && (
-        <div style={{...card,marginTop:20}}>
-          <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:12}}>Export History</div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{background:"#F8F5FC"}}>
-              {["Period","Format","Educators","Total Hours","Total Cost","Generated"].map(h=>(
-                <th key={h} style={{padding:"7px 10px",textAlign:"left",color:MU,fontWeight:700,fontSize:11}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {exports.map(e=>(
-                <tr key={e.id} style={{borderBottom:"1px solid #F0EBF8"}}>
-                  <td style={{padding:"7px 10px",color:DARK}}>{e.period_start} → {e.period_end}</td>
-                  <td style={{padding:"7px 10px"}}><span style={{fontWeight:700,color:P,textTransform:"uppercase",fontSize:10}}>{e.export_type}</span></td>
-                  <td style={{padding:"7px 10px",color:MU}}>{e.educator_count}</td>
-                  <td style={{padding:"7px 10px",color:MU}}>{fmtH(e.total_hours)}</td>
-                  <td style={{padding:"7px 10px",fontWeight:600,color:OK}}>{fmt$(e.total_cost_cents/100)}</td>
-                  <td style={{padding:"7px 10px",color:MU}}>{new Date(e.generated_at).toLocaleDateString("en-AU")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
