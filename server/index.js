@@ -293,14 +293,15 @@ if (process.env.SEED_CN_ON_START === 'true') {
 const app = express();
 
 // Security headers
-app.use(helmet({
-  contentSecurityPolicy: isProd ? undefined : false,
+app.use(helmet({ hsts: false,
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
 }));
 
 // CORS — allow dev frontend
 app.use(cors({
-  origin: isProd ? false : ['http://localhost:5173', 'http://localhost:3003', 'http://localhost:3002'],
+  origin: isProd ? false : ['http://localhost:5173', 'http://localhost:3003', 'http://192.168.56.101:3003', 'http://localhost:3002'],
   credentials: true,
 }));
 
