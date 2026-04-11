@@ -114,6 +114,54 @@ function QIPTab() {
 
   const QA_NAMES=data.nqs||{};
 
+  // Pattern D — when nothing is selected, show all 7 QAs as a 3-col card grid.
+  // When a QA is selected, fall back to the master/detail layout (sidebar + detail).
+  if (!selQA) {
+    return (
+      <div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:13,color:MU,textTransform:"uppercase",letterSpacing:"0.05em"}}>Quality Areas</div>
+          <button onClick={async()=>{
+            const r=await API("/api/quality/qip/export").catch(e=>console.error('API error:',e));
+            const blob=new Blob([JSON.stringify(r,null,2)],{type:"application/json"});
+            const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+            a.download="qip-export.json";a.click();
+          }} style={{...bg,fontSize:12}}>↓ Export QIP</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:16}}>
+          {[1,2,3,4,5,6,7].map(qa=>{
+            const s=data.summary?.[qa]||{};
+            const c=RATING_C[s.rating]||MU;
+            return (
+              <button key={qa} onClick={()=>setSelQA(qa)}
+                style={{padding:"20px 22px",borderRadius:14,border:`1px solid ${c}30`,
+                  background:"#fff",textAlign:"left",cursor:"pointer",
+                  borderTop:`4px solid ${c}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                  <span style={{fontSize:28}}>{QA_ICONS[qa]}</span>
+                  <span style={{fontWeight:800,fontSize:14,color:DARK,flex:1}}>QA {qa}</span>
+                  <span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:c+"20",color:c}}>
+                    {RATING_L[s.rating]||"Not assessed"}
+                  </span>
+                </div>
+                <div style={{fontSize:13,color:DARK,fontWeight:600,minHeight:36}}>{QA_NAMES[qa]?.title}</div>
+                {s.goals_count>0?(
+                  <div style={{fontSize:11,color:MU,marginTop:8,paddingTop:8,borderTop:"1px solid #F0EBF8"}}>
+                    🎯 {s.goals_in_progress} in progress · {s.goals_completed} completed
+                  </div>
+                ):(
+                  <div style={{fontSize:11,color:MU,marginTop:8,paddingTop:8,borderTop:"1px solid #F0EBF8"}}>
+                    No goals set yet
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{display:"flex",gap:20}}>
       {/* Left: QA overview */}
@@ -142,13 +190,8 @@ function QIPTab() {
             </button>
           );
         })}
-        <button onClick={async()=>{
-          const r=await API("/api/quality/qip/export".catch(e=>console.error('API error:',e)));
-          const blob=new Blob([JSON.stringify(r,null,2)],{type:"application/json"});
-          const a=document.createElement("a");a.href=URL.createObjectURL(blob);
-          a.download="qip-export.json";a.click();
-        }} style={{...bg,width:"100%",marginTop:8,fontSize:12}}>
-          ↓ Export QIP
+        <button onClick={()=>setSelQA(null)} style={{...bs,width:"100%",marginTop:8,fontSize:12}}>
+          ← Back to overview
         </button>
       </div>
 

@@ -338,7 +338,8 @@ function CheckInForm({ today, todayStr, onSaved }) {
   );
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 24, alignItems: "start" }}>
+      <div>
       {today && (
         <div style={{ ...card, background: lp, border: `1px solid ${purple}30`, marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: purple }}>✓ You already checked in today — updating your response.</div>
@@ -397,6 +398,35 @@ function CheckInForm({ today, todayStr, onSaved }) {
         <button onClick={save} disabled={saving || !f.energy_level || !f.stress_level} style={{ ...btnP(), width: "100%", padding: "12px", fontSize: 14, opacity: !f.energy_level || !f.stress_level ? 0.5 : 1 }}>
           {saving ? "Saving…" : "✓ Submit Check-in"}
         </button>
+      </div>
+      </div>
+
+      {/* RIGHT — quick summary panel */}
+      <div>
+        <div style={{ ...card, background: "linear-gradient(135deg,#F3E8FF,#FFF)", marginBottom: 14 }}>
+          <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 800, color: "#3D3248" }}>💡 Why check in?</h4>
+          <p style={{ margin: 0, fontSize: 12, color: "#5C4E6A", lineHeight: 1.6 }}>
+            Daily wellbeing check-ins help your manager spot stress and burnout early so the team can support you. Anonymous mode is on by default — only aggregated trends are shown.
+          </p>
+        </div>
+        <div style={card}>
+          <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 800, color: "#3D3248" }}>Today's Status</h4>
+          {[
+            ["Energy", f.energy_level, "⚡"],
+            ["Stress", f.stress_level, "🌡"],
+            ["Workload", f.workload_rating, "📋"],
+            ["Support", f.support_rating, "🤝"],
+          ].map(([l, v, i]) => (
+            <div key={l} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #F0EBF8" }}>
+              <span style={{ fontSize: 16 }}>{i}</span>
+              <span style={{ flex: 1, fontSize: 12, color: "#5C4E6A", fontWeight: 600 }}>{l}</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: v ? purple : "#B0AAB9" }}>{v ? `${v}/5` : "—"}</span>
+            </div>
+          ))}
+          <div style={{ marginTop: 10, fontSize: 11, color: "#8A7F96" }}>
+            {f.concerns.length > 0 ? `${f.concerns.length} concern${f.concerns.length !== 1 ? "s" : ""} flagged` : "No concerns flagged"}
+          </div>
+        </div>
       </div>
     </div>
   );

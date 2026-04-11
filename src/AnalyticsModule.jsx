@@ -106,15 +106,17 @@ function AttendanceTab() {
         </div>
       </div>
 
+      {/* Pattern C — chart left (2fr), breakdowns right (1fr) */}
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16,alignItems:"start"}}>
       {/* Daily chart */}
       <div style={card}>
         <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:16}}>Daily Attendance — Last {weeks} Weeks</div>
-        <div style={{display:"flex",alignItems:"flex-end",gap:1,height:100,overflowX:"auto"}}>
+        <div style={{display:"flex",alignItems:"flex-end",gap:1,height:160,overflowX:"auto"}}>
           {data.daily?.map((d,i)=>{
-            const h=Math.round((d.present/maxPresent)*88);
+            const h=Math.round((d.present/maxPresent)*148);
             const isToday=d.date===new Date().toISOString().split("T")[0];
             return (
-              <div key={i} style={{flex:"0 0 auto",width:8,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+              <div key={i} style={{flex:"0 0 auto",width:10,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                 <div style={{width:"100%",height:h,
                   background:isToday?"#F59E0B":d.absent>0?`${P}90`:P,
                   borderRadius:"2px 2px 0 0",minHeight:2}}
@@ -129,7 +131,7 @@ function AttendanceTab() {
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
         {/* Day-of-week breakdown */}
         <div style={card}>
           <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:14}}>By Day of Week</div>
@@ -166,6 +168,7 @@ function AttendanceTab() {
             })()
           }
         </div>
+      </div>
       </div>
 
       {/* Absentee report */}

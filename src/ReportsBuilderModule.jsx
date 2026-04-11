@@ -682,7 +682,7 @@ function ScheduledReportsTab() {
   const FREQ_L={weekly:"Weekly",fortnightly:"Fortnightly",monthly:"Monthly"};
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:14,maxWidth:800}}>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <p style={{fontSize:13,color:MU,margin:0}}>
           Automatically run and save reports on a schedule. View and manage all scheduled reports here.

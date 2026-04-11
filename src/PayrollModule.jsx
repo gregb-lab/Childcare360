@@ -127,6 +127,9 @@ export default function PayrollModule() {
             ))}
           </div>
 
+          {/* Pattern B — staff list/detail left (2fr), export history right (1fr) */}
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:20,alignItems:"start"}}>
+          <div>
           {/* Per-educator breakdown */}
           <div style={card}>
             <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:14}}>
@@ -201,11 +204,29 @@ export default function PayrollModule() {
               </details>
             )
           ))}
+          </div>
+          {/* Export history (right column) */}
+          {exports.length > 0 && (
+            <div style={card}>
+              <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:12}}>Export History</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {exports.map(e=>(
+                  <div key={e.id} style={{padding:"10px 12px",background:"#FDFBF9",borderRadius:8,border:"1px solid #F0EBF8"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:P,textTransform:"uppercase",marginBottom:3}}>{e.export_type}</div>
+                    <div style={{fontSize:12,color:DARK,fontWeight:600}}>{e.period_start} → {e.period_end}</div>
+                    <div style={{fontSize:11,color:MU,marginTop:3}}>{e.educator_count} educators · {fmtH(e.total_hours)} · <span style={{color:OK,fontWeight:700}}>{fmt$(e.total_cost_cents/100)}</span></div>
+                    <div style={{fontSize:10,color:MU,marginTop:2}}>{new Date(e.generated_at).toLocaleDateString("en-AU")}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          </div>
         </>
       )}
 
-      {/* Export history */}
-      {exports.length > 0 && (
+      {/* Legacy export history (replaced by side panel above when data is loaded) */}
+      {!data && exports.length > 0 && (
         <div style={{...card,marginTop:20}}>
           <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:12}}>Export History</div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>

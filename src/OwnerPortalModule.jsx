@@ -232,8 +232,8 @@ function OverviewTab({ overview, tenants, comparison }) {
 
   return (
     <div>
-      {/* KPI Row */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+      {/* KPI Row — strict 5-col grid (Pattern C) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
         <MetricCard label="Active Centres" value={o.active_centres + o.trial_centres} sub={`${o.trial_centres} on trial`} color="#8B6DAF" />
         <MetricCard label="Total Children" value={o.total_children} sub={`${o.total_waitlist} on waitlists`} color="#C9929E" />
         <MetricCard label="Total Educators" value={o.total_educators} sub={`across ${o.total_rooms} rooms`} color="#6BA38B" />

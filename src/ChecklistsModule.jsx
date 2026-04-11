@@ -79,64 +79,92 @@ export default function ChecklistsModule() {
   const allChecked = active && Object.values(itemStates).every(v => v);
   const requiredUnchecked = active && (active.items||[]).filter(i => i.required && !itemStates[i.id]);
 
-  // Active checklist completion view
+  // Active checklist completion view — Pattern B: list stays on left, detail on right
   if (active && !active.viewingHistory) return (
-    <div style={{padding:"24px 28px",maxWidth:720}}>
-      <button onClick={()=>setActive(null)} style={{...bs,marginBottom:16,fontSize:12}}>← Back</button>
-      <div style={{...card,marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:4}}>
-          <span style={{fontSize:28}}>{CATEGORY_ICONS[active.category]||"📋"}</span>
-          <div>
-            <div style={{fontWeight:800,fontSize:18,color:DARK}}>{active.title}</div>
-            <div style={{fontSize:12,color:MU}}>{today}</div>
+    <div style={{padding:"24px 28px"}}>
+      <button onClick={()=>setActive(null)} style={{...bs,marginBottom:16,fontSize:12}}>← Back to all checklists</button>
+      <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:20,alignItems:"start"}}>
+        {/* LEFT — sibling checklist list */}
+        <div>
+          <div style={{fontSize:11,color:MU,fontWeight:700,textTransform:"uppercase",marginBottom:8}}>All Checklists</div>
+          {checklists.map(cl=>(
+            <button key={cl.id} onClick={()=>openChecklist(cl)}
+              style={{display:"block",width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:8,marginBottom:6,
+                cursor:"pointer",background:cl.id===active.id?"#F3E8FF":"#fff",
+                border:`1px solid ${cl.id===active.id?P+"60":"#EDE8F4"}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:18}}>{CATEGORY_ICONS[cl.category]||"📋"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:12,color:DARK,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{cl.title}</div>
+                  <div style={{fontSize:10,color:cl.completed_today?OK:MU}}>{cl.completed_today?"✓ Done today":`${cl.items?.length||0} items`}</div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* RIGHT — completion detail */}
+        <div>
+          <div style={{...card,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:28}}>{CATEGORY_ICONS[active.category]||"📋"}</span>
+              <div>
+                <div style={{fontWeight:800,fontSize:18,color:DARK}}>{active.title}</div>
+                <div style={{fontSize:12,color:MU}}>{today}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16,alignItems:"start"}}>
+            <div style={{...card}}>
+              <div style={{fontWeight:700,fontSize:13,color:DARK,marginBottom:12}}>Checklist Items</div>
+              {(active.items||[]).map((item,i) => (
+                <div key={item.id} onClick={()=>setItemStates(s=>({...s,[item.id]:!s[item.id]}))}
+                  style={{display:"flex",alignItems:"flex-start",gap:12,padding:"10px 12px",
+                    borderRadius:8,marginBottom:4,cursor:"pointer",
+                    background:itemStates[item.id]?"#F0FDF4":"#FAFAFA",
+                    border:`1px solid ${itemStates[item.id]?"#BBF7D0":"#EDE8F4"}`}}>
+                  <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${itemStates[item.id]?OK:"#DDD6EE"}`,
+                    background:itemStates[item.id]?OK:"#fff",display:"flex",alignItems:"center",
+                    justifyContent:"center",flexShrink:0,marginTop:1}}>
+                    {itemStates[item.id] && <span style={{color:"#fff",fontSize:13,fontWeight:900}}>✓</span>}
+                  </div>
+                  <div style={{flex:1}}>
+                    <span style={{fontSize:13,color:DARK,fontWeight:itemStates[item.id]?400:500,
+                      textDecoration:itemStates[item.id]?"line-through":undefined}}>{item.text}</span>
+                    {item.required && <span style={{marginLeft:6,fontSize:10,color:DA,fontWeight:700}}>REQUIRED</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <div style={{...card,marginBottom:16}}>
+                <label style={{fontSize:11,color:MU,fontWeight:700,display:"block",marginBottom:6}}>NOTES (OPTIONAL)</label>
+                <textarea value={notes} onChange={e=>setNotes(e.target.value)}
+                  placeholder="Any observations, issues, or follow-up actions..."
+                  style={{width:"100%",minHeight:140,padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",
+                    fontSize:13,boxSizing:"border-box",fontFamily:"inherit",resize:"vertical"}} />
+              </div>
+
+              {requiredUnchecked.length > 0 && (
+                <div style={{padding:"10px 14px",borderRadius:8,background:"#FEF2F2",border:"1px solid #FCA5A5",
+                  marginBottom:12,fontSize:12,color:DA,fontWeight:600}}>
+                  ⚠️ {requiredUnchecked.length} required item{requiredUnchecked.length!==1?"s":""} not yet ticked
+                </div>
+              )}
+
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <button onClick={completeChecklist} disabled={saving||requiredUnchecked.length>0}
+                  style={{...bp,justifyContent:"center",
+                    opacity:requiredUnchecked.length>0?0.5:1}}>
+                  {saving?"Saving…":"✓ Mark Complete"}
+                </button>
+                <button onClick={()=>setActive(null)} style={bs}>Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div style={{...card,marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:13,color:DARK,marginBottom:12}}>Checklist Items</div>
-        {(active.items||[]).map((item,i) => (
-          <div key={item.id} onClick={()=>setItemStates(s=>({...s,[item.id]:!s[item.id]}))}
-            style={{display:"flex",alignItems:"flex-start",gap:12,padding:"10px 12px",
-              borderRadius:8,marginBottom:4,cursor:"pointer",
-              background:itemStates[item.id]?"#F0FDF4":"#FAFAFA",
-              border:`1px solid ${itemStates[item.id]?"#BBF7D0":"#EDE8F4"}`}}>
-            <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${itemStates[item.id]?OK:"#DDD6EE"}`,
-              background:itemStates[item.id]?OK:"#fff",display:"flex",alignItems:"center",
-              justifyContent:"center",flexShrink:0,marginTop:1}}>
-              {itemStates[item.id] && <span style={{color:"#fff",fontSize:13,fontWeight:900}}>✓</span>}
-            </div>
-            <div style={{flex:1}}>
-              <span style={{fontSize:13,color:DARK,fontWeight:itemStates[item.id]?400:500,
-                textDecoration:itemStates[item.id]?"line-through":undefined}}>{item.text}</span>
-              {item.required && <span style={{marginLeft:6,fontSize:10,color:DA,fontWeight:700}}>REQUIRED</span>}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{...card,marginBottom:16}}>
-        <label style={{fontSize:11,color:MU,fontWeight:700,display:"block",marginBottom:6}}>NOTES (OPTIONAL)</label>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)}
-          placeholder="Any observations, issues, or follow-up actions..."
-          style={{width:"100%",minHeight:80,padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",
-            fontSize:13,boxSizing:"border-box",fontFamily:"inherit",resize:"vertical"}} />
-      </div>
-
-      {requiredUnchecked.length > 0 && (
-        <div style={{padding:"10px 14px",borderRadius:8,background:"#FEF2F2",border:"1px solid #FCA5A5",
-          marginBottom:12,fontSize:12,color:DA,fontWeight:600}}>
-          ⚠️ {requiredUnchecked.length} required item{requiredUnchecked.length!==1?"s":""} not yet ticked
-        </div>
-      )}
-
-      <div style={{display:"flex",gap:10}}>
-        <button onClick={completeChecklist} disabled={saving||requiredUnchecked.length>0}
-          style={{...bp,flex:1,justifyContent:"center",
-            opacity:requiredUnchecked.length>0?0.5:1}}>
-          {saving?"Saving…":"✓ Mark Complete"}
-        </button>
-        <button onClick={()=>setActive(null)} style={bs}>Cancel</button>
       </div>
     </div>
   );

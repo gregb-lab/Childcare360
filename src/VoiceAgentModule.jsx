@@ -1031,12 +1031,13 @@ function SetupGuide() {
   ];
 
   return (
-    <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24, maxWidth: 740 }}>
+    <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24 }}>
       <div style={{ background: '#F0EBF8', borderRadius: 12, padding: '14px 18px', marginBottom: 24, fontSize: 13, color: '#5C4E6A' }}>
         <strong>⏱️ Setup time: ~20 minutes.</strong> You need a Twilio account (free trial works) and your app deployed on AWS.
       </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
       {steps.map(s => (
-        <div key={s.n} style={{ marginBottom: 12, border: `1px solid ${open === s.n ? '#8B6DAF' : '#E8E0F0'}`, borderRadius: 14, overflow: 'hidden' }}>
+        <div key={s.n} style={{ border: `1px solid ${open === s.n ? '#8B6DAF' : '#E8E0F0'}`, borderRadius: 14, overflow: 'hidden' }}>
           <button onClick={() => setOpen(open === s.n ? null : s.n)} style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 14,
             padding: '14px 18px', background: open === s.n ? '#F8F5FC' : '#fff',
@@ -1055,6 +1056,7 @@ function SetupGuide() {
           )}
         </div>
       ))}
+      </div>
     </div>
   );
 }

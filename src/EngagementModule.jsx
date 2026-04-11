@@ -642,7 +642,7 @@ function ChecklistsTab() {
 
   if(active){
     return (
-      <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:600}}>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>setActive(null)} style={{...btnG,padding:"6px 12px",fontSize:12}}>← Back</button>
           <div style={{fontWeight:700,fontSize:16,color:DARK}}>{active.title}</div>
