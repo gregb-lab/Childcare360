@@ -30,8 +30,14 @@ const TYPE_CONFIG = {
   hazard:    { label: "Hazard",    emoji: "🚧" },
 };
 
+// Local date — toISOString() is UTC and returns yesterday for the first
+// ~10h of the day in AEST. Same fix pattern as children.js / daily-updates.js.
+const localToday = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+};
 const BLANK_FORM = {
-  child_id: "", date: new Date().toISOString().slice(0,10), time: new Date().toTimeString().slice(0,5),
+  child_id: "", date: localToday(), time: new Date().toTimeString().slice(0,5),
   type: "incident", severity: "minor", title: "", description: "", location: "",
   action_taken: "", first_aid_given: false, first_aid_by: "", reported_by: "",
   parent_notified: false, parent_notified_at: "", parent_notified_method: "phone",
@@ -124,7 +130,7 @@ export default function IncidentModule() {
   const exportCSV = () => {
     const rows = [["Date","Time","Type","Severity","Child","Title","Location","Action Taken","First Aid","Parent Notified","Reported By","Regulatory Report"]];
     incidents.forEach(i => rows.push([i.date, i.time||"", TYPE_CONFIG[i.type]?.label||i.type, SEV_CONFIG[i.severity]?.label||i.severity, i.first_name?`${i.first_name} ${i.last_name}`:"", i.title||"", i.location||"", i.action_taken||"", i.first_aid_given?"Yes":"No", i.parent_notified?"Yes":"No", i.reported_by||"", i.regulatory_report_required?"Yes":"No"]));
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\\n");
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
     const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "incident_register.csv"; a.click();
   };
 

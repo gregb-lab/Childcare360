@@ -73,6 +73,7 @@ r.put('/:id', (req, res) => {
       first_aid_given=COALESCE(?,first_aid_given), first_aid_by=COALESCE(?,first_aid_by),
       parent_notified=COALESCE(?,parent_notified), parent_notified_at=COALESCE(?,parent_notified_at),
       parent_notified_method=COALESCE(?,parent_notified_method),
+      reported_by=COALESCE(?,reported_by), witness=COALESCE(?,witness),
       follow_up_required=COALESCE(?,follow_up_required), follow_up_notes=COALESCE(?,follow_up_notes),
       regulatory_report_required=COALESCE(?,regulatory_report_required),
       regulatory_reported_at=COALESCE(?,regulatory_reported_at),
@@ -81,6 +82,7 @@ r.put('/:id', (req, res) => {
       b.child_id, b.date, b.time, b.type, b.severity, b.title, b.description, b.location,
       b.action_taken, b.first_aid_given!=null?b.first_aid_given?1:0:null, b.first_aid_by,
       b.parent_notified!=null?b.parent_notified?1:0:null, b.parent_notified_at, b.parent_notified_method,
+      b.reported_by ?? null, b.witness ?? null,
       b.follow_up_required!=null?b.follow_up_required?1:0:null, b.follow_up_notes,
       b.regulatory_report_required!=null?b.regulatory_report_required?1:0:null, b.regulatory_reported_at,
       req.params.id, req.tenantId
