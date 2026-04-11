@@ -406,7 +406,7 @@ function MedLogTab() {
                   <td style={{padding:"8px 12px"}}>{l.med_name}</td>
                   <td style={{padding:"8px 12px",color:"#8A7F96"}}>{l.dose_given||l.dosage||"—"}</td>
                   <td style={{padding:"8px 12px"}}>{l.administered_by_display||l.given_by||l.administered_by||"—"}</td>
-                  <td style={{padding:"8px 12px",color:"#8A7F96"}}>{l.witnessed_by||"—"}</td>
+                  <td style={{padding:"8px 12px",color:"#8A7F96"}}>{l.witnessed_by_name||l.witnessed_by||"—"}</td>
                   <td style={{padding:"8px 12px",textAlign:"center"}}>
                     {l.parent_notified
                       ? <span style={{color:"#2E7D32",fontWeight:700}}>✓</span>

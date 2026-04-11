@@ -1694,7 +1694,7 @@ function TerminationModal({ educator, onClose, onSaved }) {
         </div>
 
         {/* Form */}
-        <div style={{ padding:24,display:"flex",flexDirection:"column",gap:16 }}>
+        <div style={{ flex: 1, minHeight: 0, width: '100%', padding:24,display:"flex",flexDirection:"column",gap:16 }}>
           <div>
             <label style={lbl}>Termination Date *</label>
             <DatePicker value={form.termination_date} onChange={v=>setForm({...form,termination_date:v})} />

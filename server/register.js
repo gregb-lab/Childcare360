@@ -16,6 +16,13 @@ const r = Router();
 r.use(requireAuth);
 r.use(requireTenant);
 
+// ─── Idempotent column migrations ────────────────────────────────────────────
+// `medication_log.witnessed_by` is a FK to users.id, so free-text witness
+// names can't be stored there without violating the FK. Add a sibling
+// text column for the name. The try/catch makes this a no-op after the
+// first run.
+try { D().prepare("ALTER TABLE medication_log ADD COLUMN witnessed_by_name TEXT").run(); } catch(e) { /* already exists */ }
+
 // ─── EQUIPMENT / MEDICATION REGISTER ─────────────────────────────────────────
 
 r.get('/equipment', (req, res) => {
@@ -294,25 +301,22 @@ r.post('/medication-log', requireAuth, requireTenant, (req, res) => {
     const time_given = req.body.time_given || req.body.given_at || localNow;
 
     // `administered_by`/`witnessed_by` are FK columns; only accept them if they
-    // look like UUIDs. Typed names are preserved in `given_by` (no FK) and notes.
+    // look like UUIDs. Typed names go into `given_by` (no FK) for the
+    // administrator, and into the dedicated `witnessed_by_name` text column
+    // for the witness.
     const administered_by_fk = isUuid(req.body.administered_by) ? req.body.administered_by : null;
     const witnessed_by_fk    = isUuid(req.body.witnessed_by)    ? req.body.witnessed_by    : null;
     const given_by_name = req.body.administered_by_name || req.body.given_by || (isUuid(req.body.administered_by) ? null : req.body.administered_by) || null;
-    const witnessed_by_name = req.body.witnessed_by_name || null;
-
-    // Fold witnessed_by name into notes when we can't store it in the FK column.
-    let notes = req.body.notes || '';
-    if (witnessed_by_name && !witnessed_by_fk) {
-      notes = notes ? `${notes}\n(Witnessed by: ${witnessed_by_name})` : `Witnessed by: ${witnessed_by_name}`;
-    }
+    const witnessed_by_name = req.body.witnessed_by_name || (isUuid(req.body.witnessed_by) ? null : req.body.witnessed_by) || null;
+    const notes = req.body.notes || '';
 
     const id = uuid();
     D().prepare(`INSERT INTO medication_log
-      (id,tenant_id,medication_id,child_id,time_given,given_at,administered_by,given_by,witnessed_by,dose_given,parent_notified,notes)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+      (id,tenant_id,medication_id,child_id,time_given,given_at,administered_by,given_by,witnessed_by,witnessed_by_name,dose_given,parent_notified,notes)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, medication_id, child_id, time_given, time_given,
-           administered_by_fk, given_by_name, witnessed_by_fk, dose_given||'',
-           parent_notified ? 1 : 0, notes);
+           administered_by_fk, given_by_name, witnessed_by_fk, witnessed_by_name,
+           dose_given||'', parent_notified ? 1 : 0, notes);
     res.json({ id, ok: true, time_given });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

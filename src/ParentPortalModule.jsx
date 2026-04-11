@@ -357,7 +357,7 @@ function OneOffPayment() {
   };
 
   if (done) return (
-    <div style={{padding:"20px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,color:OK2,fontWeight:700,textAlign:"center"}}>
+    <div style={{ flex: 1, minHeight: 0, width: '100%',padding:"20px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,color:OK2,fontWeight:700,textAlign:"center"}}>
       ✅ Payment of ${total.toFixed(2)} submitted successfully
     </div>
   );

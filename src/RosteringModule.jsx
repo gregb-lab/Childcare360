@@ -892,7 +892,7 @@ function SmartRosterBuilder({ period, entries, educators, rooms, allDates, onDel
               );
             })}
             {roomCompliance.length===0&&(
-              <div style={{padding:32,textAlign:"center",color:"#A89DB5",background:"#F8F5F1",borderRadius:12}}>
+              <div style={{ flex: 1, minHeight: 0, width: '100%',padding:32,textAlign:"center",color:"#A89DB5",background:"#F8F5F1",borderRadius:12}}>
                 No rooms found. Add rooms in the Rooms module first.
               </div>
             )}
@@ -1297,7 +1297,7 @@ function WeekView({ entries, allDates, educators, rooms, onDelete, onEdit, onAdd
           </div>
         );
       })}
-      {edIds.length === 0 && <div style={{ padding: 32, textAlign: "center", color: "#A89DB5" }}>No shifts for this period</div>}
+      {edIds.length === 0 && <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 32, textAlign: "center", color: "#A89DB5" }}>No shifts for this period</div>}
     </div>
   );
 }

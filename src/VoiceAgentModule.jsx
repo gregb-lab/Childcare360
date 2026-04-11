@@ -254,7 +254,7 @@ function SettingsTab() {
   const provider = form.voice_provider || 'twilio';
 
   return (
-    <div style={{ padding: 24, maxWidth: 760 }}>
+    <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24, maxWidth: 760 }}>
 
       {/* Active toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 12, marginBottom: 24,
@@ -614,7 +614,7 @@ function TestCallTab() {
   useEffect(() => () => stopPolling(), []);
 
   return (
-    <div style={{ padding: 24, maxWidth: 600 }}>
+    <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24, maxWidth: 600 }}>
       <div style={{ background: '#F8F5FC', borderRadius: 16, padding: 24, marginBottom: 24 }}>
         <h3 style={{ margin: '0 0 6px', fontSize: 16, color: '#2d1f3d' }}>📞 Make a Test Call</h3>
         <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6B5E7A' }}>
@@ -1023,7 +1023,7 @@ function SetupGuide() {
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 740 }}>
+    <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24, maxWidth: 740 }}>
       <div style={{ background: '#F0EBF8', borderRadius: 12, padding: '14px 18px', marginBottom: 24, fontSize: 13, color: '#5C4E6A' }}>
         <strong>⏱️ Setup time: ~20 minutes.</strong> You need a Twilio account (free trial works) and your app deployed on AWS.
       </div>

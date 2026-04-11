@@ -938,8 +938,8 @@ export default function ChildcareRosterApp() {
       </nav>
 
       {/* ── MAIN CONTENT ── */}
-      <main style={{ flex: 1, overflowY: "auto", padding: 0, background: "#FAF7F4" }}>
-        <div key={activeTab} style={{ animation: "fadeInUp 0.35s ease-out", padding: 0 }}>
+      <main style={{ flex: 1, overflowY: "auto", padding: 0, background: "#FAF7F4", display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div key={activeTab} style={{ animation: "fadeInUp 0.35s ease-out", padding: 0, height: "100%", display: "flex", flexDirection: "column" }}>
         <header style={{ padding: "20px 32px", borderBottom: "1px solid #E8E0D8", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FDFBF9" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em" }}>
