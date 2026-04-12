@@ -5954,5 +5954,8 @@ function initLearningTables(db) {
 
     // ── BUG-WL-01 — offer expiry on waitlist entries ──
     'ALTER TABLE waitlist ADD COLUMN offer_expiry TEXT',
+
+    // ── BUG-LJ-03 — shared_at timestamp on learning_stories ──
+    'ALTER TABLE learning_stories ADD COLUMN shared_at TEXT',
   ].forEach(sql => { try { db.prepare(sql).run(); } catch(e) {} });
 }

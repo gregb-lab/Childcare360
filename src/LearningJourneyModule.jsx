@@ -113,10 +113,16 @@ export default function LearningJourneyModule() {
       <select value={period} onChange={e => setPeriod(e.target.value)} style={{ ...inp, width:"auto", fontSize:12, padding:"5px 10px" }}>
         {[["today","Today"],["yesterday","Yesterday"],["week","This Week"],["month","This Month"],["year","This Year"],["all","All Time"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
       </select>
-      {multiFamilies.length > 0 && (
+      {/* BUG-LJ-05 — show ALL families, not only multi-child. Previously the
+          dropdown was only rendered when there were 2+ multi-child families,
+          so clicking "View Family Feed →" for a single-child family set
+          filterFamily but left the user with no visible indicator (and no
+          way to clear the filter). Now the dropdown is always visible when
+          there's at least one family with stories. */}
+      {families.length > 0 && (
         <select value={filterFamily} onChange={e => { setFilterFamily(e.target.value); if (e.target.value) setFilterChild(""); }} style={{ ...inp, width:"auto", fontSize:12, padding:"5px 10px" }}>
           <option value="">All Families</option>
-          {multiFamilies.map(f => <option key={f.id} value={f.id}>{f.family_name} ({f.child_count} siblings)</option>)}
+          {families.map(f => <option key={f.id} value={f.id}>{f.family_name}{f.child_count > 1 ? ` (${f.child_count} siblings)` : ""}</option>)}
         </select>
       )}
       <select value={filterChild} onChange={e => { setFilterChild(e.target.value); if (e.target.value) setFilterFamily(""); }} style={{ ...inp, width:"auto", fontSize:12, padding:"5px 10px" }}>
@@ -738,14 +744,32 @@ function StoryDetailView({ story: s, children, onClose, onEdit, onRefresh }) {
     try {
       const fd = new FormData();
       Array.from(files).forEach(f => fd.append("photos", f));
-      const r = await fetch(`/api/learning/stories/${s.id}/upload`, { method:"POST", body:fd });
-      const data = await r.json();
-      if (data.ok) {
+      // BUG-LJ-01 fix: previously this fetch had NO Authorization or
+      // x-tenant-id headers, so requireAuth returned 401 and the silent
+      // catch{} swallowed the error. Now we send the same auth headers
+      // the API() helper sends.
+      const t = localStorage.getItem("c360_token");
+      const tid = localStorage.getItem("c360_tenant");
+      const r = await fetch(`/api/learning/stories/${s.id}/upload`, {
+        method: "POST",
+        body: fd,
+        headers: {
+          ...(t   ? { Authorization: `Bearer ${t}` } : {}),
+          ...(tid ? { "x-tenant-id": tid } : {}),
+        },
+      });
+      const data = await r.json().catch(() => ({ error: `Upload failed (${r.status})` }));
+      if (!r.ok || data.error) {
+        window.showToast("Upload failed: " + (data.error || `${r.status}`), "error");
+      } else if (data.ok) {
         const updated = await API(`/api/learning/stories/${s.id}`);
         if (updated.photo_rows) setPhotos(updated.photo_rows);
+        window.showToast(`Uploaded ${data.uploaded || data.photos?.length || 0} photo(s)`, "success");
         onRefresh();
       }
-    } catch {}
+    } catch (e) {
+      window.showToast("Upload failed: " + (e.message || "Unknown error"), "error");
+    }
     setUploading(false);
   };
 
@@ -763,6 +787,37 @@ function StoryDetailView({ story: s, children, onClose, onEdit, onRefresh }) {
       if (r.error) { window.showToast(r.error, 'error'); } else { onRefresh(); }
     } catch(e) { toast("Failed to publish story.", "error"); }
     setPublishing(false);
+  };
+
+  // BUG-LJ-02 — delete story
+  const deleteStory = async () => {
+    if (!(await window.showConfirm("Delete this learning story? This cannot be undone."))) return;
+    try {
+      const r = await API(`/api/learning/stories/${s.id}`, { method: "DELETE" });
+      if (r.error) { window.showToast("Delete failed: " + r.error, "error"); return; }
+      window.showToast("Story deleted", "success");
+      onClose();
+      onRefresh();
+    } catch (e) {
+      window.showToast("Delete failed: " + (e.message || "Unknown error"), "error");
+    }
+  };
+
+  // BUG-LJ-03 — share with parents
+  const [sharing, setSharing] = useState(false);
+  const [shared, setShared] = useState(!!s.shared_at);
+  const shareWithFamilies = async () => {
+    setSharing(true);
+    try {
+      const r = await API(`/api/learning/stories/${s.id}/share`, { method: "POST" });
+      if (r.error) { window.showToast("Share failed: " + r.error, "error"); setSharing(false); return; }
+      setShared(true);
+      window.showToast("Story shared with families ✓", "success");
+      onRefresh();
+    } catch (e) {
+      window.showToast("Share failed: " + (e.message || "Unknown error"), "error");
+    }
+    setSharing(false);
   };
 
   const recordProg = async () => {
@@ -819,8 +874,14 @@ function StoryDetailView({ story: s, children, onClose, onEdit, onRefresh }) {
         {s.event_name && <div style={{ fontSize:11, color:purple, fontWeight:700, marginBottom:6 }}>📍 {s.event_name}</div>}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
           <h2 style={{ margin:0, color:"#3D3248", fontSize:22, lineHeight:1.2 }}>{s.title}</h2>
-          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            {onEdit && <button onClick={onEdit} style={{ ...btnS, fontSize:12, padding:"6px 12px" }}>✏️ Edit Story</button>}
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            {onEdit && <button onClick={onEdit} style={{ ...btnS, fontSize:12, padding:"6px 12px" }}>✏️ Edit</button>}
+            {/* BUG-LJ-02 — Delete */}
+            <button onClick={deleteStory} style={{ background:"#fff", color:"#B71C1C", border:"1px solid #FFCDD2", borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer" }}>🗑 Delete</button>
+            {/* BUG-LJ-03 — Share with families */}
+            {shared
+              ? <span style={{ fontSize:11, background:"#0284C720", color:"#0369a1", padding:"4px 10px", borderRadius:10, fontWeight:700 }}>📤 Shared with families</span>
+              : <button onClick={shareWithFamilies} disabled={sharing} style={{ background:"#0284C7", color:"#fff", border:"none", borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer", opacity:sharing?0.6:1 }}>{sharing?"Sharing…":"📤 Share with Families"}</button>}
             {!s.published
               ? <button onClick={publish} disabled={publishing} style={btnP("#6BA38B")}>✓ Publish</button>
               : <span style={{ fontSize:11, background:"#6BA38B20", color:"#4A7A6B", padding:"4px 10px", borderRadius:10, fontWeight:700 }}>✓ Published</span>}
@@ -924,6 +985,10 @@ function StoryDetailView({ story: s, children, onClose, onEdit, onRefresh }) {
 function AlbumsView({ albums, children, stories, onOpen, onRefresh }) {
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  // BUG-LJ-04 — inline rename state (album id being renamed)
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+
   const create = async () => {
     if(!name.trim()) return;
     try {
@@ -931,6 +996,34 @@ function AlbumsView({ albums, children, stories, onOpen, onRefresh }) {
       setName(""); setCreating(false); onRefresh();
     } catch(e) { toast("Failed to create album.", "error"); }
   };
+
+  const startRename = (al) => { setRenamingId(al.id); setRenameValue(al.name || ""); };
+
+  const saveRename = async (al) => {
+    if (!renameValue.trim()) { setRenamingId(null); return; }
+    try {
+      const r = await API(`/api/learning/albums/${al.id}`, { method:"PUT", body:{ name: renameValue.trim() } });
+      if (r.error) { window.showToast("Rename failed: " + r.error, "error"); return; }
+      window.showToast("Album renamed", "success");
+      setRenamingId(null);
+      onRefresh();
+    } catch (e) {
+      window.showToast("Rename failed: " + (e.message || "Unknown error"), "error");
+    }
+  };
+
+  const deleteAlbum = async (al) => {
+    if (!(await window.showConfirm(`Delete album "${al.name}"? Stories in this album will not be deleted, but they will no longer be grouped here.`))) return;
+    try {
+      const r = await API(`/api/learning/albums/${al.id}`, { method:"DELETE" });
+      if (r.error) { window.showToast("Delete failed: " + r.error, "error"); return; }
+      window.showToast("Album deleted", "success");
+      onRefresh();
+    } catch (e) {
+      window.showToast("Delete failed: " + (e.message || "Unknown error"), "error");
+    }
+  };
+
   const getCover = (al) => stories.filter(s=>s.album_id===al.id).find(s=>s.photo_rows?.[0])?.photo_rows?.[0]?.url||null;
 
   return (
@@ -955,18 +1048,34 @@ function AlbumsView({ albums, children, stories, onOpen, onRefresh }) {
           {albums.map(al => {
             const cover = getCover(al);
             const alChildren = (al.child_ids||[]).map(id => children.find(c=>c.id===id)).filter(Boolean);
+            const renaming = renamingId === al.id;
             return (
-              <div key={al.id} onClick={() => onOpen(al)} style={{ background:"#fff", borderRadius:16, border:"1px solid #EDE8F4", overflow:"hidden", cursor:"pointer", boxShadow:"0 2px 10px rgba(0,0,0,0.04)" }}
+              <div key={al.id} style={{ background:"#fff", borderRadius:16, border:"1px solid #EDE8F4", overflow:"hidden", boxShadow:"0 2px 10px rgba(0,0,0,0.04)" }}
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 6px 20px rgba(139,109,175,0.12)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 2px 10px rgba(0,0,0,0.04)"}>
-                <div style={{ height:160, background:cover?`url(${cover}) center/cover`:`linear-gradient(135deg,${purple}25,${purple}10)`, display:"flex", alignItems:"flex-end", padding:12 }}>
+                <div onClick={() => !renaming && onOpen(al)} style={{ height:160, background:cover?`url(${cover}) center/cover`:`linear-gradient(135deg,${purple}25,${purple}10)`, display:"flex", alignItems:"flex-end", padding:12, cursor: renaming ? "default" : "pointer" }}>
                   <div style={{ background:"rgba(0,0,0,0.52)", borderRadius:10, padding:"8px 12px", backdropFilter:"blur(3px)" }}>
                     <div style={{ fontSize:13, fontWeight:800, color:"#fff" }}>{al.name}</div>
                     <div style={{ fontSize:10, color:"rgba(255,255,255,0.8)", marginTop:2 }}>{al.story_count||0} stories · {al.photo_count||0} photos</div>
                   </div>
                 </div>
                 <div style={{ padding:"10px 14px" }}>
-                  {alChildren.length > 0 && <div style={{ display:"flex", gap:4 }}>{alChildren.slice(0,6).map(c=><Avatar key={c.id} child={c} size={22}/>)}{alChildren.length>6&&<span style={{ fontSize:10,color:"#9A8FB0",alignSelf:"center" }}>+{alChildren.length-6}</span>}</div>}
+                  {alChildren.length > 0 && <div style={{ display:"flex", gap:4, marginBottom:8 }}>{alChildren.slice(0,6).map(c=><Avatar key={c.id} child={c} size={22}/>)}{alChildren.length>6&&<span style={{ fontSize:10,color:"#9A8FB0",alignSelf:"center" }}>+{alChildren.length-6}</span>}</div>}
+                  {/* BUG-LJ-04 — Rename + Delete buttons */}
+                  {renaming ? (
+                    <div style={{ display:"flex", gap:6 }} onClick={e => e.stopPropagation()}>
+                      <input value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus
+                        onKeyDown={e => { if (e.key === "Enter") saveRename(al); if (e.key === "Escape") setRenamingId(null); }}
+                        style={{ ...inp, fontSize:12, padding:"5px 8px" }} />
+                      <button onClick={() => saveRename(al)} style={{ ...btnP(), fontSize:11, padding:"5px 10px" }}>Save</button>
+                      <button onClick={() => setRenamingId(null)} style={{ ...btnS, fontSize:11, padding:"5px 10px" }}>✕</button>
+                    </div>
+                  ) : (
+                    <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }} onClick={e => e.stopPropagation()}>
+                      <button onClick={() => startRename(al)} style={{ background:"#fff", color:purple, border:`1px solid ${purple}40`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:600, cursor:"pointer" }}>✏️ Rename</button>
+                      <button onClick={() => deleteAlbum(al)} style={{ background:"#fff", color:"#B71C1C", border:"1px solid #FFCDD2", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>🗑 Delete</button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

@@ -20,11 +20,30 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
+  // BUG-LJ-01 fix: permissive image+video filter that DOES NOT throw.
+  // The previous filter rejected HEIC (iPhone default), bare octet-stream,
+  // and any video — and threw `new Error('Images only')` which propagated
+  // through multer and hit Express's default HTML 500 handler. We now
+  // accept the file when its mimetype starts with image/ or video/,
+  // and silently skip otherwise (cb(null, false)) so the route handler
+  // can return a clean JSON 400 instead of a multer crash.
   fileFilter: (req, file, cb) => {
-    const ok = /jpeg|jpg|png|gif|webp/.test(file.mimetype);
-    cb(ok ? null : new Error('Images only'), ok);
-  }
+    const m = (file.mimetype || '').toLowerCase();
+    const ok = m.startsWith('image/') || m.startsWith('video/');
+    cb(null, ok);
+  },
 });
+
+// Multer error → JSON middleware (used per-route below).
+// Without this, any multer error (file too large, parse failure, etc.)
+// returns the default Express HTML 500 page, which the frontend can't
+// parse as JSON.
+const handleUploadErrors = (err, req, res, next) => {
+  if (!err) return next();
+  console.error('[learning:upload]', err);
+  const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+  return res.status(status).json({ error: err.message || 'Upload failed' });
+};
 
 const r = Router();
 r.use(requireAuth);
@@ -229,6 +248,29 @@ r.post('/stories/:id/publish', (req, res) => {
   res.json({ ok: true });
 });
 
+// BUG-LJ-03 — share story with families. Sets visible_to_parents=1 and
+// stamps shared_at. Idempotent: re-sharing just refreshes the timestamp.
+// Returns the updated row so the UI can flip its button to "Shared ✓".
+r.post('/stories/:id/share', (req, res) => {
+  try {
+    const result = D().prepare(`
+      UPDATE learning_stories
+      SET visible_to_parents = 1,
+          shared_at = datetime('now'),
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).run(req.params.id, req.tenantId);
+    if (result.changes === 0) return res.status(404).json({ error: 'Story not found' });
+    const story = D().prepare(
+      'SELECT id, title, shared_at, visible_to_parents FROM learning_stories WHERE id = ?'
+    ).get(req.params.id);
+    res.json({ ok: true, story_id: req.params.id, shared_at: story.shared_at, story });
+  } catch (e) {
+    console.error('[learning:share]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── STORY PHOTOS ────────────────────────────────────────────────────────────
 
 r.get('/stories/:id/photos', (req, res) => {
@@ -270,25 +312,43 @@ r.delete('/photos/:id', (req, res) => {
 
 // ─── PHOTO FILE UPLOAD ────────────────────────────────────────────────────────
 
-r.post('/stories/:id/upload', upload.array('photos', 20), (req, res) => {
-  if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
-  const db = D();
-  const storyId = req.params.id;
-  const tenantId = req.tenantId;
-  // Verify story belongs to tenant
-  const story = db.prepare('SELECT id FROM learning_stories WHERE id=? AND tenant_id=?').get(storyId, tenantId);
-  if (!story) return res.status(404).json({ error: 'Story not found' });
-  const count = db.prepare('SELECT COUNT(*) as c FROM story_photos WHERE story_id=?').get(storyId).c;
-  const ids = [];
-  req.files.forEach((file, i) => {
-    const id = uuid();
-    const url = '/uploads/' + file.filename;
-    db.prepare('INSERT INTO story_photos (id,tenant_id,story_id,url,caption,tagged_child_ids,tagged_labels,ai_suggested_tags,sort_order) VALUES(?,?,?,?,?,?,?,?,?)')
-      .run(id, tenantId, storyId, url, null, '[]', '[]', '[]', count + i);
-    ids.push({ id, url });
-  });
-  res.json({ ok: true, photos: ids });
-});
+// Multer middleware first; the per-route error handler converts any
+// multer/multer-fileFilter error into a JSON response so the frontend
+// fetch can `await r.json()` reliably.
+r.post('/stories/:id/upload',
+  (req, res, next) => upload.array('photos', 20)(req, res, err => handleUploadErrors(err, req, res, next)),
+  (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+      const db = D();
+      const storyId = req.params.id;
+      const tenantId = req.tenantId;
+      const story = db.prepare(
+        'SELECT id FROM learning_stories WHERE id=? AND tenant_id=?'
+      ).get(storyId, tenantId);
+      if (!story) return res.status(404).json({ error: 'Story not found' });
+
+      const count = db.prepare(
+        'SELECT COUNT(*) as c FROM story_photos WHERE story_id=?'
+      ).get(storyId).c;
+      const ids = [];
+      req.files.forEach((file, i) => {
+        const id = uuid();
+        const url = '/uploads/' + file.filename;
+        db.prepare(
+          'INSERT INTO story_photos (id,tenant_id,story_id,url,caption,tagged_child_ids,tagged_labels,ai_suggested_tags,sort_order) VALUES(?,?,?,?,?,?,?,?,?)'
+        ).run(id, tenantId, storyId, url, null, '[]', '[]', '[]', count + i);
+        ids.push({ id, url });
+      });
+      res.json({ ok: true, photos: ids, uploaded: ids.length });
+    } catch (e) {
+      console.error('[learning:upload-route]', e);
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
 
 // ─── ALBUMS ──────────────────────────────────────────────────────────────────
 
