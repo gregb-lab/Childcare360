@@ -224,19 +224,36 @@ function AdminView() {
             </button>
           </div>
 
+          {/* Set/Change PIN modal — fixed position so it's visible regardless
+              of scroll position in the 187+ row table below. The previous inline
+              form at the top of the table was invisible when the user scrolled
+              down to find the child and clicked "Set PIN". */}
           {editPin && (
-            <div style={{...card,background:"#F8F5FC",border:"1px solid #DDD6EE",marginBottom:14}}>
-              <div style={{fontWeight:700,fontSize:13,color:DARK,marginBottom:10}}>
-                Set PIN for {children.find(c=>c.id===editPin)?.first_name} {children.find(c=>c.id===editPin)?.last_name}
-              </div>
-              <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
-                <div style={{flex:1}}>
+            <div onClick={()=>{setEditPin(null);setPinInput("");}}
+              style={{position:"fixed",inset:0,background:"rgba(60,40,80,0.45)",zIndex:1000,
+                display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{background:"#fff",borderRadius:16,padding:28,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(60,40,80,0.25)"}}>
+                <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:DARK}}>
+                  {pins.find(p=>p.child_id===editPin) ? "Change PIN" : "Set PIN"}
+                </h3>
+                <div style={{fontSize:13,color:MU,marginBottom:20}}>
+                  {children.find(c=>c.id===editPin)?.first_name} {children.find(c=>c.id===editPin)?.last_name}
+                </div>
+                <div style={{marginBottom:20}}>
                   <label style={lbl}>4-Digit PIN</label>
                   <input value={pinInput} onChange={e=>setPinInput(e.target.value.replace(/\D/g,"").slice(0,4))}
-                    style={inp} placeholder="e.g. 1234" maxLength={4}/>
+                    style={{...inp,fontSize:24,letterSpacing:"0.3em",textAlign:"center",padding:"14px 12px"}}
+                    placeholder="····" maxLength={4} autoFocus/>
                 </div>
-                <button style={{ ...bp, opacity: savingPin || pinInput.length < 4 ? 0.5 : 1 }} onClick={savePin} disabled={savingPin || pinInput.length < 4}>{savingPin ? "Saving…" : "Save"}</button>
-                <button style={bs} onClick={()=>{setEditPin(null);setPinInput("");}}>Cancel</button>
+                <div style={{display:"flex",gap:10}}>
+                  <button style={{ ...bp, flex:1, justifyContent:"center", padding:"12px 20px", fontSize:14,
+                    opacity: savingPin || pinInput.length < 4 ? 0.5 : 1 }}
+                    onClick={savePin} disabled={savingPin || pinInput.length < 4}>
+                    {savingPin ? "Saving…" : "Save PIN"}
+                  </button>
+                  <button style={{...bs,padding:"12px 20px",fontSize:14}} onClick={()=>{setEditPin(null);setPinInput("");}}>Cancel</button>
+                </div>
               </div>
             </div>
           )}
