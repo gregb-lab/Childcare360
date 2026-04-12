@@ -1486,14 +1486,29 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
   };
 
   // Generate roster
+  // BUG-ROST-01 fix: moved setGenerating(false) into a `finally` block so it
+  // ALWAYS runs. Previously it was after the try/catch, meaning if the catch
+  // block itself threw (e.g. `e.message` on a non-Error rejection, or a
+  // React unmount race), setGenerating(false) never executed and the button
+  // stayed stuck on "⏳ Generating…" indefinitely.
   const handleGenerate = async () => {
     setGenerating(true); setGErr(null); setGRes(null);
     try {
       const r = await API("/api/rostering/generate", { method: "POST", body: { ...gf, lunch_cover_educator_id: lunchCoverEdId || null } });
-      if (r?.error) setGErr(r.error);
-      else { setGRes(r); reload(); if (r.period_id) { loadP(r.period_id); setTimeout(() => loadP(r.period_id), 1000); } }
-    } catch (e) { setGErr(e.message); }
-    setGenerating(false);
+      if (r?.error) {
+        setGErr(r.error);
+      } else {
+        setGRes(r);
+        toast(`Roster generated — ${r.entries_created || 0} shifts, ${r.compliance_score || 0}% compliance`);
+        reload();
+        if (r.period_id) { loadP(r.period_id); setTimeout(() => loadP(r.period_id), 1000); }
+      }
+    } catch (e) {
+      const msg = (e && typeof e === "object" && e.message) ? e.message : String(e || "Unknown error");
+      setGErr(msg);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   // Approve / Publish
@@ -1880,7 +1895,10 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-                  {!editShift._isNew && <button onClick={() => { delEntry(editShift.id); setEditShift(null); }} style={{ ...btnS, color: "#C06B73", borderColor: "#FFCDD2" }}>🗑 Delete</button>}
+                  {/* BUG-ROST-02 fix: shift delete had no confirmation dialog at all
+                      (the period-level delete correctly asks "Delete this roster period?",
+                      but this shift-level delete just fired immediately). */}
+                  {!editShift._isNew && <button onClick={async () => { if (!(await window.showConfirm("Delete this shift? This cannot be undone."))) return; delEntry(editShift.id); setEditShift(null); }} style={{ ...btnS, color: "#C06B73", borderColor: "#FFCDD2" }}>🗑 Delete</button>}
                   <div style={{ flex: 1 }} />
                   <button onClick={() => setEditShift(null)} style={btnS}>Cancel</button>
                   <button onClick={() => {

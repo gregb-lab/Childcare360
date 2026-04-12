@@ -138,11 +138,37 @@ r.get('/periods/:id', (req, res) => {
   res.json({ period, entries, rooms });
 });
 
+// BUG-ROST-03 fix: the previous code had TWO bugs:
+// 1. The UPDATE for roster_periods had 3 bind placeholders (approved_by, id,
+//    tenant_id) but .run() only passed 2 values (userName, id) — missing
+//    req.tenantId, so the WHERE clause never matched (SQLite silently updated
+//    0 rows, then the next statement also failed because period hadn't changed).
+// 2. No try/catch, so any SQLite error from the malformed bind returned a
+//    generic Express 500 without useful error JSON.
 r.put('/periods/:id/approve', (req, res) => {
-  D().prepare("UPDATE roster_periods SET status='approved', approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
-    .run(req.userName || 'system', req.params.id);
-  D().prepare("UPDATE roster_entries SET status='confirmed' WHERE period_id=? AND tenant_id=?").run(req.params.id, req.tenantId);
-  res.json({ ok: true });
+  try {
+    const period = D().prepare(
+      'SELECT id, status FROM roster_periods WHERE id=? AND tenant_id=?'
+    ).get(req.params.id, req.tenantId);
+    if (!period) return res.status(404).json({ error: 'Period not found' });
+    if (period.status === 'approved') return res.json({ ok: true, message: 'Already approved' });
+
+    D().prepare(`
+      UPDATE roster_periods
+      SET status='approved', approved_by=?, approved_at=datetime('now'), updated_at=datetime('now')
+      WHERE id=? AND tenant_id=?
+    `).run(req.userName || 'system', req.params.id, req.tenantId);
+
+    D().prepare(`
+      UPDATE roster_entries SET status='confirmed'
+      WHERE period_id=? AND tenant_id=?
+    `).run(req.params.id, req.tenantId);
+
+    res.json({ ok: true, period_id: req.params.id, status: 'approved' });
+  } catch (e) {
+    console.error('[rostering:approve]', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 r.put('/periods/:id/publish', (req, res) => {
