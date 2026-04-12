@@ -589,8 +589,65 @@ app.use('/api/fee-overrides', feeOverrideRouter);
 app.use('/api/compliance-tasks', complianceTaskRouter);
 app.use('/api/v2', v2Routes);
 app.use('/api/settings', settingsRoutes);
+
+// ── Attendance absences (child attendance-based) ──
+app.get('/api/attendance/absences', requireAuth, requireTenant, (req, res) => {
+  try {
+    const { from, to, child_id, room_id } = req.query;
+    const where = ['a.tenant_id=?', 'a.absent=1'];
+    const vals = [req.tenantId];
+    if (from) { where.push('a.date >= ?'); vals.push(from); }
+    if (to) { where.push('a.date <= ?'); vals.push(to); }
+    if (child_id) { where.push('a.child_id=?'); vals.push(child_id); }
+    if (room_id) { where.push('c.room_id=?'); vals.push(room_id); }
+    const absences = _D().prepare(`
+      SELECT a.*, c.first_name, c.last_name, c.room_id, r.name as room_name
+      FROM attendance_sessions a
+      JOIN children c ON c.id=a.child_id
+      LEFT JOIN rooms r ON r.id=c.room_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY a.date DESC
+      LIMIT 200
+    `).all(...vals);
+    res.json({ absences, total: absences.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.use('/api/stories', weeklyStoriesRouter);
 app.use('/api/ratio-report', ratioReportRouter);
+
+// ── GET /api/attendance/live — children currently signed in, grouped by room ──
+app.get('/api/attendance/live', requireAuth, requireTenant, (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const sessions = _D().prepare(`
+      SELECT a.child_id, c.first_name, c.last_name, c.room_id, a.sign_in,
+        r.name as room_name, r.age_group as room_age_group, r.capacity
+      FROM attendance_sessions a
+      JOIN children c ON c.id = a.child_id
+      LEFT JOIN rooms r ON r.id = c.room_id
+      WHERE a.tenant_id = ?
+        AND a.date = ?
+        AND a.sign_in IS NOT NULL
+        AND (a.sign_out IS NULL OR a.sign_out = '')
+        AND a.absent = 0
+      ORDER BY r.name, c.last_name
+    `).all(req.tenantId, today);
+
+    const byRoom = {};
+    sessions.forEach(s => {
+      const key = s.room_id || 'unassigned';
+      if (!byRoom[key]) byRoom[key] = {
+        room_id: s.room_id,
+        room_name: s.room_name || 'Unassigned',
+        age_group: s.room_age_group,
+        capacity: s.capacity,
+        children: []
+      };
+      byRoom[key].children.push({ child_id: s.child_id, first_name: s.first_name, last_name: s.last_name, sign_in: s.sign_in });
+    });
+    res.json({ rooms: Object.values(byRoom), total_present: sessions.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // ── Health check ──
 

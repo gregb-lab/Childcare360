@@ -167,6 +167,8 @@ import RoomsModule from "./RoomsModule.jsx";
 import MessagingModule from "./MessagingModule.jsx";
 import MedicationRegisterModule from "./MedicationRegisterModule.jsx";
 import SOC2Module from "./SOC2Module.jsx";
+import RatioCheckModule from "./RatioCheckModule.jsx";
+import AIConfigModule from "./AIConfigModule.jsx";
 import VoiceAgentModule from "./VoiceAgentModule.jsx";
 import { INITIAL_CHILDREN, EYLF_OUTCOMES, DEV_DOMAINS, SKILL_LEVELS } from "./nqf-data.js";
 
@@ -490,12 +492,12 @@ export default function ChildcareRosterApp() {
       "medication_register","incidents","excursions","operations",
       "learning","learning_journey","observations","run_sheet","stories","ai_assistant","quality",
       "enrolment","waitlist","crm","engagement",
-      "educators","roster","compliance","ratio_report","wellbeing","payroll","staff_wellbeing",
+      "educators","roster","compliance","ratio_report","ratio_check","wellbeing","payroll","staff_wellbeing",
       "invoicing","invoicing_full","reports","analytics","ccs","payments",
       "message_centre","comms","bulk_comms","messaging","documents","voice",
       "risk_assessments","reports_builder","developer_api","admin_power","checklists","notifications","soc2",
       "owner_portal","hq_dashboard",
-      "parent","staff","settings","rostering","leave_requests"
+      "parent","staff","settings","rostering","leave_requests","ai_config"
     ];
     return (saved && validTabs.includes(saved)) ? saved : "dashboard";
   });
@@ -703,67 +705,60 @@ export default function ChildcareRosterApp() {
   const navGroups = [
     { label: "Overview", items: [
         { id: "dashboard", label: "Dashboard", icon: "dashboard" },
+        { id: "operations", label: "Daily Operations", icon: "assignment" },
     ]},
     { label: "Children", items: [
         { id: "children", label: "Children", icon: "children_icon" },
-        { id: "kiosk", label: "📲 Kiosk Sign-In", icon: "clock" },
-        { id: "clockinout", label: "Clock In/Out", icon: "clock" },
-        { id: "rooms", label: "Rooms", icon: "room" },
-        { id: "daily_updates", label: "Daily Updates", icon: "observation" },
-        { id: "child_dev", label: "🌱 Development", icon: "learning" },
-        { id: "medication_register", label: "Medications", icon: "shield" },
-        { id: "incidents", label: "Incidents", icon: "warning" },
-        { id: "excursions", label: "Excursions", icon: "learning" },
-        { id: "operations", label: "⚙️ Daily Operations", icon: "settings" },
-    ]},
-    { label: "Learning", items: [
-        { id: "learning", label: "Learning Plans", icon: "learning" },
-        { id: "learning_journey", label: "Learning Journeys", icon: "learning" },
-        { id: "observations", label: "Observations", icon: "observation" },
-        { id: "run_sheet", label: "Run Sheets", icon: "assignment" },
-        { id: "stories", label: "✨ Weekly Stories", icon: "learning" },
-        { id: "ai_assistant", label: "🤖 AI Assistant", icon: "smart_toy" },
-        { id: "quality", label: "🏆 Quality (QIP)", icon: "shield" },
-    ]},
-    { label: "Enrolment & CRM", items: [
         { id: "enrolment", label: "Enrolments", icon: "people" },
         { id: "waitlist", label: "Waitlist", icon: "people" },
-        { id: "crm", label: "🎯 Enquiries & CRM", icon: "chart" },
-        { id: "engagement", label: "🤝 Engagement", icon: "people" },
+        { id: "kiosk", label: "Kiosk Sign-In", icon: "clock" },
     ]},
-    { label: "Staff & Rostering", items: [
+    { label: "Educators", items: [
         { id: "educators", label: "Educators", icon: "people" },
-        { id: "roster", label: "Roster", icon: "schedule" },
-        { id: "compliance", label: "Compliance", icon: "shield" },
-        { id: "ratio_report", label: "Ratio Report", icon: "chart" },
+        { id: "roster", label: "Rostering", icon: "schedule" },
+        { id: "clockinout", label: "Clock In/Out", icon: "clock" },
         { id: "wellbeing", label: "Staff Wellbeing", icon: "people" },
         { id: "leave_requests", label: "Leave Requests", icon: "calendar" },
-        { id: "payroll", label: "💵 Payroll Export", icon: "chart" },
+    ]},
+    { label: "Learning", items: [
+        { id: "learning_journey", label: "Learning Journeys", icon: "learning" },
+        { id: "observations", label: "Observations", icon: "observation" },
+        { id: "stories", label: "Weekly Stories", icon: "learning" },
+        { id: "run_sheet", label: "Run Sheets", icon: "assignment" },
+        { id: "ai_assistant", label: "AI Writing", icon: "smart_toy" },
     ]},
     { label: "Finance", items: [
-        { id: "invoicing_full", label: "💳 Invoicing & Payments", icon: "invoicing" },
-        { id: "ccs", label: "💰 CCS & Subsidy", icon: "invoicing" },
-        { id: "payments", label: "🔗 Payment Links", icon: "invoicing" },
-        { id: "reports", label: "Reports", icon: "chart" },
-        { id: "analytics", label: "📈 Analytics", icon: "chart" },
+        { id: "invoicing_full", label: "Invoicing & Payments", icon: "invoicing" },
+        { id: "ccs", label: "CCS & Subsidy", icon: "invoicing" },
     ]},
-    { label: "Message Centre", items: [
-        { id: "message_centre", label: "💬 Message Centre", icon: "observation" },
-        { id: "documents", label: "Documents", icon: "documents" },
-        { id: "voice", label: "AI Voice Agent", icon: "smart_toy" },
+    { label: "Reports & Analytics", items: [
+        { id: "analytics", label: "Analytics", icon: "chart" },
+        { id: "reports_builder", label: "Report Builder", icon: "chart" },
+    ]},
+    { label: "Communications", items: [
+        { id: "message_centre", label: "Message Centre", icon: "observation" },
+        { id: "engagement", label: "Engagement", icon: "people" },
     ]},
     { label: "Compliance & Safety", items: [
-        { id: "checklists", label: "✅ Checklists", icon: "shield" },
-        { id: "risk_assessments", label: "⚠️ Risk Assessments", icon: "shield" },
-        { id: "reports_builder", label: "📊 Report Builder", icon: "chart" },
-        { id: "developer_api", label: "🚀 Developer API", icon: "settings" },
-        { id: "admin_power", label: "🏢 Admin Power", icon: "dashboard" },
-        { id: "notifications", label: "🔔 Notifications", icon: "observation" },
-        { id: "soc2", label: "🔒 SOC2 Compliance", icon: "shield" },
+        { id: "incidents", label: "Incidents", icon: "warning" },
+        { id: "excursions", label: "Excursions", icon: "learning" },
+        { id: "checklists", label: "Checklists", icon: "shield" },
+        { id: "quality", label: "Quality (QIP)", icon: "shield" },
+        { id: "documents", label: "Documents", icon: "documents" },
+        { id: "child_dev", label: "Development", icon: "learning" },
+        { id: "ratio_check", label: "Ratio Check", icon: "chart" },
+    ]},
+    { label: "Settings", items: [
+        { id: "settings", label: "Centre Settings", icon: "settings" },
+        { id: "rooms", label: "Rooms", icon: "room" },
+        { id: "payments", label: "Payment Links", icon: "invoicing" },
+        { id: "voice", label: "Voice Agent", icon: "smart_toy" },
+        { id: "ai_config", label: "AI Providers", icon: "smart_toy" },
+        { id: "developer_api", label: "API & Integrations", icon: "settings" },
     ]},
     ...(auth?.isPlatformAdmin ? [{ label: "Platform", items: [
         { id: "owner_portal", label: "Owner Portal", icon: "platform" },
-        { id: "hq_dashboard", label: "🌐 HQ Dashboard", icon: "dashboard" },
+        { id: "hq_dashboard", label: "HQ Dashboard", icon: "dashboard" },
     ]}] : []),
   ];
 
@@ -1135,6 +1130,8 @@ export default function ChildcareRosterApp() {
           {activeTab === "hq_dashboard" && <Suspense fallback={null}><HQDashboard /></Suspense>}
           {activeTab === "payments" && <Suspense fallback={null}><PaymentsModule /></Suspense>}
           {activeTab === "owner_portal" && auth?.isPlatformAdmin && <OwnerPortal />}
+          {activeTab === "ratio_check" && <RatioCheckModule />}
+          {activeTab === "ai_config" && <AIConfigModule />}
           </Suspense>
         </div>
         </div>
@@ -1937,6 +1934,49 @@ function ClockInOutView({ educators, clockIn, clockOut, startBreak, endBreak, no
   const [pin, setPin] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [clockTab, setClockTab] = useState("educators");
+  // BUG-CLK-03: open shifts from previous days
+  const [openShifts, setOpenShifts] = useState([]);
+  const [closingShift, setClosingShift] = useState(null); // {id, closeTime}
+  // BUG-CLK-04: admin edit for clock records
+  const [editRecord, setEditRecord] = useState(null); // {id, clock_in, clock_out, total_break_mins}
+  const [editSaving, setEditSaving] = useState(false);
+
+  const _api = (p, o = {}) => {
+    const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+    return fetch(p, {
+      headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}), ...(tid ? { "x-tenant-id": tid } : {}) },
+      method: o.method || "GET", ...(o.body ? { body: JSON.stringify(o.body) } : {}),
+    }).then(r => r.json());
+  };
+
+  useEffect(() => {
+    _api("/api/clock-records/open-shifts").then(r => {
+      if (r.open_shifts) setOpenShifts(r.open_shifts);
+    }).catch(() => {});
+  }, []);
+
+  const closeOpenShift = async (shiftId, closeTime) => {
+    try {
+      await _api(`/api/clock-records/${shiftId}`, { method: "PUT", body: { clockOut: closeTime } });
+      if (window.showToast) window.showToast("Shift closed", "success");
+      setOpenShifts(prev => prev.filter(s => s.id !== shiftId));
+      setClosingShift(null);
+    } catch (e) { if (window.showToast) window.showToast("Failed to close shift", "error"); }
+  };
+
+  const saveRecordEdit = async () => {
+    if (!editRecord) return;
+    setEditSaving(true);
+    try {
+      await _api(`/api/clock-records/${editRecord.id}`, {
+        method: "PUT",
+        body: { clock_in: editRecord.clock_in, clock_out: editRecord.clock_out || null, total_break_mins: editRecord.total_break_mins || 0 },
+      });
+      if (window.showToast) window.showToast("Record updated", "success");
+      setEditRecord(null);
+    } catch (e) { if (window.showToast) window.showToast("Update failed", "error"); }
+    setEditSaving(false);
+  };
 
   const clockedIn = educators.filter((e) => e.status === "clocked_in");
   const clockedOut = educators.filter((e) => e.status === "clocked_out" && e.active);
@@ -1953,6 +1993,41 @@ function ClockInOutView({ educators, clockIn, clockOut, startBreak, endBreak, no
           </button>
         ))}
       </div>
+
+      {/* BUG-CLK-03: open shift alert banner */}
+      {openShifts.length > 0 && (
+        <div style={{ padding: "12px 18px", borderRadius: 10, background: "#FFFBEB", border: "1px solid #FDE68A", marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#92400e", marginBottom: 8 }}>
+            ⚠ {openShifts.length} educator{openShifts.length !== 1 ? "s" : ""} ha{openShifts.length !== 1 ? "ve" : "s"} unclosed shifts from previous days
+          </div>
+          {openShifts.map(s => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#fff", borderRadius: 8, marginBottom: 6, border: "1px solid #FDE68A" }}>
+              <div style={{ flex: 1, fontSize: 12 }}>
+                <span style={{ fontWeight: 700, color: "#3D3248" }}>{s.first_name} {s.last_name}</span>
+                <span style={{ color: "#8A7F96", marginLeft: 8 }}>Clocked in {s.clock_in?.slice(0, 16).replace("T", " ")}</span>
+              </div>
+              {closingShift?.id === s.id ? (
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="datetime-local" value={closingShift.closeTime}
+                    onChange={e => setClosingShift({ ...closingShift, closeTime: e.target.value })}
+                    style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #DDD", fontSize: 11 }} />
+                  <button onClick={() => closeOpenShift(s.id, closingShift.closeTime)}
+                    style={{ padding: "4px 10px", borderRadius: 6, background: "#7C3AED", color: "#fff", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Close</button>
+                  <button onClick={() => setClosingShift(null)}
+                    style={{ padding: "4px 8px", borderRadius: 6, background: "#f5f5f5", border: "1px solid #ddd", cursor: "pointer", fontSize: 11 }}>✕</button>
+                </div>
+              ) : (
+                <button onClick={() => {
+                  const d = s.clock_in?.slice(0, 10) || new Date().toISOString().split("T")[0];
+                  setClosingShift({ id: s.id, closeTime: d + "T18:00" });
+                }} style={{ padding: "4px 12px", borderRadius: 6, background: "#FEF3C7", color: "#92400e", border: "1px solid #FDE68A", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                  Close Shift
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {clockTab === "children" && <ChildSignInPanel />}
       {clockTab === "educators" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -2048,7 +2123,7 @@ function ClockInOutView({ educators, clockIn, clockOut, startBreak, endBreak, no
       {clockTab === "educators" && (
         <div style={{ ...cardStyle, marginTop: 16 }}>
           <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600 }}>Today's Time Log</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
             {[...clockRecords].reverse().slice(0, 20).map((r) => {
               const ed = educators.find((e) => e.id === r.educatorId);
               const colors = { clock_in: "#6BA38B", clock_out: "#C9828A", break_start: "#D4A26A", break_end: "#9B7DC0" };
@@ -2058,9 +2133,45 @@ function ClockInOutView({ educators, clockIn, clockOut, startBreak, endBreak, no
                   <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, color: colors[r.type], fontSize: 10, width: 32 }}>{labels[r.type]}</span>
                   <span style={{ fontWeight: 600, flex: 1 }}>{ed?.name?.split(" ")[0]}</span>
                   <span style={{ fontFamily: "'DM Sans', sans-serif", color: "#A89DB5", fontSize: 11 }}>{formatTime(r.time)}</span>
+                  {/* BUG-CLK-04: admin edit button */}
+                  {r.type === "clock_in" && r.recordId && (
+                    <button onClick={(e) => { e.stopPropagation(); setEditRecord({ id: r.recordId, clock_in: r.time?.slice(0,16) || "", clock_out: "", total_break_mins: 0, name: ed?.name }); }}
+                      title="Edit record" style={{ background: "none", border: "none", cursor: "pointer", color: "#8A7F96", fontSize: 11, padding: "2px 4px" }}>✏️</button>
+                  )}
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* BUG-CLK-04: admin edit modal for clock records */}
+      {editRecord && (
+        <div onClick={() => setEditRecord(null)} style={{ position: "fixed", inset: 0, background: "rgba(60,40,80,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, padding: 24, width: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+            <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: "#3D3248" }}>Edit Clock Record</h3>
+            <div style={{ fontSize: 12, color: "#8A7F96", marginBottom: 16 }}>{editRecord.name}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Clock In</label>
+                <input type="datetime-local" value={editRecord.clock_in} onChange={e => setEditRecord({ ...editRecord, clock_in: e.target.value })}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Clock Out</label>
+                <input type="datetime-local" value={editRecord.clock_out} onChange={e => setEditRecord({ ...editRecord, clock_out: e.target.value })}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#8A7F96", display: "block", marginBottom: 4, textTransform: "uppercase" }}>Break (mins)</label>
+                <input type="number" value={editRecord.total_break_mins} onChange={e => setEditRecord({ ...editRecord, total_break_mins: parseInt(e.target.value) || 0 })}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setEditRecord(null)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer", fontSize: 12 }}>Cancel</button>
+              <button onClick={saveRecordEdit} disabled={editSaving} style={{ padding: "8px 16px", borderRadius: 8, background: "#7C3AED", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{editSaving ? "Saving…" : "Save"}</button>
+            </div>
           </div>
         </div>
       )}
@@ -3622,17 +3733,27 @@ function EmergencyContactsTab() {
 function AttendanceRegisterTab() {
   const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0,10));
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0,10));
+  const [roomId, setRoomId] = useState("");
+  const [rooms, setRooms] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const inp2 = { padding:"9px 12px",borderRadius:8,border:"1px solid #D9D0C7",fontSize:13,width:"100%",boxSizing:"border-box",fontFamily:"inherit" };
   const lbl2 = { fontSize:11,fontWeight:700,color:"#8A7F96",display:"block",marginBottom:5,textTransform:"uppercase" };
+
+  useEffect(()=>{
+    const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
+    fetch("/api/rooms/simple",{headers:{Authorization:`Bearer ${t}`,"x-tenant-id":tid}})
+      .then(r=>r.json()).then(r=>{if(Array.isArray(r))setRooms(r);}).catch(()=>{});
+  },[]);
 
   const load = async () => {
     setLoading(true);
     const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
     const hdr={Authorization:`Bearer ${t}`,"x-tenant-id":tid,"Content-Type":"application/json"};
     try {
-      const r = await fetch(`/api/children/attendance-report?from=${fromDate}&to=${toDate}`,{headers:hdr}).then(r=>r.json());
+      let url=`/api/children/attendance-report?from=${fromDate}&to=${toDate}`;
+      if(roomId) url+=`&room_id=${roomId}`;
+      const r = await fetch(url,{headers:hdr}).then(r=>r.json());
       if(!r.error) setData(r);
       else if(window.showToast) window.showToast(r.error,"error");
     } catch(e){}
@@ -3660,9 +3781,13 @@ function AttendanceRegisterTab() {
 
   return (
     <div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto auto",gap:10,marginBottom:16,alignItems:"end"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto auto",gap:10,marginBottom:16,alignItems:"end"}}>
         <div><label style={lbl2}>From Date</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} style={inp2}/></div>
         <div><label style={lbl2}>To Date</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} style={inp2}/></div>
+        <div><label style={lbl2}>Room</label><select value={roomId} onChange={e=>setRoomId(e.target.value)} style={inp2}>
+          <option value="">All Rooms</option>
+          {rooms.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+        </select></div>
         <button onClick={load} disabled={loading}
           style={{padding:"9px 20px",background:"#8B6DAF",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13,height:38,marginTop:20,opacity:loading?0.6:1}}>
           {loading?"Loading…":"Generate"}
@@ -3713,7 +3838,7 @@ function AttendanceRegisterTab() {
                         return(
                           <td key={d} style={{padding:"4px 6px",textAlign:"center",borderLeft:"1px solid #F5F0FB"}}>
                             {!rec?<span style={{color:"#E0D6E8"}}>—</span>
-                            :rec.absent?<span style={{fontSize:10,fontWeight:700,color:"#C06B73",background:"#FFEBEE",padding:"1px 6px",borderRadius:8}}>ABS</span>
+                            :rec.absent?<span title={rec.absent_reason||"Absent"} style={{fontSize:10,fontWeight:700,color:"#C06B73",background:"#FFEBEE",padding:"1px 6px",borderRadius:8,cursor:rec.absent_reason?"help":"default"}}>{rec.absent_reason?`ABS: ${rec.absent_reason}`:"ABS"}</span>
                             :rec.sign_in_time?<span style={{fontSize:9,color:"#2E7D32",fontWeight:600}}>{rec.sign_in_time?.slice(0,5)}{rec.sign_out_time?<><br/>{rec.sign_out_time?.slice(0,5)}</>:""}</span>
                             :<span style={{color:"#E0D6E8"}}>—</span>}
                           </td>

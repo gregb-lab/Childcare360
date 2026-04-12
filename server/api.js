@@ -302,11 +302,66 @@ router.post('/clock-records', requireAuth, requireTenant, (req, res) => {
 });
 
 router.put('/clock-records/:id', requireAuth, requireTenant, (req, res) => {
-  const { clockOut, breakStart, breakEnd, totalBreakMins } = req.body;
-  D().prepare(
-    'UPDATE clock_records SET clock_out=COALESCE(?,clock_out), break_start=COALESCE(?,break_start), break_end=COALESCE(?,break_end), total_break_mins=COALESCE(?,total_break_mins) WHERE id=? AND tenant_id=?'
-  ).run(clockOut, breakStart, breakEnd, totalBreakMins, req.params.id, req.tenantId);
-  res.json({ success: true });
+  try {
+    const { clockOut, breakStart, breakEnd, totalBreakMins,
+            // Admin edit fields
+            clock_in, clock_out, total_break_mins } = req.body;
+    // Resolve the effective values (support both camelCase from the clock
+    // buttons and snake_case from the admin edit form)
+    const effectiveClockOut = clockOut || clock_out || null;
+    const effectiveClockIn = clock_in || null;
+    const effectiveBreakMins = totalBreakMins ?? total_break_mins ?? null;
+
+    // BUG-CLK-01: compute hours_worked when clock_out is provided.
+    // Previously the field was never set, staying 0 for all records.
+    let hoursWorked = null;
+    if (effectiveClockOut) {
+      const record = D().prepare(
+        'SELECT clock_in FROM clock_records WHERE id=? AND tenant_id=?'
+      ).get(req.params.id, req.tenantId);
+      if (record) {
+        const inTime = effectiveClockIn || record.clock_in;
+        const mins = (new Date(effectiveClockOut) - new Date(inTime)) / 60000;
+        const breaks = effectiveBreakMins ?? 0;
+        hoursWorked = Math.round(Math.max(0, (mins - breaks) / 60) * 100) / 100;
+      }
+    }
+
+    D().prepare(`
+      UPDATE clock_records
+      SET clock_out    = COALESCE(?, clock_out),
+          clock_in     = COALESCE(?, clock_in),
+          break_start  = COALESCE(?, break_start),
+          break_end    = COALESCE(?, break_end),
+          total_break_mins = COALESCE(?, total_break_mins),
+          hours_worked = COALESCE(?, hours_worked)
+      WHERE id=? AND tenant_id=?
+    `).run(effectiveClockOut, effectiveClockIn, breakStart || null,
+           breakEnd || null, effectiveBreakMins, hoursWorked,
+           req.params.id, req.tenantId);
+    res.json({ success: true, hours_worked: hoursWorked });
+  } catch (e) {
+    console.error('[clock-records:put]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// BUG-CLK-03: open shifts from previous days
+router.get('/clock-records/open-shifts', requireAuth, requireTenant, (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const open = D().prepare(`
+      SELECT cr.id, cr.clock_in, COALESCE(cr.educator_id, cr.member_id) as educator_id,
+        e.first_name, e.last_name
+      FROM clock_records cr
+      LEFT JOIN educators e ON e.id = COALESCE(cr.educator_id, cr.member_id)
+      WHERE cr.tenant_id = ?
+        AND cr.clock_out IS NULL
+        AND COALESCE(cr.clock_date, cr.date) < ?
+      ORDER BY cr.clock_in ASC
+    `).all(req.tenantId, today);
+    res.json({ open_shifts: open, count: open.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── AUDIT LOG ──────────────────────────────────────────────────────────────────

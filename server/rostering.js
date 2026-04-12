@@ -1459,4 +1459,43 @@ r.post('/educator-preferences', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /api/rostering/on-floor — educators currently clocked in ────────────
+r.get('/on-floor', (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    // Get clocked-in educators; use roster_entries for room assignment, fall back to preferred_room_id
+    const educators = D().prepare(`
+      SELECT cr.id, COALESCE(cr.educator_id, cr.member_id) as educator_id,
+        e.first_name, e.last_name, e.qualification,
+        COALESCE(re.room_id, e.preferred_room_id) as room_id,
+        COALESCE(r2.name, r1.name) as room_name,
+        COALESCE(r2.age_group, r1.age_group) as age_group
+      FROM clock_records cr
+      JOIN educators e ON e.id = COALESCE(cr.educator_id, cr.member_id)
+      LEFT JOIN roster_entries re ON re.educator_id = e.id AND re.date = ? AND re.tenant_id = cr.tenant_id
+      LEFT JOIN rooms r1 ON r1.id = e.preferred_room_id
+      LEFT JOIN rooms r2 ON r2.id = re.room_id
+      WHERE cr.tenant_id = ?
+        AND cr.date = ?
+        AND cr.clock_in IS NOT NULL
+        AND (cr.clock_out IS NULL OR cr.clock_out = '')
+      GROUP BY e.id
+      ORDER BY room_name, e.last_name
+    `).all(today, req.tenantId, today);
+
+    const byRoom = {};
+    educators.forEach(e => {
+      const key = e.room_id || 'unassigned';
+      if (!byRoom[key]) byRoom[key] = {
+        room_id: e.room_id,
+        room_name: e.room_name || 'Unassigned',
+        age_group: e.age_group,
+        educators: []
+      };
+      byRoom[key].educators.push(e);
+    });
+    res.json({ rooms: Object.values(byRoom), total_on_floor: educators.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default r;

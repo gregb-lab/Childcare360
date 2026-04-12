@@ -259,11 +259,12 @@ function SettingsTab() {
       {/* Active toggle — shows configured state alongside active toggle */}
       {(() => {
         const isConfigured = provider === 'retell' ? retellConfigured : (elConfigured && !!(form.twilio_account_sid));
-        const bannerBg = form.active && isConfigured ? '#F0FDF4' : !isConfigured ? '#FFFBEB' : '#FFF8F0';
-        const bannerBorder = form.active && isConfigured ? '#86EFAC' : !isConfigured ? '#FDE68A' : '#FED7AA';
-        const iconEmoji = form.active && isConfigured ? '🟢' : !isConfigured ? '🟡' : '🔴';
-        const titleColor = form.active && isConfigured ? '#15803d' : !isConfigured ? '#92400e' : '#92400e';
-        const subtitleColor = form.active && isConfigured ? '#166534' : !isConfigured ? '#a16207' : '#a16207';
+        const isVerified = isConfigured && form.last_call_at;
+        const bannerBg = form.active && isVerified ? '#F0FDF4' : form.active && isConfigured ? '#FFFBEB' : !isConfigured ? '#FFFBEB' : '#FFF8F0';
+        const bannerBorder = form.active && isVerified ? '#86EFAC' : form.active && isConfigured ? '#FDE68A' : !isConfigured ? '#FDE68A' : '#FED7AA';
+        const iconEmoji = form.active && isVerified ? '🟢' : form.active && isConfigured ? '🟡' : !isConfigured ? '🟡' : '🔴';
+        const titleColor = form.active && isVerified ? '#15803d' : !isConfigured ? '#92400e' : '#92400e';
+        const subtitleColor = form.active && isVerified ? '#166534' : !isConfigured ? '#a16207' : '#a16207';
         return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 12, marginBottom: 24,
         background: bannerBg, border: `1px solid ${bannerBorder}` }}>
@@ -272,11 +273,15 @@ function SettingsTab() {
           <div style={{ fontWeight: 700, color: titleColor, fontSize: 14 }}>
             {!isConfigured
               ? 'Voice Agent Not Configured'
-              : form.active ? 'Voice Agent is Active' : 'Voice Agent is Inactive'}
+              : form.active && isVerified ? 'Voice Agent is Active'
+              : form.active ? 'Voice Agent Enabled — Not Verified'
+              : 'Voice Agent is Inactive'}
           </div>
           <div style={{ fontSize: 12, color: subtitleColor }}>
             {!isConfigured
               ? `Add ${provider === 'retell' ? 'Retell AI' : 'Twilio and ElevenLabs'} credentials below to enable calls.`
+              : form.active && !isVerified
+                ? `Credentials saved but no calls have been made yet. Use "Test Call" below to verify your setup.`
               : form.active
                 ? `Using ${provider === 'retell' ? 'Retell AI' : 'Twilio + ElevenLabs'} · AI answers inbound calls and makes outbound calls.`
                 : 'Credentials configured. Toggle on to start receiving calls.'}

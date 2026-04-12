@@ -139,7 +139,7 @@ r.post('/send', (req, res) => {
 
     // Update sent count
     D().prepare('UPDATE bulk_messages SET sent_count=? WHERE id=? AND tenant_id=?')
-      .run(children.length, msgId);
+      .run(children.length, msgId, req.tenantId);
 
     res.json({
       ok: true,
@@ -310,6 +310,28 @@ r.get('/timeline/:childId', (req, res) => {
     };
 
     res.json({ child, events, stats });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Templates ────────────────────────────────────────────────────────────────
+r.get('/templates', (req, res) => {
+  try {
+    let templates = [];
+    try {
+      templates = D().prepare('SELECT * FROM bulk_message_templates WHERE tenant_id=? ORDER BY created_at DESC').all(req.tenantId);
+    } catch(e) { /* table may not exist */ }
+    res.json({ templates });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Scheduled messages ───────────────────────────────────────────────────────
+r.get('/scheduled', (req, res) => {
+  try {
+    let scheduled = [];
+    try {
+      scheduled = D().prepare("SELECT * FROM bulk_messages WHERE tenant_id=? AND status='scheduled' ORDER BY created_at DESC").all(req.tenantId);
+    } catch(e) { /* column/table may not exist */ }
+    res.json({ scheduled });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

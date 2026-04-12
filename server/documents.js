@@ -239,9 +239,9 @@ function analyseDocument(docId, tenantId) {
     const doc = D().prepare('SELECT * FROM child_documents WHERE id=? AND tenant_id=?').get(docId, tenantId);
     if (!doc) return;
     console.log(`  🤖 AI Analysing: ${doc.file_name} (${doc.category}/${doc.doc_type})`);
-    D().prepare("UPDATE child_documents SET ai_status='processing' WHERE id=? AND tenant_id=?").run(docId, req.tenantId);
+    D().prepare("UPDATE child_documents SET ai_status='processing' WHERE id=? AND tenant_id=?").run(docId, tenantId);
 
-    const child = D().prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(doc.child_id, req.tenantId);
+    const child = D().prepare('SELECT * FROM children WHERE id=? AND tenant_id=?').get(doc.child_id, tenantId);
     let extracted = { type: doc.category, docType: doc.doc_type };
 
     if (doc.category === 'immunisation') {
@@ -283,11 +283,11 @@ function analyseDocument(docId, tenantId) {
       extracted.analysis = { note: 'Document filed successfully. Manual review recommended.' };
     }
 
-    D().prepare("UPDATE child_documents SET ai_extracted=?,ai_status='complete' WHERE id=? AND tenant_id=?").run(JSON.stringify(extracted), docId, req.tenantId);
+    D().prepare("UPDATE child_documents SET ai_extracted=?,ai_status='complete' WHERE id=? AND tenant_id=?").run(JSON.stringify(extracted), docId, tenantId);
     console.log(`  ✓ AI complete: ${doc.file_name}`);
   } catch (err) {
     console.error('  ✗ AI error:', err.message);
-    D().prepare("UPDATE child_documents SET ai_status='error',ai_extracted=? WHERE id=? AND tenant_id=?").run(JSON.stringify({error:err.message}), docId, req.tenantId);
+    try { D().prepare("UPDATE child_documents SET ai_status='error',ai_extracted=? WHERE id=? AND tenant_id=?").run(JSON.stringify({error:err.message}), docId, tenantId); } catch(e) {}
   }
 }
 

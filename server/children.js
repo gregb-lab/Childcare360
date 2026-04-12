@@ -41,27 +41,40 @@ router.get('/attendance-today', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /attendance-report?from=&to= — attendance register for date range (MUST be before /:id)
+// GET /attendance-report?from=&to=&room_id= — attendance register for date range (MUST be before /:id)
 router.get('/attendance-report', (req, res) => {
   try {
-    const { from, to } = req.query;
+    const { from, to, room_id } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from and to dates required' });
     const db = D();
+
+    const childWhere = ['c.tenant_id=?'];
+    const childVals = [req.tenantId];
+    if (room_id) { childWhere.push('c.room_id=?'); childVals.push(room_id); }
+
     const children = db.prepare(`
-      SELECT c.id, c.first_name, c.last_name, c.dob, r.name as room_name
+      SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id, r.name as room_name
       FROM children c LEFT JOIN rooms r ON r.id=c.room_id
-      WHERE c.tenant_id=?
-      ORDER BY c.first_name
-    `).all(req.tenantId);
+      WHERE ${childWhere.join(' AND ')}
+      ORDER BY r.name, c.first_name
+    `).all(...childVals);
+
     let records = [];
     try {
+      const recWhere = ['a.tenant_id=?', 'a.date>=?', 'a.date<=?'];
+      const recVals = [req.tenantId, from, to];
+      if (room_id) { recWhere.push('c.room_id=?'); recVals.push(room_id); }
+
       records = db.prepare(`
         SELECT a.child_id, a.date, a.sign_in as sign_in_time, a.sign_out as sign_out_time,
-               a.absent, a.absent_reason, a.hours, c.first_name, c.last_name, c.dob
-        FROM attendance_sessions a JOIN children c ON c.id=a.child_id
-        WHERE a.tenant_id=? AND a.date>=? AND a.date<=?
-        ORDER BY a.date, c.first_name
-      `).all(req.tenantId, from, to);
+               a.absent, a.absent_reason, a.hours, c.first_name, c.last_name, c.dob,
+               c.room_id, r.name as room_name
+        FROM attendance_sessions a
+        JOIN children c ON c.id=a.child_id
+        LEFT JOIN rooms r ON r.id=c.room_id
+        WHERE ${recWhere.join(' AND ')}
+        ORDER BY a.date, r.name, c.first_name
+      `).all(...recVals);
     } catch(e) { records = []; }
     res.json({ from, to, children, records, total_children: children.length });
   } catch(e) { res.status(500).json({ error: e.message }); }

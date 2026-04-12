@@ -334,4 +334,8 @@ r.get('/immunisation-compliance', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Stub routes for templates/scheduled (prevent 401 fallthrough)
+r.get('/templates', (req, res) => { res.json({ templates: [] }); });
+r.get('/scheduled', (req, res) => { res.json({ scheduled: [] }); });
+
 export default r;

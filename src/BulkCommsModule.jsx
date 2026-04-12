@@ -100,7 +100,7 @@ function BulkSendTab() {
     const r=await API("/api/bulk-comms/send",{method:"POST",body:{...form,channels:["in_app"]}});
     setSending(false);
     if(r.ok){
-      window.showToast(`✓ ${r.message}`, 'error');
+      window.showToast(`✓ ${r.message}`, 'success');
       setForm({subject:"",body:"",message_type:"general",target_audience:"all_families",target_room_ids:[]});
       load();
     } else window.showToast(r.error||"Failed to send", 'error');
@@ -244,8 +244,13 @@ function ChildTimelineTab() {
 
   const loadTimeline=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/bulk-comms/timeline/${id}`.catch(e=>console.error('API error:',e)));
-    setData(r);
+    try {
+      const r=await API(`/api/bulk-comms/timeline/${id}`);
+      setData(r);
+    } catch(e) {
+      console.error('API error:',e);
+      window.showToast?.('Failed to load timeline','error');
+    }
   };
 
   const TYPE_ICON={observation:"📝",story:"✨",health:"🤒",incident:"⚠️",milestone:"🌱",immunisation:"💉",excursion:"🚌",room_change:"🏠",enrolment:"🎉"};

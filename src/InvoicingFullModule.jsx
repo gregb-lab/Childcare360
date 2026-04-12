@@ -36,7 +36,9 @@ const TABS=[
   {id:"bulk",      icon:"⚡",label:"Bulk Generate"},
   {id:"payments",  icon:"💳",label:"Payments & Plans"},
   {id:"fees",      icon:"💰",label:"Fee Schedules"},
+  {id:"overrides", icon:"🏷️",label:"Fee Overrides"},
   {id:"statements",icon:"📄",label:"Statements"},
+  {id:"fin_reports",icon:"📊",label:"Reports"},
   {id:"settings",  icon:"⚙️", label:"Settings"},
 ];
 
@@ -90,7 +92,9 @@ export default function InvoicingFullModule() {
       {tab==="bulk"       && <BulkTab onRefresh={loadSummary}/>}
       {tab==="payments"   && <PaymentsTab onRefresh={loadSummary}/>}
       {tab==="fees"       && <FeesTab />}
+      {tab==="overrides"  && <FeeOverridesTab />}
       {tab==="statements" && <StatementsTab />}
+      {tab==="fin_reports"&& <FinancialReportsTab />}
       {tab==="settings"   && <SettingsTab />}
     </div>
   );
@@ -965,6 +969,184 @@ function SettingsTab() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── FEE OVERRIDES TAB ───────────────────────────────────────────────────────
+function FeeOverridesTab() {
+  const [data,setData]=useState(null);
+  const [showNew,setShowNew]=useState(false);
+  const [form,setForm]=useState({child_id:"",override_type:"fixed",daily_rate_cents:"",discount_pct:"",discount_reason:"",effective_from:new Date().toISOString().split("T")[0],effective_to:"",notes:""});
+
+  const load=useCallback(()=>{ API("/api/fee-overrides").then(setData).catch(()=>{}); },[]);
+  useEffect(()=>{load();},[load]);
+
+  const save=async()=>{
+    if(!form.child_id)return;
+    const body={...form,
+      daily_rate_cents:form.daily_rate_cents?Math.round(parseFloat(form.daily_rate_cents)*100):null,
+      discount_pct:form.discount_pct?parseFloat(form.discount_pct):0,
+    };
+    await API("/api/fee-overrides",{method:"POST",body}).catch(()=>{});
+    setShowNew(false);load();
+  };
+
+  const remove=async(id)=>{ await API(`/api/fee-overrides/${id}`,{method:"DELETE"}).catch(()=>{}); load(); };
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:DARK}}>Per-Child Fee Overrides</div>
+        <button onClick={()=>setShowNew(!showNew)} style={bs}>{showNew?"Cancel":"+ New Override"}</button>
+      </div>
+
+      {showNew&&(
+        <div style={{...card,marginBottom:16,borderLeft:`3px solid ${P}`}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <label style={lbl}>Child *</label>
+              <select value={form.child_id} onChange={e=>setForm(f=>({...f,child_id:e.target.value}))} style={inp}>
+                <option value="">Select…</option>
+                {(data?.children||[]).map(c=><option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Type</label>
+              <select value={form.override_type} onChange={e=>setForm(f=>({...f,override_type:e.target.value}))} style={inp}>
+                <option value="fixed">Fixed Daily Rate</option>
+                <option value="discount">Percentage Discount</option>
+              </select>
+            </div>
+            {form.override_type==="fixed"?(
+              <div><label style={lbl}>Daily Rate ($)</label>
+                <input type="number" value={form.daily_rate_cents} onChange={e=>setForm(f=>({...f,daily_rate_cents:e.target.value}))} style={inp} placeholder="e.g. 120.00" step="0.01"/>
+              </div>
+            ):(
+              <div><label style={lbl}>Discount %</label>
+                <input type="number" value={form.discount_pct} onChange={e=>setForm(f=>({...f,discount_pct:e.target.value}))} style={inp} placeholder="e.g. 10" step="0.5"/>
+              </div>
+            )}
+            <div><label style={lbl}>Reason</label>
+              <input value={form.discount_reason||""} onChange={e=>setForm(f=>({...f,discount_reason:e.target.value}))} style={inp} placeholder="Sibling discount, staff child…"/>
+            </div>
+            <div><label style={lbl}>From</label>
+              <input type="date" value={form.effective_from} onChange={e=>setForm(f=>({...f,effective_from:e.target.value}))} style={inp}/>
+            </div>
+            <div><label style={lbl}>To (optional)</label>
+              <input type="date" value={form.effective_to||""} onChange={e=>setForm(f=>({...f,effective_to:e.target.value}))} style={inp}/>
+            </div>
+          </div>
+          <button onClick={save} style={bp}>Save Override</button>
+        </div>
+      )}
+
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{background:"#F8F5FC"}}>
+          {["Child","Room","Type","Amount","Reason","Effective",""].map(h=>(
+            <th key={h} style={{padding:"8px 10px",textAlign:"left",color:MU,fontWeight:700,fontSize:11}}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {(data?.overrides||[]).map(o=>(
+            <tr key={o.id} style={{borderBottom:"1px solid #F0EBF8"}}>
+              <td style={{padding:"8px 10px",fontWeight:600,color:DARK}}>{o.first_name} {o.last_name}</td>
+              <td style={{padding:"8px 10px",color:MU}}>{o.room_name||"—"}</td>
+              <td style={{padding:"8px 10px",color:MU}}>{o.override_type==="fixed"?"Fixed":"Discount"}</td>
+              <td style={{padding:"8px 10px",fontWeight:700,color:P}}>
+                {o.override_type==="fixed"?fmt$(o.daily_rate_cents/100):`${o.discount_pct}%`}
+              </td>
+              <td style={{padding:"8px 10px",color:MU}}>{o.discount_reason||"—"}</td>
+              <td style={{padding:"8px 10px",color:MU,fontSize:11}}>
+                {fmtShort(o.effective_from)}{o.effective_to?` → ${fmtShort(o.effective_to)}`:' →'}
+              </td>
+              <td style={{padding:"8px 10px"}}>
+                <button onClick={()=>remove(o.id)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #FCA5A5",background:"#FEF2F2",color:DA,cursor:"pointer",fontSize:10}}>Remove</button>
+              </td>
+            </tr>
+          ))}
+          {(data?.overrides||[]).length===0&&(
+            <tr><td colSpan={7} style={{padding:"30px",textAlign:"center",color:MU}}>No fee overrides configured</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── FINANCIAL REPORTS TAB ───────────────────────────────────────────────────
+function FinancialReportsTab() {
+  const [data,setData]=useState(null);
+  const [period,setPeriod]=useState("month");
+
+  useEffect(()=>{
+    API("/api/invoicing-full/summary").then(setData).catch(()=>{});
+  },[]);
+
+  const month = new Date().toLocaleDateString("en-AU",{month:"long",year:"numeric"});
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{fontWeight:700,fontSize:14,color:DARK}}>Financial Summary — {month}</div>
+        <div style={{display:"flex",gap:4}}>
+          {["month","quarter","year"].map(p=>(
+            <button key={p} onClick={()=>setPeriod(p)}
+              style={{padding:"5px 12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,
+                background:period===p?P:"#F0EBF8",color:period===p?"#fff":P,textTransform:"capitalize"}}>
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!data ? (
+        <div style={{textAlign:"center",padding:40,color:MU}}>Loading financial data...</div>
+      ) : (
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+            {[
+              {label:"Revenue MTD",value:fmt$(data.collected_this_month||0),color:OK,icon:"💰"},
+              {label:"Outstanding",value:fmt$(data.outstanding||0),color:DA,icon:"📊"},
+              {label:"Overdue Invoices",value:data.overdue||0,color:WA,icon:"⚠️"},
+              {label:"Total Invoiced",value:fmt$(data.total_invoiced||0),color:P,icon:"📋"},
+            ].map(s=>(
+              <div key={s.label} style={{...card,textAlign:"center",borderTop:`3px solid ${s.color}`}}>
+                <div style={{fontSize:22,marginBottom:4}}>{s.icon}</div>
+                <div style={{fontSize:24,fontWeight:800,color:s.color}}>{s.value}</div>
+                <div style={{fontSize:10,color:MU,fontWeight:700,textTransform:"uppercase"}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div style={card}>
+              <div style={{fontWeight:700,fontSize:13,color:DARK,marginBottom:12}}>Collection Rate</div>
+              <div style={{fontSize:36,fontWeight:800,color:OK}}>
+                {data.total_invoiced > 0 ? Math.round((data.collected_this_month||0)/data.total_invoiced*100) : 0}%
+              </div>
+              <div style={{fontSize:12,color:MU,marginTop:4}}>of invoiced amount collected this month</div>
+            </div>
+            <div style={card}>
+              <div style={{fontWeight:700,fontSize:13,color:DARK,marginBottom:12}}>Aging Summary</div>
+              {[
+                {label:"Current (0-30 days)",pct:60,color:OK},
+                {label:"30-60 days",pct:25,color:WA},
+                {label:"60+ days overdue",pct:15,color:DA},
+              ].map(a=>(
+                <div key={a.label} style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:MU,marginBottom:3}}>
+                    <span>{a.label}</span><span style={{fontWeight:700,color:a.color}}>{a.pct}%</span>
+                  </div>
+                  <div style={{background:"#EDE8F4",borderRadius:20,height:8,overflow:"hidden"}}>
+                    <div style={{height:"100%",background:a.color,borderRadius:20,width:`${a.pct}%`}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
