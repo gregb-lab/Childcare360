@@ -82,6 +82,8 @@ function QIPTab() {
   const [selQA,setSelQA]=useState(null);
   const [goalForm,setGoalForm]=useState({goal:"",actions:"",responsible:"",timeline:""});
   const [showGoalForm,setShowGoalForm]=useState(false);
+  const [editEvidence,setEditEvidence]=useState(null);
+  const [evidenceText,setEvidenceText]=useState("");
 
   const load=useCallback(()=>{
     API("/api/quality/qip").then(setData);
@@ -108,6 +110,11 @@ function QIPTab() {
   const deleteGoal=async(id)=>{
     await API(`/api/quality/qip/goals/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
     load();
+  };
+
+  const saveEvidence=async(qa,standard)=>{
+    await API("/api/quality/qip/assessment",{method:"POST",body:{quality_area:qa,standard,evidence:evidenceText}}).catch(e=>console.error('API error:',e));
+    setEditEvidence(null);load();
   };
 
   if(!data)return <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading quality data...</div></div>;
@@ -222,9 +229,28 @@ function QIPTab() {
                       </button>
                     ))}
                   </div>
-                  {existing?.evidence&&(
-                    <div style={{fontSize:12,color:DARK,marginTop:6,padding:"6px 10px",background:"#F8F5FC",borderRadius:6}}>
-                      📎 {existing.evidence}
+                  {editEvidence===std?(
+                    <div style={{marginTop:6}}>
+                      <textarea value={evidenceText} onChange={e=>setEvidenceText(e.target.value)}
+                        rows={3} style={{...inp,resize:"vertical",fontSize:12}} placeholder="Describe evidence for this standard..."/>
+                      <div style={{display:"flex",gap:6,marginTop:6}}>
+                        <button style={{...bp,fontSize:11,padding:"5px 12px"}} onClick={()=>saveEvidence(selQA,std)}>Save</button>
+                        <button style={{...bs,fontSize:11,padding:"5px 12px"}} onClick={()=>setEditEvidence(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ):(
+                    <div style={{display:"flex",alignItems:"flex-start",gap:6,marginTop:6}}>
+                      {existing?.evidence?(
+                        <div style={{flex:1,fontSize:12,color:DARK,padding:"6px 10px",background:"#F8F5FC",borderRadius:6}}>
+                          📎 {existing.evidence}
+                        </div>
+                      ):(
+                        <div style={{flex:1,fontSize:12,color:MU,fontStyle:"italic",padding:"6px 10px"}}>No evidence recorded</div>
+                      )}
+                      <button onClick={()=>{setEditEvidence(std);setEvidenceText(existing?.evidence||"");}}
+                        style={{background:"none",border:`1px solid ${P}40`,borderRadius:6,color:P,cursor:"pointer",fontSize:11,padding:"4px 10px",flexShrink:0,fontWeight:600}}>
+                        {existing?.evidence?"Edit":"+ Add"} Evidence
+                      </button>
                     </div>
                   )}
                 </div>
@@ -281,7 +307,7 @@ function QIPTab() {
                     {goal.actions&&<div style={{fontSize:12,color:MU,marginBottom:6}}>{goal.actions}</div>}
                     <div style={{display:"flex",gap:12,fontSize:11,color:MU,marginBottom:8}}>
                       {goal.responsible&&<span>👤 {goal.responsible}</span>}
-                      {goal.timeline&&<span>📅 {new Date(goal.timeline+"T12:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}</span>}
+                      {goal.timeline&&!isNaN(new Date(goal.timeline+"T12:00").getTime())&&<span>📅 {new Date(goal.timeline+"T12:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}</span>}
                     </div>
                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                       {["not_started","in_progress","completed","on_hold"].map(s=>(
@@ -334,8 +360,13 @@ function PortfolioTab() {
 
   const loadPortfolio=async(eduId)=>{
     setSelEdu(eduId);
-    const r=await API(`/api/quality/portfolio/${eduId}`.catch(e=>console.error('API error:',e)));
-    setPortfolio(r);
+    try {
+      const r=await API(`/api/quality/portfolio/${eduId}`);
+      setPortfolio(r);
+    } catch(e) {
+      console.error('API error:',e);
+      window.showToast?.('Failed to load portfolio','error');
+    }
   };
 
   const saveEntry=async()=>{
@@ -491,8 +522,13 @@ function SurveysTab() {
   };
 
   const loadResults=async(id)=>{
-    const r=await API(`/api/quality/surveys/${id}/results`.catch(e=>console.error('API error:',e)));
-    setResults(r);
+    try {
+      const r=await API(`/api/quality/surveys/${id}/results`);
+      setResults(r);
+    } catch(e) {
+      console.error('API error:',e);
+      window.showToast?.('Failed to load results','error');
+    }
   };
 
   const NPSColor=n=>n>=50?OK:n>=0?WA:DA;

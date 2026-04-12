@@ -256,16 +256,30 @@ function SettingsTab() {
   return (
     <div style={{ flex: 1, minHeight: 0, width: '100%', padding: 24 }}>
 
-      {/* Active toggle */}
+      {/* Active toggle — shows configured state alongside active toggle */}
+      {(() => {
+        const isConfigured = provider === 'retell' ? retellConfigured : (elConfigured && !!(form.twilio_account_sid));
+        const bannerBg = form.active && isConfigured ? '#F0FDF4' : !isConfigured ? '#FFFBEB' : '#FFF8F0';
+        const bannerBorder = form.active && isConfigured ? '#86EFAC' : !isConfigured ? '#FDE68A' : '#FED7AA';
+        const iconEmoji = form.active && isConfigured ? '🟢' : !isConfigured ? '🟡' : '🔴';
+        const titleColor = form.active && isConfigured ? '#15803d' : !isConfigured ? '#92400e' : '#92400e';
+        const subtitleColor = form.active && isConfigured ? '#166534' : !isConfigured ? '#a16207' : '#a16207';
+        return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 12, marginBottom: 24,
-        background: form.active ? '#F0FDF4' : '#FFF8F0', border: `1px solid ${form.active ? '#86EFAC' : '#FED7AA'}` }}>
-        <span style={{ fontSize: 22 }}>{form.active ? '🟢' : '🔴'}</span>
+        background: bannerBg, border: `1px solid ${bannerBorder}` }}>
+        <span style={{ fontSize: 22 }}>{iconEmoji}</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, color: form.active ? '#15803d' : '#92400e', fontSize: 14 }}>
-            Voice Agent is {form.active ? 'Active' : 'Inactive'}
+          <div style={{ fontWeight: 700, color: titleColor, fontSize: 14 }}>
+            {!isConfigured
+              ? 'Voice Agent Not Configured'
+              : form.active ? 'Voice Agent is Active' : 'Voice Agent is Inactive'}
           </div>
-          <div style={{ fontSize: 12, color: form.active ? '#166534' : '#a16207' }}>
-            {form.active ? `Using ${provider === 'retell' ? 'Retell AI' : 'Twilio + ElevenLabs'} · AI answers inbound calls and makes outbound calls.` : 'Enable below to activate.'}
+          <div style={{ fontSize: 12, color: subtitleColor }}>
+            {!isConfigured
+              ? `Add ${provider === 'retell' ? 'Retell AI' : 'Twilio and ElevenLabs'} credentials below to enable calls.`
+              : form.active
+                ? `Using ${provider === 'retell' ? 'Retell AI' : 'Twilio + ElevenLabs'} · AI answers inbound calls and makes outbound calls.`
+                : 'Credentials configured. Toggle on to start receiving calls.'}
           </div>
         </div>
         <div style={{ width: 44, height: 24, borderRadius: 12, background: form.active ? purple : '#D1D5DB',
@@ -274,6 +288,8 @@ function SettingsTab() {
             position: 'absolute', top: 2, left: form.active ? 22 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
         </div>
       </div>
+        );
+      })()}
 
       {/* ── PROVIDER SELECTOR ── */}
       <Section title="🔀 Voice Provider" hint="Choose your voice engine. Both can be configured — switch anytime to compare.">

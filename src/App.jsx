@@ -1,16 +1,15 @@
-import { useState, useEffect, useCallback, useMemo, Suspense, lazy } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend, AreaChart, Area } from "recharts";
 import _ from "lodash";
-const PlanningWizardView = lazy(() => import("./LearningModule.jsx").then(m => ({ default: m.PlanningWizardView })));
-const ObservationsView   = lazy(() => import("./LearningModule.jsx").then(m => ({ default: m.ObservationsView })));
-const LearningJourneyModule = lazy(() => import("./LearningJourneyModule.jsx"));
-// BUG-ENR-00: lazy chunk was failing to load on sidebar nav (blank white page).
-// Switched to an eager import so the module is bundled into the main chunk
-// and can't suffer from a stale-chunk cache miss.
+// All modules are eagerly imported to eliminate blank-page bugs caused by
+// stale lazy-loaded chunks after deploys. The bundle size increase is
+// negligible for an internal SaaS app — reliability matters more.
+import { PlanningWizardView, ObservationsView } from "./LearningModule.jsx";
+import LearningJourneyModule from "./LearningJourneyModule.jsx";
 import EnrolmentModule from "./EnrolmentModule.jsx";
-const StaffWellbeingModule = lazy(() => import("./StaffWellbeingModule.jsx"));
-const WaitlistModule = lazy(() => import("./WaitlistModule.jsx"));
-const ParentPortalModule = lazy(() => import("./ParentPortalModule.jsx"));
+import StaffWellbeingModule from "./StaffWellbeingModule.jsx";
+import WaitlistModule from "./WaitlistModule.jsx";
+import ParentPortalModule from "./ParentPortalModule.jsx";
 import { UserMenu, useAuth } from "./AuthModule.jsx";
 
 // ─── Global Toast System ─────────────────────────────────────────────────────
@@ -130,47 +129,45 @@ function ConfirmDialog() {
     </div>
   );
 }
-const InvoicingDashboard = lazy(() => import("./InvoicingModule.jsx").then(m => ({ default: m.InvoicingDashboard })));
-const OwnerPortal = lazy(() => import("./OwnerPortalModule.jsx").then(m => ({ default: m.OwnerPortal })));
-const StaffPortalModule = lazy(() => import("./StaffPortalModule.jsx"));
-const WeeklyStoryModule = lazy(() => import("./WeeklyStoryModule.jsx"));
-const RatioReportModule = lazy(() => import("./RatioReportModule.jsx"));
-const PortalEmulator = lazy(() => import("./PortalEmulator.jsx"));
-const OperationsModule = lazy(() => import("./OperationsModule.jsx"));
-const CRMModule = lazy(() => import("./CRMModule.jsx"));
-const CommsModule = lazy(() => import("./CommsModule.jsx"));
-const NotificationsInbox = lazy(() => import("./NotificationsPanel.jsx").then(m => ({ default: m.NotificationsInbox })));
-const HQDashboard = lazy(() => import("./NotificationsPanel.jsx").then(m => ({ default: m.HQDashboard })));
-const NotificationBellLazy = lazy(() => import("./NotificationsPanel.jsx").then(m => ({ default: m.NotificationBell })));
-const KioskModule = lazy(() => import("./KioskModule.jsx"));
-const PaymentsModule = lazy(() => import("./PaymentsModule.jsx"));
-const BulkCommsModule = lazy(() => import("./BulkCommsModule.jsx"));
-const ReportsBuilderModule = lazy(() => import("./ReportsBuilderModule.jsx"));
-const AIAssistantModule = lazy(() => import("./AIAssistantModule.jsx"));
-const ChecklistsModule = lazy(() => import("./ChecklistsModule.jsx"));
-const DeveloperAPIModule = lazy(() => import("./DeveloperAPIModule.jsx"));
-const AnalyticsModule = lazy(() => import("./AnalyticsModule.jsx"));
-const InvoicingFullModule = lazy(() => import("./InvoicingFullModule.jsx"));
-const MessageCentreModule = lazy(() => import("./MessageCentreModule.jsx"));
-const PayrollModule = lazy(() => import("./PayrollModule.jsx"));
-const QualityModule = lazy(() => import("./QualityModule.jsx"));
-const ChildDevModule = lazy(() => import("./ChildDevModule.jsx"));
-const AdminPowerModule = lazy(() => import("./AdminPowerModule.jsx"));
-const CCSModule = lazy(() => import("./CCSModule.jsx"));
-const EngagementModule = lazy(() => import("./EngagementModule.jsx"));
-const RunSheetModule = lazy(() => import("./RunSheetModule.jsx"));
-const RosteringModule = lazy(() => import("./RosteringModule.jsx").then(m => ({ default: m.RosteringModule })));
-const EducatorsModule = lazy(() => import("./EducatorsModule.jsx"));
-const ChildrenModule = lazy(() => import("./ChildrenModule.jsx"));
-const DailyUpdatesModule = lazy(() => import("./DailyUpdatesModule.jsx"));
-const ExcursionsModule = lazy(() => import("./ExcursionsModule.jsx"));
-const DocumentsModule = lazy(() => import("./DocumentsModule.jsx"));
-const IncidentModule = lazy(() => import("./IncidentModule.jsx"));
-const RoomsModule = lazy(() => import("./RoomsModule.jsx"));
-const MessagingModule = lazy(() => import("./MessagingModule.jsx"));
-const MedicationRegisterModule = lazy(() => import("./MedicationRegisterModule.jsx"));
-const SOC2Module = lazy(() => import("./SOC2Module.jsx"));
-const VoiceAgentModule = lazy(() => import("./VoiceAgentModule.jsx"));
+import { InvoicingDashboard } from "./InvoicingModule.jsx";
+import { OwnerPortal } from "./OwnerPortalModule.jsx";
+import StaffPortalModule from "./StaffPortalModule.jsx";
+import WeeklyStoryModule from "./WeeklyStoryModule.jsx";
+import RatioReportModule from "./RatioReportModule.jsx";
+import PortalEmulator from "./PortalEmulator.jsx";
+import OperationsModule from "./OperationsModule.jsx";
+import CRMModule from "./CRMModule.jsx";
+import CommsModule from "./CommsModule.jsx";
+import { NotificationsInbox, HQDashboard, NotificationBell as NotificationBellLazy } from "./NotificationsPanel.jsx";
+import KioskModule from "./KioskModule.jsx";
+import PaymentsModule from "./PaymentsModule.jsx";
+import BulkCommsModule from "./BulkCommsModule.jsx";
+import ReportsBuilderModule from "./ReportsBuilderModule.jsx";
+import AIAssistantModule from "./AIAssistantModule.jsx";
+import ChecklistsModule from "./ChecklistsModule.jsx";
+import DeveloperAPIModule from "./DeveloperAPIModule.jsx";
+import AnalyticsModule from "./AnalyticsModule.jsx";
+import InvoicingFullModule from "./InvoicingFullModule.jsx";
+import MessageCentreModule from "./MessageCentreModule.jsx";
+import PayrollModule from "./PayrollModule.jsx";
+import QualityModule from "./QualityModule.jsx";
+import ChildDevModule from "./ChildDevModule.jsx";
+import AdminPowerModule from "./AdminPowerModule.jsx";
+import CCSModule from "./CCSModule.jsx";
+import EngagementModule from "./EngagementModule.jsx";
+import RunSheetModule from "./RunSheetModule.jsx";
+import { RosteringModule } from "./RosteringModule.jsx";
+import EducatorsModule from "./EducatorsModule.jsx";
+import ChildrenModule from "./ChildrenModule.jsx";
+import DailyUpdatesModule from "./DailyUpdatesModule.jsx";
+import ExcursionsModule from "./ExcursionsModule.jsx";
+import DocumentsModule from "./DocumentsModule.jsx";
+import IncidentModule from "./IncidentModule.jsx";
+import RoomsModule from "./RoomsModule.jsx";
+import MessagingModule from "./MessagingModule.jsx";
+import MedicationRegisterModule from "./MedicationRegisterModule.jsx";
+import SOC2Module from "./SOC2Module.jsx";
+import VoiceAgentModule from "./VoiceAgentModule.jsx";
 import { INITIAL_CHILDREN, EYLF_OUTCOMES, DEV_DOMAINS, SKILL_LEVELS } from "./nqf-data.js";
 
 // ─── NSW REGULATORY CONSTANTS (NQF Regulation 123) ────────────────────────────

@@ -50,6 +50,46 @@ export default function DocumentsModule() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadScope, setUploadScope] = useState("general");
+  const [uploadType, setUploadType] = useState("other");
+  const [uploadExpiry, setUploadExpiry] = useState("");
+  const [uploadNotes, setUploadNotes] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [children, setChildren] = useState([]);
+  const [educators, setEducators] = useState([]);
+  const [uploadChildId, setUploadChildId] = useState("");
+  const [uploadEducatorId, setUploadEducatorId] = useState("");
+
+  useEffect(() => {
+    API("/api/children/simple").then(r => setChildren(Array.isArray(r) ? r : [])).catch(() => {});
+    API("/api/educators/simple").then(r => setEducators(Array.isArray(r) ? r : (r.educators || []))).catch(() => {});
+  }, []);
+
+  const handleUpload = async () => {
+    if (!uploadFile || uploading) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", uploadFile);
+      fd.append("scope", uploadScope);
+      fd.append("document_type", uploadType);
+      if (uploadExpiry) fd.append("expiry_date", uploadExpiry);
+      if (uploadNotes) fd.append("notes", uploadNotes);
+      const childId = uploadScope === "children" ? uploadChildId : null;
+      if (!childId && uploadScope === "children") { toast("Select a child", "error"); setUploading(false); return; }
+      const url = childId ? `/api/documents/upload/${childId}` : `/api/documents/upload/${uploadChildId || "general"}`;
+      const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+      const resp = await fetch(url, {
+        method: "POST", body: fd,
+        headers: { ...(t ? { Authorization: `Bearer ${t}` } : {}), ...(tid ? { "x-tenant-id": tid } : {}) },
+      });
+      const data = await resp.json();
+      if (data.error) { toast(data.error, "error"); } else { toast("Document uploaded"); setShowUpload(false); setUploadFile(null); load(); }
+    } catch (e) { toast("Upload failed", "error"); }
+    setUploading(false);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,7 +114,14 @@ export default function DocumentsModule() {
   };
 
   const denyDoc = async (id) => {
-    try { await API(`/api/documents/${id}/deny`, { method: "PUT", body: JSON.stringify({ reason: "Denied by centre manager" }) }); } catch(e) { window.showToast("Action failed.", 'error'); return; }
+    try { await API(`/api/documents/${id}/deny`, { method: "PUT", body: { reason: "Denied by centre manager" } }); } catch(e) { window.showToast("Action failed.", 'error'); return; }
+    load();
+  };
+
+  const deleteDoc = async (id) => {
+    if (window.showConfirm) { const ok = await window.showConfirm("Delete this document?"); if (!ok) return; }
+    else if (!confirm("Delete this document?")) return;
+    try { await fetch(`/api/documents/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("c360_token")}`, "x-tenant-id": localStorage.getItem("c360_tenant") } }); } catch(e) {}
     load();
   };
 
@@ -110,7 +157,68 @@ export default function DocumentsModule() {
               : "All documents reviewed"}
           </p>
         </div>
+        <button onClick={() => setShowUpload(v => !v)}
+          style={{ padding: "9px 18px", borderRadius: 9, border: "none", background: purple, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+          + Upload Document
+        </button>
       </div>
+
+      {showUpload && (
+        <div style={{ ...card, background: "#F8F5FC", border: "1px solid #DDD6EE", marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#3D3248", marginBottom: 14 }}>Upload Document</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <div style={{ gridColumn: "span 2" }}>
+              <label style={{ fontSize: 11, color: "#8A7F96", fontWeight: 700, display: "block", marginBottom: 4, textTransform: "uppercase" }}>File *</label>
+              <input type="file" onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.heic,.webp"
+                style={{ fontSize: 13, width: "100%", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#8A7F96", fontWeight: 700, display: "block", marginBottom: 4, textTransform: "uppercase" }}>Scope</label>
+              <select value={uploadScope} onChange={e => setUploadScope(e.target.value)}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 13, width: "100%", boxSizing: "border-box" }}>
+                <option value="children">Child Document</option>
+                <option value="educators">Educator Document</option>
+                <option value="general">General</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#8A7F96", fontWeight: 700, display: "block", marginBottom: 4, textTransform: "uppercase" }}>Document Type</label>
+              <select value={uploadType} onChange={e => setUploadType(e.target.value)}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 13, width: "100%", boxSizing: "border-box" }}>
+                {["immunisation","medical_plan","medication","qualification","certification","identity","contract","tax","super","other"].map(t => (
+                  <option key={t} value={t}>{t.replace("_", " ")}</option>
+                ))}
+              </select>
+            </div>
+            {uploadScope === "children" && (
+              <div>
+                <label style={{ fontSize: 11, color: "#8A7F96", fontWeight: 700, display: "block", marginBottom: 4, textTransform: "uppercase" }}>Child *</label>
+                <select value={uploadChildId} onChange={e => setUploadChildId(e.target.value)}
+                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 13, width: "100%", boxSizing: "border-box" }}>
+                  <option value="">Select child...</option>
+                  {children.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+                </select>
+              </div>
+            )}
+            <div>
+              <label style={{ fontSize: 11, color: "#8A7F96", fontWeight: 700, display: "block", marginBottom: 4, textTransform: "uppercase" }}>Expiry Date</label>
+              <input type="date" value={uploadExpiry} onChange={e => setUploadExpiry(e.target.value)}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 13, width: "100%", boxSizing: "border-box" }} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={handleUpload} disabled={!uploadFile || uploading}
+              style={{ padding: "9px 18px", borderRadius: 9, border: "none", background: purple, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: (!uploadFile || uploading) ? 0.5 : 1 }}>
+              {uploading ? "Uploading..." : "Upload"}
+            </button>
+            <button onClick={() => setShowUpload(false)}
+              style={{ padding: "9px 18px", borderRadius: 9, border: `1px solid ${purple}`, background: "#fff", color: purple, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "#F8F5F1", borderRadius: 10, padding: 4, width: "fit-content" }}>
@@ -165,7 +273,7 @@ export default function DocumentsModule() {
                 </thead>
                 <tbody>
                   {filteredChild.map(doc => (
-                    <DocRow key={doc.id} doc={doc} nameField="child_name" onPreview={() => setPreviewDoc(doc)} />
+                    <DocRow key={doc.id} doc={doc} nameField="child_name" onPreview={() => setPreviewDoc(doc)} onDelete={() => deleteDoc(doc.id)} />
                   ))}
                 </tbody>
               </table>
@@ -198,7 +306,7 @@ export default function DocumentsModule() {
                 </thead>
                 <tbody>
                   {filteredEd.map(doc => (
-                    <DocRow key={doc.id} doc={doc} nameField="educator_name" onPreview={() => setPreviewDoc(doc)} />
+                    <DocRow key={doc.id} doc={doc} nameField="educator_name" onPreview={() => setPreviewDoc(doc)} onDelete={() => deleteDoc(doc.id)} />
                   ))}
                 </tbody>
               </table>
@@ -341,7 +449,7 @@ function PendingDocCard({ doc, onApprove, onDeny, onPreview }) {
   );
 }
 
-function DocRow({ doc, nameField, onPreview }) {
+function DocRow({ doc, nameField, onPreview, onDelete }) {
   const isExpiring = doc.expiry_date && (() => {
     const diff = (new Date(doc.expiry_date) - new Date()) / (1000 * 60 * 60 * 24);
     return diff > 0 && diff < 60;
@@ -367,10 +475,15 @@ function DocRow({ doc, nameField, onPreview }) {
         ) : "—"}
       </td>
       <td style={{ padding: "10px 12px" }}>
-        <button onClick={onPreview}
-          style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #EDE8F4", background: "#FDFBF9", color: "#555", cursor: "pointer", fontSize: 12 }}>
-          👁 View
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={onPreview}
+            style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #EDE8F4", background: "#FDFBF9", color: "#555", cursor: "pointer", fontSize: 12 }}>
+            👁 View
+          </button>
+          {onDelete && <button onClick={onDelete}
+            style={{ padding: "5px 8px", borderRadius: 6, border: "none", background: "none", color: "#DC2626", cursor: "pointer", fontSize: 14 }}
+            title="Delete">🗑</button>}
+        </div>
       </td>
     </tr>
   );
