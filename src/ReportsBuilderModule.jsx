@@ -107,7 +107,7 @@ function ReportsTab() {
   };
 
   const saveReport=async()=>{
-    const name=prompt("Report name:");
+    const name=await window.showPrompt("Report name:");
     if(!name)return;
     await API("/api/reports-builder/saved",{method:"POST",body:{name,report_type:selType,config}}).catch(e=>console.error('API error:',e));
     const s=await API("/api/reports-builder/saved".catch(e=>console.error('API error:',e)));

@@ -61,7 +61,7 @@ export function OwnerPortal() {
   const [seedResult, setSeedResult] = useState(null);
 
   const runCNSeed = async () => {
-    if (!window.confirm('Import CN children?\n\nAdds ~127 children across 7 rooms into the first centre. Safe to re-run.')) return;
+    if (!(await window.showConfirm('Import CN children?\n\nAdds ~127 children across 7 rooms into the first centre. Safe to re-run.'))) return;
     setSeeding(true); setSeedResult(null);
     try {
       const data = await API('/run-seed-cn?token=childcare360seed');
@@ -72,7 +72,7 @@ export function OwnerPortal() {
   };
 
   const deleteDemo = async () => {
-    if (!window.confirm('Delete all non-CN demo children?')) return;
+    if (!(await window.showConfirm('Delete all non-CN demo children?'))) return;
     setDeleting(true);
     try {
       const data = await API('/api/children/delete-demo?tenant=demo-tenant-001', { method: 'DELETE' });

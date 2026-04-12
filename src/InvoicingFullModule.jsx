@@ -738,6 +738,13 @@ function FeesTab() {
     } catch(e) { console.error('API error:', e); }
   };
 
+  const deleteFee=async(feeId,roomName)=>{
+    if(!window.showConfirm){if(!confirm(`Remove fee for ${roomName}?`))return;}
+    else{const ok=await window.showConfirm(`Remove fee for ${roomName}?`);if(!ok)return;}
+    await API(`/api/invoicing-full/fee-schedules/${feeId}`,{method:"DELETE"});
+    load();
+  };
+
   const editRoom=r=>{
     const existing=schedules.find(s=>s.room_id===r.id);
     setEditing(r.id);
@@ -769,6 +776,8 @@ function FeesTab() {
               {!room.fee&&<div style={{fontSize:12,color:WA,fontWeight:600}}>⚠️ No fee set</div>}
               <button onClick={()=>editing===room.id?setEditing(null):editRoom(room)}
                 style={{...bs,fontSize:12,padding:"5px 12px"}}>{editing===room.id?"Cancel":"Edit"}</button>
+              {room.fee&&<button onClick={()=>deleteFee(room.fee.id,room.name)}
+                style={{background:"none",border:"none",cursor:"pointer",color:DA,fontSize:12,fontWeight:600,padding:"5px 8px"}}>Remove</button>}
             </div>
           </div>
 

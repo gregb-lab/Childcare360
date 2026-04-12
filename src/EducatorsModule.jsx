@@ -1762,7 +1762,7 @@ export default function EducatorsModule() {
                             onChange={async e=>{
                               const newStatus = e.target.value;
                               let conf = null;
-                              if(newStatus==="submitted") conf = prompt("Enter NECWR confirmation/reference number (optional):");
+                              if(newStatus==="submitted") conf = await window.showPrompt("Enter NECWR confirmation/reference number (optional):");
                               try {
                                 await API(`/api/educators/${ed.id}/necwr`,{method:"PUT",body:JSON.stringify({necwr_status:newStatus,necwr_confirmation:conf})});
                                 toast(`${ed.first_name}: ${necwrStatusLabel(newStatus)}`);

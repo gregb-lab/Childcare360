@@ -932,7 +932,7 @@ export default function RoomsModule() {
           {selectedRoomId&&<button onClick={()=>{setSelectedRoomId(null);setSearch("");}} style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${purple}`,background:lightPurple,color:purple,cursor:"pointer",fontWeight:600,fontSize:13}}>← All rooms</button>}
           {selectedRoomId&&<button onClick={()=>setViewDetail(true)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:selectedGroup?.color||purple,color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13}}>📋 Room Detail</button>}
           <button onClick={async()=>{
-            if(!window.confirm(`Auto-assign ${unassigned.length} unassigned children to age-appropriate rooms?`)) return;
+            if(!(await window.showConfirm(`Auto-assign ${unassigned.length} unassigned children to age-appropriate rooms?`))) return;
             let moved=0;
             for(const child of unassigned){
               // Find best room by age match

@@ -482,7 +482,7 @@ function ReportsTab() {
   };
 
   const markSubmitted=async(id)=>{
-    const ref=prompt("Enter submission reference number (from PEP):");
+    const ref=await window.showPrompt("Enter submission reference number (from PEP):");
     if(!ref)return;
     await API(`/api/ccs/session-reports/${id}/submit`,{method:"PUT",body:{submission_ref:ref}}).catch(e=>console.error('API error:',e));
     load();

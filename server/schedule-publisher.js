@@ -146,16 +146,16 @@ r.get('/medical-alerts', (req, res) => {
     // Children signed in today WITH medical conditions/allergies
     const alerts = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.room_id, r.name as room_name,
-             c.medical_conditions, c.allergies,
-             c.emergency_contact_name, c.emergency_contact_phone,
+             c.medical_notes, c.allergies,
+             c.emergency_contact,
              mp.plan_type, mp.condition_name, mp.severity, mp.symptoms,
-             mp.action_plan
+             mp.action_steps
       FROM attendance_sessions a
       JOIN children c ON c.id=a.child_id
       LEFT JOIN rooms r ON r.id=c.room_id
       LEFT JOIN medical_plans mp ON mp.child_id=c.id AND mp.tenant_id=c.tenant_id
       WHERE a.tenant_id=? AND a.date=? AND a.absent=0 AND a.sign_in IS NOT NULL
-        AND (c.medical_conditions IS NOT NULL AND c.medical_conditions != ''
+        AND (c.medical_notes IS NOT NULL AND c.medical_notes != ''
              OR c.allergies IS NOT NULL AND c.allergies != ''
              OR mp.id IS NOT NULL)
       GROUP BY c.id

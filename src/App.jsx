@@ -47,6 +47,51 @@ function ToastContainer() {
 }
 
 // ─── Global Confirm Dialog ───────────────────────────────────────────────────
+// Usage: const val = await window.showPrompt('Report name:', 'My Report');
+// Drop-in replacement for window.prompt() that uses an in-app modal with a
+// text input. Returns Promise<string|null> (null if cancelled).
+function PromptDialog() {
+  const [state, setState] = useState(null); // { msg, defaultVal, resolve } | null
+  const [val, setVal] = useState('');
+  useEffect(() => {
+    window.showPrompt = (msg, defaultVal = '') => new Promise(resolve => {
+      setVal(String(defaultVal ?? ''));
+      setState({ msg: String(msg ?? ''), resolve });
+    });
+    return () => { delete window.showPrompt; };
+  }, []);
+  if (!state) return null;
+  const submit = () => { state.resolve(val.trim() || null); setState(null); setVal(''); };
+  const cancel = () => { state.resolve(null); setState(null); setVal(''); };
+  return (
+    <div onClick={cancel}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(61,50,72,0.45)', zIndex: 10000,
+               display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 14, padding: '24px 28px', minWidth: 360, maxWidth: 480,
+                 boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #EDE8F4' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#3D3248', marginBottom: 14, whiteSpace: 'pre-wrap' }}>
+          {state.msg}
+        </div>
+        <input
+          value={val} onChange={e => setVal(e.target.value)} autoFocus
+          onKeyDown={e => { if (e.key === 'Enter' && val.trim()) submit(); if (e.key === 'Escape') cancel(); }}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #DDD6EE',
+                   fontSize: 14, boxSizing: 'border-box', marginBottom: 16, fontFamily: 'inherit' }}
+        />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={cancel}
+            style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #DDD6EE', background: '#fff',
+                     color: '#7A6E8A', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Cancel</button>
+          <button onClick={submit} disabled={!val.trim()}
+            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#7C3AED', color: '#fff',
+                     cursor: 'pointer', fontWeight: 700, fontSize: 13, opacity: val.trim() ? 1 : 0.5 }}>OK</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Usage: const ok = await window.showConfirm('Delete this item?');
 // Drop-in replacement for window.confirm() that uses an in-app modal instead
 // of the native browser dialog. Returns Promise<boolean>.
@@ -1096,6 +1141,7 @@ export default function ChildcareRosterApp() {
       {showModal === "room" && <RoomModal room={editItem} onSave={saveRoom} onClose={() => { setShowModal(null); setEditItem(null); }} />}
       <ToastContainer />
       <ConfirmDialog />
+      <PromptDialog />
       <style>{`
         @keyframes slideInRight { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -2358,7 +2404,7 @@ function ChildSignInPanel() {
         <div style={{display:"flex",gap:8,marginBottom:12,padding:"10px 12px",background:"#E3F2FD",borderRadius:10,border:"1px solid #BBDEFB",alignItems:"center"}}>
           <span style={{fontSize:12,color:"#1565C0",flex:1}}>{notYet.length} children not yet signed in</span>
           <button onClick={async()=>{
-            if(!window.confirm("Mark all pending children as present now?")) return;
+            if(!(await window.showConfirm("Mark all pending children as present now?"))) return;
             const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
             const hdr={"Content-Type":"application/json",...(t?{Authorization:`Bearer ${t}`}:{}),...(tid?{"x-tenant-id":tid}:{})};
             const nowTime=new Date().toTimeString().slice(0,5);

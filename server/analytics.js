@@ -207,9 +207,9 @@ r.get('/revenue', (req, res) => {
     const monthly = D().prepare(`
       SELECT strftime('%Y-%m', created_at) as month,
         COUNT(*) as invoice_count,
-        SUM(total_cents) as billed_cents,
-        SUM(CASE WHEN status='paid' THEN total_cents ELSE 0 END) as collected_cents,
-        SUM(CASE WHEN status='overdue' THEN total_cents ELSE 0 END) as overdue_cents
+        CAST(COALESCE(SUM(total_fee), 0) * 100 AS INTEGER) as billed_cents,
+        CAST(COALESCE(SUM(CASE WHEN status='paid' THEN total_fee ELSE 0 END), 0) * 100 AS INTEGER) as collected_cents,
+        CAST(COALESCE(SUM(CASE WHEN status='overdue' THEN total_fee ELSE 0 END), 0) * 100 AS INTEGER) as overdue_cents
       FROM invoices
       WHERE tenant_id=?
       GROUP BY month

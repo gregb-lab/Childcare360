@@ -1519,7 +1519,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
 
   // Template actions
   const saveAsTemplate = async () => {
-    const name = prompt("Template name:");
+    const name = await window.showPrompt("Template name:");
     if (!name || !period?.id) return;
     try {
       await API("/api/rostering/templates", { method: "POST", body: { period_id: period.id, name } });
@@ -1527,7 +1527,7 @@ function RosterTab({ educators, periods, templates, archived, sp, loadP, reload,
     } catch (e) { toast("Failed", "error"); }
   };
   const applyTemplate = async (templateId) => {
-    const startDate = prompt("Start date (YYYY-MM-DD):", nextMon());
+    const startDate = await window.showPrompt("Start date (YYYY-MM-DD):", nextMon());
     if (!startDate) return;
     try {
       const r = await API("/api/rostering/templates/" + templateId + "/apply", { method: "POST", body: { start_date: startDate } });
@@ -2874,7 +2874,7 @@ function LeaveManagementTab({ educators, reload }) {
                       style={{padding:"8px 16px",background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}>
                       ✅ Approve
                     </button>
-                    <button onClick={()=>{const n=prompt("Reason for denial (optional):","");decide(req,"denied",n||"");}} disabled={processingId===req.id}
+                    <button onClick={async()=>{const n=await window.showPrompt("Reason for denial (optional):","");decide(req,"denied",n||"");}} disabled={processingId===req.id}
                       style={{padding:"8px 16px",background:"#FFEBEE",color:"#C06B73",border:"1px solid #EF9A9A",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}>
                       ❌ Deny
                     </button>

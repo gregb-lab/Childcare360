@@ -271,11 +271,11 @@ feeOverrideRouter.get('/', (req, res) => {
   try {
     const overrides = D().prepare(`
       SELECT fo.*, c.first_name, c.last_name, c.room_id, r.name as room_name,
-             fs.daily_rate_cents as standard_rate_cents
+             CAST(fs.daily_fee * 100 AS INTEGER) as standard_rate_cents
       FROM child_fee_overrides fo
       JOIN children c ON c.id=fo.child_id
       LEFT JOIN rooms r ON r.id=c.room_id
-      LEFT JOIN fee_schedules fs ON fs.room_id=c.room_id AND fs.tenant_id=fo.tenant_id
+      LEFT JOIN fee_schedules fs ON fs.room_id=c.room_id AND fs.tenant_id=fo.tenant_id AND fs.active=1
       WHERE fo.tenant_id=?
         AND (fo.effective_to IS NULL OR fo.effective_to >= date('now'))
       ORDER BY c.last_name, fo.effective_from DESC
@@ -284,12 +284,12 @@ feeOverrideRouter.get('/', (req, res) => {
     // Also get all active children with their current rates
     const children = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.room_id, r.name as room_name,
-             fs.daily_rate_cents as room_rate_cents,
+             CAST(fs.daily_fee * 100 AS INTEGER) as room_rate_cents,
              fo.id as override_id, fo.daily_rate_cents as override_rate_cents,
              fo.discount_pct, fo.discount_reason
       FROM children c
       LEFT JOIN rooms r ON r.id=c.room_id
-      LEFT JOIN fee_schedules fs ON fs.room_id=c.room_id AND fs.tenant_id=c.tenant_id
+      LEFT JOIN fee_schedules fs ON fs.room_id=c.room_id AND fs.tenant_id=c.tenant_id AND fs.active=1
       LEFT JOIN child_fee_overrides fo ON fo.child_id=c.id AND fo.tenant_id=c.tenant_id
         AND fo.effective_from <= date('now')
         AND (fo.effective_to IS NULL OR fo.effective_to >= date('now'))

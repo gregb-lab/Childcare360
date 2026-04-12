@@ -330,7 +330,7 @@ function FeesTab({ fees, onRefresh }) {
           <div style={{display:"flex",gap:8,flexShrink:0}}>
             <span style={{fontSize:11,padding:"3px 8px",borderRadius:20,background:"#E8F5E9",color:"#2E7D32",fontWeight:600}}>Active</span>
             <button onClick={async()=>{
-              if(!window.confirm("Remove this fee schedule?")) return;
+              if(!(await window.showConfirm("Remove this fee schedule?"))) return;
               try{ await API(`/api/invoicing/fee-schedules/${f.id}`,{method:"DELETE"}); toast("Fee schedule removed"); onRefresh(); }
               catch(e){ toast("Failed to remove","error"); }
             }} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #FFCDD2",background:"#FFF5F5",color:"#C06B73",cursor:"pointer",fontSize:11,fontWeight:600}}>

@@ -27,6 +27,14 @@ import { requireAuth, requireTenant } from './middleware.js';
 const r = Router();
 r.use(requireAuth, requireTenant);
 
+// Data migration: fix room ID mismatch (room-kookas → room-kookaburras)
+try {
+  const roomExists = D().prepare("SELECT id FROM rooms WHERE id='room-kookaburras' LIMIT 1").get();
+  if (roomExists) {
+    D().prepare("UPDATE fee_schedules SET room_id='room-kookaburras' WHERE room_id='room-kookas'").run();
+  }
+} catch(e) { /* ignore if already correct */ }
+
 const c2d = cents => (cents || 0) / 100;
 const d2c = dollars => Math.round((parseFloat(dollars) || 0) * 100);
 
@@ -508,6 +516,14 @@ r.post('/fee-schedules', (req, res) => {
            effective_from || new Date().toISOString().split('T')[0]);
 
     res.json({ id, ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.delete('/fee-schedules/:id', (req, res) => {
+  try {
+    D().prepare('DELETE FROM fee_schedules WHERE id=? AND tenant_id=?')
+      .run(req.params.id, req.tenantId);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

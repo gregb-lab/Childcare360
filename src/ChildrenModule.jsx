@@ -787,7 +787,7 @@ function MedicalPlansSection({ child }) {
   useEffect(() => { load(); }, [child.id]);
   const add = async (f) => {
     let r;
-    try { r = await API("/api/children/" + child.id + "/medical-plans", { method: "POST", body: f }); if (r.error) { alert(r.error); return; } }
+    try { r = await API("/api/children/" + child.id + "/medical-plans", { method: "POST", body: f }); if (r.error) { window.showToast(r.error, "error"); return; } }
     catch(e) { toast("Failed to save.", "error"); return; }
     if (r.id) { await load(); setShowAdd(false); }
   };
@@ -799,7 +799,7 @@ function MedicalPlansSection({ child }) {
       await load(); setEditPlan(null); setViewPlan(null); return;
     }
     let r;
-    try { r = await API("/api/children/" + child.id + "/medical-plans/" + id, { method: "PUT", body: f }); if (r.error) { alert(r.error); return; } }
+    try { r = await API("/api/children/" + child.id + "/medical-plans/" + id, { method: "PUT", body: f }); if (r.error) { window.showToast(r.error, "error"); return; } }
     catch(e) { toast("Failed to update.", "error"); return; }
     await load(); setEditPlan(null); setViewPlan(null);
   };
