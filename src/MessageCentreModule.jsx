@@ -100,7 +100,8 @@ function InboxTab({onUnreadChange}) {
   useEffect(()=>{load();},[load]);
 
   const openThread=async(id)=>{
-    const r=await API(`/api/comms/threads/${id}`.catch(e=>console.error('API error:',e)));
+    const r=await API(`/api/comms/threads/${id}`).catch(e=>{console.error('API error:',e);return null;});
+    if(!r)return;
     setActive(r?.thread);setMessages(r?.messages||[]);
     load();
     setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),100);
@@ -245,7 +246,7 @@ function BroadcastTab() {
     const r=await API("/api/bulk-comms/send",{method:"POST",body:{...form,channels:["in_app"]}});
     setSending(false);
     if(r.ok){
-      window.showToast(`✓ ${r.message}`, 'error');
+      window.showToast(`✓ ${r.message}`, 'success');
       setForm({subject:"",body:"",message_type:"general",target_audience:"all_families",target_room_ids:[]});
       API("/api/bulk-comms/history").then(h=>setHistory(h.messages||[]));
     } else window.showToast(r.error||"Failed", 'error');
@@ -485,8 +486,8 @@ function ImmunisationTab() {
 
   const loadChild=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/comms/immunisation/${id}`.catch(e=>console.error('API error:',e)));
-    setData(r);
+    const r=await API(`/api/comms/immunisation/${id}`).catch(e=>{console.error('API error:',e);return null;});
+    if(r)setData(r);
   };
 
   const saveRecord=async()=>{
@@ -605,8 +606,8 @@ function TimelineTab() {
 
   const loadTimeline=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/bulk-comms/timeline/${id}`.catch(e=>console.error('API error:',e)));
-    setData(r);
+    const r=await API(`/api/bulk-comms/timeline/${id}`).catch(e=>{console.error('API error:',e);return null;});
+    if(r)setData(r);
   };
 
   const TYPE_C={observation:IN,story:P,health:WA,incident:DA,milestone:OK,immunisation:"#0E7490",excursion:"#9333EA",room_change:"#6B7280",enrolment:P};

@@ -297,16 +297,17 @@ function CheckInForm({ today, todayStr, onSaved }) {
 
   const toggleConcern = (c) => setF(p => ({ ...p, concerns: p.concerns.includes(c) ? p.concerns.filter(x => x !== c) : [...p.concerns, c] }));
 
-  const save = async () => {
+  const save = async (e) => {
+    if (e) e.preventDefault();
     if (!f.energy_level || !f.stress_level) return;
     setSaving(true);
     try {
       const r = await API("/api/wellbeing/checkin", { method: "POST", body: { ...f, date: todayStr, concerns: JSON.stringify(f.concerns) } });
-      if (r.error) { window.showToast(r.error, 'error'); return; }
-    } catch(e) { toast("Failed to submit check-in.", "error"); return; }
-    setSaving(false);
-    setDone(true);
-    setTimeout(() => onSaved(), 800);
+      if (r.error) { window.showToast(r.error, 'error'); setSaving(false); return; }
+      setDone(true);
+      toast("Check-in submitted!", "success");
+      setTimeout(() => onSaved(), 800);
+    } catch(e) { toast("Failed to submit check-in.", "error"); } finally { setSaving(false); }
   };
 
   if (done) return (

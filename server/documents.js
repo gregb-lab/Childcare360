@@ -306,6 +306,30 @@ function upsertCompliance(tenantId, childId, category, itemType, label, status, 
 export { upsertCompliance };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ██  PAYSLIPS
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get('/payslips', (req, res) => {
+  try {
+    const cols = D().prepare("SELECT name FROM pragma_table_info('documents')").all().map(r => r.name);
+    const typeCol = cols.includes('document_type') ? 'document_type' :
+                    cols.includes('type') ? 'type' : null;
+
+    let payslips = [];
+    if (typeCol) {
+      payslips = D().prepare(`
+        SELECT * FROM documents
+        WHERE tenant_id = ? AND ${typeCol} IN ('payslip','payroll','pay_slip')
+        ORDER BY created_at DESC LIMIT 100
+      `).all(req.tenantId);
+    }
+    res.json({ payslips, total: payslips.length });
+  } catch (e) {
+    // Table may not exist yet — return empty
+    res.json({ payslips: [], total: 0 });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ██  DOCUMENT MANAGEMENT (v1.8.0)
 // ═══════════════════════════════════════════════════════════════════════════════
 
