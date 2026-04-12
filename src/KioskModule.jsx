@@ -109,11 +109,36 @@ function AdminView() {
     load(); setGenerating(false);
   };
 
+  const [savingPin, setSavingPin] = useState(false);
   const savePin = async () => {
-    if (!editPin || !pinInput) return;
-    const r = await API("/api/kiosk/pins", { method: "POST", body: { child_id: editPin, pin: pinInput } });
-    if (r.error) { window.showToast && window.showToast(r.error === 'PIN already in use by another child' ? 'This PIN is already used by another child. Please choose a different PIN.' : r.error, "error"); return; }
-    setEditPin(null); setPinInput(""); load();
+    if (!editPin) return;
+    // Explicit validation with feedback instead of silent return
+    if (!pinInput || pinInput.length < 4) {
+      window.showToast("Please enter a 4-digit PIN", "error");
+      return;
+    }
+    setSavingPin(true);
+    try {
+      const r = await API("/api/kiosk/pins", { method: "POST", body: { child_id: editPin, pin: pinInput } });
+      if (r?.error) {
+        window.showToast(
+          r.error === 'PIN already in use by another child'
+            ? 'This PIN is already used by another child. Please choose a different PIN.'
+            : r.error,
+          "error"
+        );
+        return;
+      }
+      const child = children.find(c => c.id === editPin);
+      window.showToast(`PIN set for ${child?.first_name || "child"} ✓`, "success");
+      setEditPin(null);
+      setPinInput("");
+      load();
+    } catch (e) {
+      window.showToast("Failed to set PIN: " + (e.message || "Unknown error"), "error");
+    } finally {
+      setSavingPin(false);
+    }
   };
 
   const removePin = async (childId) => {
@@ -210,7 +235,7 @@ function AdminView() {
                   <input value={pinInput} onChange={e=>setPinInput(e.target.value.replace(/\D/g,"").slice(0,4))}
                     style={inp} placeholder="e.g. 1234" maxLength={4}/>
                 </div>
-                <button style={bp} onClick={savePin}>Save</button>
+                <button style={{ ...bp, opacity: savingPin || pinInput.length < 4 ? 0.5 : 1 }} onClick={savePin} disabled={savingPin || pinInput.length < 4}>{savingPin ? "Saving…" : "Save"}</button>
                 <button style={bs} onClick={()=>{setEditPin(null);setPinInput("");}}>Cancel</button>
               </div>
             </div>
