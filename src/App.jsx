@@ -443,8 +443,7 @@ export default function ChildcareRosterApp() {
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.tab) {
-        setActiveTab(e.detail.tab);
-        localStorage.setItem("c360_active_tab", e.detail.tab);
+        navigate(e.detail.tab);
       }
     };
     window.addEventListener("c360-navigate", handler);
@@ -477,6 +476,13 @@ export default function ChildcareRosterApp() {
     });
   };
   const toggleSidebar = () => setSidebarCollapsed(v => { const n = !v; localStorage.setItem("c360_sidebar_collapsed", n); return n; });
+
+  // ── Unified navigation — always syncs state + localStorage ──
+  const navigate = useCallback((tab) => {
+    setActiveTab(tab);
+    localStorage.setItem("c360_active_tab", tab);
+  }, []);
+
   const [activeTab, setActiveTab] = useState(() => {
     const saved = localStorage.getItem("c360_active_tab");
     const validTabs = [
@@ -873,7 +879,7 @@ export default function ChildcareRosterApp() {
               {pinnedTabs.map(p => (
                 <button key={p.id}
                   title={sidebarCollapsed ? p.label : undefined}
-                  onClick={() => { setActiveTab(p.id); localStorage.setItem("c360_active_tab", p.id); }}
+                  onClick={() => navigate(p.id)}
                   style={{display:"flex",alignItems:"center",gap:sidebarCollapsed?0:10,
                     width:"100%",padding:sidebarCollapsed?"9px 0":"7px 14px",
                     justifyContent:sidebarCollapsed?"center":"flex-start",
@@ -919,7 +925,7 @@ export default function ChildcareRosterApp() {
                   <button
                     key={item.id}
                     title={sidebarCollapsed ? item.label : undefined}
-                    onClick={() => { setActiveTab(item.id); localStorage.setItem("c360_active_tab", item.id); setShowFavMenu(null); }}
+                    onClick={() => { navigate(item.id); setShowFavMenu(null); }}
                     onContextMenu={(e) => { e.preventDefault(); setShowFavMenu(showFavMenu===item.id?null:item.id); }}
                     onMouseEnter={e => { if (activeTab !== item.id) { e.currentTarget.style.background = "rgba(139,109,175,0.06)"; e.currentTarget.style.color = "#5C4E6A"; }}}
                     onMouseLeave={e => { if (activeTab !== item.id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6B5F7A"; }}}
@@ -968,12 +974,12 @@ export default function ChildcareRosterApp() {
         <SidebarUserBlock
           collapsed={sidebarCollapsed}
           auth={auth}
-          onSettings={() => setActiveTab("settings")}
+          onSettings={() => navigate("settings")}
         />
 
         {!sidebarCollapsed && !complianceStatus.allCompliant && complianceStatus.totalChildren > 0 && (
           <div style={{ padding: "4px 14px 10px" }}>
-            <div onClick={() => setActiveTab("compliance")} style={{
+            <div onClick={() => navigate("compliance")} style={{
               padding: "7px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700,
               background: "rgba(201,130,138,0.08)",
               border: "1px solid rgba(201,130,138,0.15)",
@@ -1039,7 +1045,7 @@ export default function ChildcareRosterApp() {
                   {notifications.length===0?(
                     <div style={{padding:"20px 16px",textAlign:"center",color:"#A89DB5",fontSize:12}}>✅ All clear — no alerts</div>
                   ):notifications.map(n=>(
-                    <div key={n.id} onClick={()=>{setActiveTab(n.tab);setShowNotifications(false);}}
+                    <div key={n.id} onClick={()=>{navigate(n.tab);setShowNotifications(false);}}
                       style={{padding:"10px 16px",borderBottom:"1px solid #F5F0FB",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",
                         background:"transparent"}}
                       onMouseEnter={e=>e.currentTarget.style.background="#F8F5FC"}
@@ -1055,15 +1061,15 @@ export default function ChildcareRosterApp() {
               )}
             </div>
             {alerts.length > 0 && (
-              <div onClick={() => setActiveTab("compliance")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, background: "rgba(201,130,138,0.12)", border: "1px solid rgba(201,130,138,0.2)", cursor: "pointer", transition: "background 0.15s" }}
+              <div onClick={() => navigate("compliance")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, background: "rgba(201,130,138,0.12)", border: "1px solid rgba(201,130,138,0.2)", cursor: "pointer", transition: "background 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.background = "rgba(201,130,138,0.22)"}
                 onMouseLeave={e => e.currentTarget.style.background = "rgba(201,130,138,0.12)"}>
                 <Icon name="alert" size={16} color="#C9828A" />
                 <span style={{ fontSize: 12, color: "#C9828A", fontWeight: 600 }}>{alerts.length} Alert{alerts.length !== 1 ? "s" : ""}</span>
               </div>
             )}
-            <Suspense fallback={null}><NotificationBellLazy onOpenInbox={() => setActiveTab("notifications")} /></Suspense>
-            <UserMenu onSettings={() => setActiveTab("settings")} />
+            <Suspense fallback={null}><NotificationBellLazy onOpenInbox={() => navigate("notifications")} /></Suspense>
+            <UserMenu onSettings={() => navigate("settings")} />
           </div>
         </header>
 
@@ -1075,7 +1081,7 @@ export default function ChildcareRosterApp() {
               <div style={{ color:"#8A7F96", fontSize:14 }}>Loading…</div>
             </div>
           }>
-          {activeTab === "dashboard" && <DashboardView complianceStatus={complianceStatus} educators={educators} rooms={rooms} alerts={alerts} clockRecords={clockRecords} now={now} onNavigate={setActiveTab} />}
+          {activeTab === "dashboard" && <DashboardView complianceStatus={complianceStatus} educators={educators} rooms={rooms} alerts={alerts} clockRecords={clockRecords} now={now} onNavigate={navigate} />}
           {activeTab === "educators" && <EducatorsModule />}
           {activeTab === "rooms" && <RoomsModule />}
           {activeTab === "roster" && <RosteringModule />}
@@ -1099,7 +1105,7 @@ export default function ChildcareRosterApp() {
           {activeTab === "payroll" && <PayrollModule />}
           {activeTab === "wellbeing" && <StaffWellbeingModule />}
           {activeTab === "leave_requests" && <LeaveRequestsView />}
-          {activeTab === "parent" && <Suspense fallback={null}><PortalEmulator mode="parent" onClose={() => setActiveTab("dashboard")} ParentModule={ParentPortalModule} StaffModule={StaffPortalModule} /></Suspense>}
+          {activeTab === "parent" && <Suspense fallback={null}><PortalEmulator mode="parent" onClose={() => navigate("dashboard")} ParentModule={ParentPortalModule} StaffModule={StaffPortalModule} /></Suspense>}
           {activeTab === "excursions" && <ExcursionsModule />}
           {activeTab === "incidents" && <IncidentModule />}
           {activeTab === "run_sheet" && <RunSheetModule />}
@@ -1110,7 +1116,7 @@ export default function ChildcareRosterApp() {
           {activeTab === "invoicing" && <InvoicingDashboard children={nqfChildren} />}
           {activeTab === "messaging" && <MessagingModule />}
           {activeTab === "reports" && <ReportsView educators={educators} rooms={rooms} clockRecords={clockRecords} complianceStatus={complianceStatus} rosterEntries={rosterEntries} />}
-          {activeTab === "staff" && <Suspense fallback={null}><PortalEmulator mode="staff" onClose={() => setActiveTab("dashboard")} ParentModule={ParentPortalModule} StaffModule={StaffPortalModule} /></Suspense>}
+          {activeTab === "staff" && <Suspense fallback={null}><PortalEmulator mode="staff" onClose={() => navigate("dashboard")} ParentModule={ParentPortalModule} StaffModule={StaffPortalModule} /></Suspense>}
           {activeTab === "settings" && <SettingsView />}
           {activeTab === "soc2" && <SOC2Module tenantId={auth.currentTenant?.id} />}
           {activeTab === "voice" && <VoiceAgentModule />}
@@ -4769,7 +4775,7 @@ function SettingsView() {
         <div style={cardStyle}>
           <h3 style={{margin:"0 0 8px",fontSize:14,fontWeight:700}}>🔒 SOC2 Compliance</h3>
           <p style={{margin:"0 0 14px",fontSize:12,color:"#8A7F96"}}>Access the full SOC2 compliance dashboard and audit reports.</p>
-          <button onClick={()=>setActiveTab("soc2")} style={{padding:"10px 18px",background:purple2,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>
+          <button onClick={()=>window.dispatchEvent(new CustomEvent("c360-navigate",{detail:{tab:"soc2"}}))} style={{padding:"10px 18px",background:purple2,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>
             Open SOC2 Dashboard
           </button>
         </div>
