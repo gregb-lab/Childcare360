@@ -139,11 +139,16 @@ r.post('/generate', async (req, res) => {
       anthropic_key, // Optional: pass from settings
     } = req.body;
 
-    // Get Anthropic API key from settings or request
-    const apiKey = anthropic_key ||
-      process.env.ANTHROPIC_API_KEY ||
-      D().prepare("SELECT value FROM tenant_settings WHERE tenant_id=? AND key='anthropic_api_key'")
-        .get(req.tenantId)?.value;
+    // Get Anthropic API key from request, env, or voice_settings
+    let dbKey = null;
+    try {
+      const vs = D().prepare("SELECT elevenlabs_api_key FROM voice_settings WHERE tenant_id=? LIMIT 1").get(req.tenantId);
+      if (!vs) {
+        const ac = D().prepare("SELECT voice_engine_api_key FROM ai_agent_config WHERE tenant_id=? LIMIT 1").get(req.tenantId);
+        dbKey = ac?.voice_engine_api_key || null;
+      }
+    } catch(e) {}
+    const apiKey = anthropic_key || process.env.ANTHROPIC_API_KEY || dbKey;
 
     if (!apiKey) {
       // Return a structured template instead

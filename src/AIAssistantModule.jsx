@@ -81,37 +81,46 @@ function AIWriterTab() {
   const [hasApiKey,setHasApiKey]=useState(null);
 
   useEffect(()=>{
-    Promise.all([
-      API("/api/children/simple"),
-      API("/api/ai-assistant/history"),
-    ]).then(([c,h])=>{
+    API("/api/children/simple").then(c=>{
       setChildren(Array.isArray(c)?c:[]);
+    }).catch(()=>{});
+    API("/api/ai-assistant/history").then(h=>{
       setHistory(h.sessions||[]);
-    });
-    // Check if API key configured
+    }).catch(()=>{});
+    // Default to true (don't show false alarm) — only show banner if we confirm no key
     const storedKey = localStorage.getItem("c360_anthropic_key");
-    setHasApiKey(!!storedKey);
+    if (storedKey) { setHasApiKey(true); }
+    else {
+      // Try generating a no-op to see if server has a key — template response means no key
+      setHasApiKey(true); // optimistic; will correct below
+      API("/api/ai-assistant/generate",{method:"POST",body:{session_type:"observation",observation_notes:"test"}})
+        .then(r=>{ if(r.source==="template") setHasApiKey(false); })
+        .catch(()=>{});
+    }
   },[]);
 
   const generate=async()=>{
     setGenerating(true);
-    const child=children.find(c=>c.id===form.child_id);
-    const anthropicKey = localStorage.getItem("c360_anthropic_key") || "";
-    const r=await API("/api/ai-assistant/generate",{method:"POST",body:{
-      ...form,
-      child_name:child?`${child.first_name} ${child.last_name}`:null,
-      age_months:child?.dob?Math.floor((Date.now()-new Date(child.dob))/(1000*60*60*24*30.44)):null,
-      room_name:child?.room_name||null,
-      anthropic_key: anthropicKey||undefined,
-    }});
-    setGenerating(false);
-    if(r.ok){
-      setResult(r);
-      setFinalText(r.generated_text);
-      API("/api/ai-assistant/history").then(h=>setHistory(h.sessions||[]));
-    } else {
-      window.showToast(r.error||"Generation failed", 'error');
-    }
+    try {
+      const child=children.find(c=>c.id===form.child_id);
+      const anthropicKey = localStorage.getItem("c360_anthropic_key") || "";
+      const r=await API("/api/ai-assistant/generate",{method:"POST",body:{
+        ...form,
+        child_name:child?`${child.first_name} ${child.last_name}`:null,
+        age_months:child?.dob?Math.floor((Date.now()-new Date(child.dob))/(1000*60*60*24*30.44)):null,
+        room_name:child?.room_name||null,
+        anthropic_key: anthropicKey||undefined,
+      }});
+      if(r.ok){
+        setResult(r);
+        setFinalText(r.generated_text);
+        API("/api/ai-assistant/history").then(h=>setHistory(h.sessions||[])).catch(()=>{});
+      } else {
+        window.showToast?.('Generation failed: ' + (r.error||'Unknown error'), 'error');
+      }
+    } catch(e) {
+      window.showToast?.('Generation failed: ' + e.message, 'error');
+    } finally { setGenerating(false); }
   };
 
   const save=async()=>{
@@ -125,7 +134,7 @@ function AIWriterTab() {
       eylf_links:result?.eylf_suggested||[],
     }});
     setSaving(false);
-    window.showToast("✓ Saved"+(form.session_type==="observation"?" as observation":""), 'error');
+    window.showToast("✓ Saved"+(form.session_type==="observation"?" as observation":""), 'success');
     } catch(e) { console.error('API error:', e); }
   };
 
