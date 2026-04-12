@@ -44,14 +44,18 @@ export default function ChecklistsModule() {
   const completeChecklist = async () => {
     if (!active) return;
     setSaving(true);
-    const itemsData = (active.items||[]).map(i => ({ ...i, checked: !!itemStates[i.id] }));
-    await api2(`/api/checklists/${active.id}/complete`, {
-      method: "POST",
-      body: { completed_by: "Staff", notes, items_data: itemsData }
-    });
-    setSaving(false);
-    setActive(null);
-    load();
+    try {
+      const itemsData = (active.items||[]).map(i => ({ ...i, checked: !!itemStates[i.id] }));
+      const r = await api2(`/api/checklists/${active.id}/complete`, {
+        method: "POST",
+        body: { completed_by: "Staff", notes, items_data: itemsData }
+      });
+      if (r.error) { window.showToast?.('Failed to complete: ' + r.error, 'error'); return; }
+      window.showToast?.('Checklist completed!', 'success');
+      setActive(null);
+      load();
+    } catch(e) { window.showToast?.('Failed to complete: ' + e.message, 'error'); }
+    finally { setSaving(false); }
   };
 
   const addFromTemplate = async (tpl) => {
@@ -363,13 +367,15 @@ export default function ChecklistsModule() {
 
           {checklists.map(cl=>(
             <div key={cl.id} style={{...card,marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
-              <span style={{fontSize:24}}>{CATEGORY_ICONS[cl.category]||"📋"}</span>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,color:DARK}}>{cl.title}</div>
+              <span style={{fontSize:24,flexShrink:0}}>{CATEGORY_ICONS[cl.category]||"📋"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,color:DARK,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cl.title}</div>
                 <div style={{fontSize:11,color:MU}}>{cl.items?.length||0} items · {FREQ_LABELS[cl.frequency]} · {cl.completed_today?"✅ Done today":"⏳ Pending"}</div>
               </div>
-              <button onClick={()=>viewHistory(cl)} style={{...bs,fontSize:11,padding:"5px 12px"}}>History</button>
-              <button onClick={()=>deleteChecklist(cl.id)} style={{padding:"5px 10px",borderRadius:7,border:"1px solid #FCA5A5",background:"#FEF2F2",color:DA,cursor:"pointer",fontSize:11}}>Archive</button>
+              <div style={{display:"flex",gap:8,flexShrink:0}}>
+                <button onClick={()=>viewHistory(cl)} style={{...bs,fontSize:11,padding:"5px 12px"}}>History</button>
+                <button onClick={()=>deleteChecklist(cl.id)} style={{padding:"5px 10px",borderRadius:7,border:"1px solid #FCA5A5",background:"#FEF2F2",color:DA,cursor:"pointer",fontSize:11}}>Archive</button>
+              </div>
             </div>
           ))}
         </div>

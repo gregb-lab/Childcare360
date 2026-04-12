@@ -15,6 +15,36 @@ import { requireAuth, requireTenant } from './middleware.js';
 const router = Router();
 router.use(requireAuth, requireTenant);
 
+// Migration: fix template_id NOT NULL + FK constraint that blocks completions from the checklists table
+// Runs on first request since D() may not be ready at import time
+let _migrated = false;
+function migrateCompletions() {
+  if (_migrated) return;
+  _migrated = true;
+  try {
+    const info = D().prepare("SELECT sql FROM sqlite_master WHERE name='checklist_completions'").get();
+    if (info?.sql?.includes('REFERENCES checklist_templates')) {
+      const hasData = D().prepare('SELECT COUNT(*) as c FROM checklist_completions').get().c;
+      if (hasData === 0) {
+        D().exec('DROP TABLE checklist_completions');
+        D().exec(`CREATE TABLE checklist_completions (
+          id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+          template_id TEXT,
+          checklist_id TEXT,
+          completed_by TEXT NOT NULL, educator_id TEXT,
+          date TEXT NOT NULL DEFAULT (date('now','localtime')),
+          completed_date TEXT,
+          responses TEXT NOT NULL DEFAULT '[]',
+          items_data TEXT,
+          notes TEXT, completed_at TEXT DEFAULT (datetime('now'))
+        )`);
+        console.log('  ✓ Migrated checklist_completions: removed FK constraint on template_id');
+      }
+    }
+  } catch(e) { console.error('checklist migration:', e.message); }
+}
+router.use((req, res, next) => { migrateCompletions(); next(); });
+
 // Built-in NQF checklist templates
 const NQF_TEMPLATES = [
   {
@@ -189,16 +219,19 @@ router.delete('/:id', (req, res) => {
 // POST /api/checklists/:id/complete
 router.post('/:id/complete', (req, res) => {
   try {
+    const checklist = D().prepare('SELECT * FROM checklists WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    if (!checklist) return res.status(404).json({ error: 'Checklist not found' });
     const { completed_by, notes, items_data } = req.body;
     const id = uuid();
     const today = new Date().toISOString().split('T')[0];
     D().prepare(`
-      INSERT INTO checklist_completions (id, checklist_id, tenant_id, completed_date, completed_by, notes, items_data)
-      VALUES (?,?,?,?,?,?,?)
-    `).run(id, req.params.id, req.tenantId, today, completed_by || 'Staff', notes || '',
-           JSON.stringify(items_data || []));
+      INSERT INTO checklist_completions (id, checklist_id, template_id, tenant_id, completed_date, date, completed_by, notes, items_data, responses)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+    `).run(id, req.params.id, checklist.template_id || req.params.id, req.tenantId, today, today,
+           completed_by || req.userId || 'Staff', notes || '',
+           JSON.stringify(items_data || []), JSON.stringify(items_data || []));
     D().prepare(`UPDATE checklists SET last_completed=?, completed_by=? WHERE id=? AND tenant_id=?`)
-       .run(today, completed_by || 'Staff', req.params.id, req.tenantId);
+       .run(today, completed_by || req.userId || 'Staff', req.params.id, req.tenantId);
     res.json({ ok: true, id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

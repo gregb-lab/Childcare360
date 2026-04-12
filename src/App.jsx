@@ -750,6 +750,7 @@ export default function ChildcareRosterApp() {
         { id: "voice", label: "AI Voice Agent", icon: "smart_toy" },
     ]},
     { label: "Compliance & Safety", items: [
+        { id: "checklists", label: "✅ Checklists", icon: "shield" },
         { id: "risk_assessments", label: "⚠️ Risk Assessments", icon: "shield" },
         { id: "reports_builder", label: "📊 Report Builder", icon: "chart" },
         { id: "developer_api", label: "🚀 Developer API", icon: "settings" },
