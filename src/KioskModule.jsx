@@ -364,6 +364,7 @@ function KioskScreen({ onExit }) {
   const [exitCode, setExitCode] = useState("");
   const [pinError, setPinError] = useState("");
   const [showExit, setShowExit] = useState(false);
+  const [adminPinError, setAdminPinError] = useState("");
   const resetTimer = useRef(null);
 
   const resetToIdle = useCallback(() => {
@@ -427,6 +428,26 @@ function KioskScreen({ onExit }) {
     setPin(p => p.slice(0,-1));
     if (pin.length <= 4) { setState("idle"); setChild(null); }
   };
+
+  // Admin PIN keypad handlers
+  const handleAdminDigit = (d) => {
+    if (exitCode.length >= 4) return;
+    setExitCode(p => p + d);
+  };
+  const handleAdminBackspace = () => setExitCode(p => p.slice(0,-1));
+
+  // Auto-verify admin PIN when 4 digits entered
+  useEffect(() => {
+    if (exitCode.length === 4) {
+      const adminPin = localStorage.getItem("kiosk_admin_pin") || "9999";
+      if (exitCode === adminPin) {
+        onExit();
+      } else {
+        setAdminPinError("Incorrect PIN");
+        setTimeout(() => { setExitCode(""); setAdminPinError(""); }, 800);
+      }
+    }
+  }, [exitCode, onExit]);
 
   const BUTTONS = [["1","2","3"],["4","5","6"],["7","8","9"],["C","0","⌫"]];
   const BG = state==="success"?"#F0FDF4":state==="error"?"#FEF2F2":"#F5F1F9";
@@ -543,17 +564,65 @@ function KioskScreen({ onExit }) {
         </div>
       )}
 
-      {/* Exit kiosk mode (hidden — tap corner 3x) */}
-      <div style={{position:"absolute",bottom:16,right:16}}>
-        {showExit ? (
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <input value={exitCode} onChange={e=>setExitCode(e.target.value)}
-              placeholder="Admin PIN" style={{...inp,width:120,fontSize:12}}/>
-            <button onClick={()=>{const adminPin = localStorage.getItem("kiosk_admin_pin") || "9999"; if(exitCode===adminPin){onExit();}else{window.showToast&&window.showToast("Incorrect PIN","error");setShowExit(false);setExitCode("");}}}
-              style={{...bp,fontSize:12,padding:"6px 14px"}}>Exit</button>
+      {/* Admin PIN overlay — full-screen on-screen keypad, no text input */}
+      {showExit && (
+        <div style={{position:"fixed",inset:0,background:"rgba(30,20,50,0.92)",zIndex:9999,
+          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+          backdropFilter:"blur(8px)"}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:24,width:"100%",maxWidth:320,padding:"0 24px"}}>
+
+            {/* Heading */}
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:48,marginBottom:10}}>🔐</div>
+              <div style={{fontSize:22,fontWeight:700,color:"#fff"}}>Admin Access</div>
+              <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginTop:6}}>Enter your admin PIN</div>
+            </div>
+
+            {/* 4-dot PIN indicator */}
+            <div style={{display:"flex",gap:12,justifyContent:"center",
+              animation:adminPinError?"shake 0.4s ease":"none"}}>
+              {[0,1,2,3].map(i=>(
+                <div key={i} style={{width:16,height:16,borderRadius:"50%",
+                  background:exitCode.length>i?"#A78BFA":"rgba(255,255,255,0.2)",
+                  border:"2px solid #A78BFA",transition:"background 0.15s"}}/>
+              ))}
+            </div>
+
+            {/* Error text */}
+            {adminPinError && (
+              <div style={{color:"#FCA5A5",fontSize:14,fontWeight:600,textAlign:"center"}}>{adminPinError}</div>
+            )}
+
+            {/* On-screen keypad (same layout as child PIN) */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:"100%"}}>
+              {BUTTONS.flat().map(btn=>(
+                <button key={btn} onClick={()=>{
+                  if(btn==="C"){setExitCode("");setAdminPinError("");}
+                  else if(btn==="⌫"){handleAdminBackspace();}
+                  else{handleAdminDigit(btn);}
+                }} style={{
+                  padding:"18px 10px",borderRadius:14,
+                  border:"1px solid rgba(255,255,255,0.15)",
+                  background:btn==="C"?"rgba(220,38,38,0.2)":btn==="⌫"?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.1)",
+                  color:btn==="C"?"#FCA5A5":"#fff",
+                  fontWeight:700,fontSize:22,cursor:"pointer",
+                  transition:"transform 0.1s, background 0.15s",
+                }}>
+                  {btn}
+                </button>
+              ))}
+            </div>
+
+            {/* Cancel button */}
+            <button onClick={()=>{setShowExit(false);setExitCode("");setAdminPinError("");}}
+              style={{padding:"12px 40px",borderRadius:12,border:"1px solid rgba(255,255,255,0.2)",
+                background:"transparent",color:"rgba(255,255,255,0.7)",cursor:"pointer",
+                fontSize:14,fontWeight:600}}>
+              Cancel
+            </button>
           </div>
-        ) : null}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
