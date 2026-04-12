@@ -110,6 +110,7 @@ function InvoicesTab({onRefresh}) {
   const [rooms,setRooms]=useState([]);
   const [payAmt,setPayAmt]=useState("");
   const [payMethod,setPayMethod]=useState("bank_transfer");
+  const [submitting,setSubmitting]=useState(false);
   const PER_PAGE=20;
 
   const [newForm,setNewForm]=useState({
@@ -148,10 +149,16 @@ function InvoicesTab({onRefresh}) {
     else window.showToast(r.error, 'error');
   };
 
-  const createInvoice=async()=>{
-    const r=await API("/api/invoicing-full/invoices",{method:"POST",body:newForm});
-    if(r.ok){setShowCreate(false);load();onRefresh?.();openDetail(r.id);}
-    else window.showToast(r.error, 'error');
+  const createInvoice=async(e)=>{
+    e?.preventDefault();
+    e?.stopPropagation();
+    if(submitting)return;
+    setSubmitting(true);
+    try{
+      const r=await API("/api/invoicing-full/invoices",{method:"POST",body:newForm});
+      if(r.ok){setShowCreate(false);load();onRefresh?.();openDetail(r.id);}
+      else window.showToast(r.error, 'error');
+    }finally{setSubmitting(false);}
   };
 
   const addLineItem=()=>setNewForm(p=>({...p,line_items:[...p.line_items,{description:"",quantity:1,unit_price:"",item_type:"fee",date:""}]}));
@@ -211,6 +218,15 @@ function InvoicesTab({onRefresh}) {
             ))}
           </div>
           <button style={bp} onClick={()=>setShowCreate(v=>!v)}>+ New Invoice</button>
+          <button style={bs} onClick={()=>{
+            if(!invoices.length)return;
+            const hdr=["Invoice #","Child Name","Period Start","Period End","Due Date","Status","Total ($)","CCS ($)","Gap Fee ($)","Created Date"];
+            const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+            const rows=invoices.map(inv=>[inv.invoice_number,(inv.first_name||"")+" "+(inv.last_name||""),inv.period_start,inv.period_end,inv.due_date,inv.status,(parseFloat(inv.total_fee)||0).toFixed(2),(parseFloat(inv.ccs_amount)||0).toFixed(2),(parseFloat(inv.gap_fee)||0).toFixed(2),inv.created_at?.split("T")[0]||""].map(esc));
+            const csv=[hdr.join(","),...rows.map(r=>r.join(","))].join("\n");
+            const blob=new Blob([csv],{type:"text/csv"});
+            const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="invoices.csv";a.click();
+          }}>⬇ Export CSV</button>
         </div>
 
         {showCreate&&(
@@ -261,7 +277,7 @@ function InvoicesTab({onRefresh}) {
               </div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:14}}>
-              <button style={bp} onClick={createInvoice}>Create Invoice</button>
+              <button style={bp} onClick={createInvoice} disabled={submitting}>{submitting?"Creating…":"Create Invoice"}</button>
               <button style={bs} onClick={()=>setShowCreate(false)}>Cancel</button>
             </div>
           </div>
@@ -795,8 +811,13 @@ function StatementsTab() {
 
   const load=async(id)=>{
     setSelChild(id);
-    const r=await API(`/api/invoicing-full/statements/${id}`.catch(e=>console.error('API error:',e)));
-    setStmt(r);
+    try {
+      const r=await API(`/api/invoicing-full/statements/${id}`);
+      setStmt(r);
+    } catch(e) {
+      console.error('API error:',e);
+      window.showToast?.('Failed to load statement','error');
+    }
   };
 
   return (

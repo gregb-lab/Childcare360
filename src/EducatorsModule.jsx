@@ -1453,6 +1453,10 @@ export default function EducatorsModule() {
   const [showTerminate, setShowTerminate] = useState(false);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("active");
+  // BUG-EDU-01: room + qualification filters
+  const [filterRooms, setFilterRooms] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState("");
+  const [selectedQualification, setSelectedQualification] = useState("");
 
   const loadEducators = useCallback(async () => {
     try { const d = await API("/api/educators"); if (Array.isArray(d)) setEducators(d); } catch(e) {}
@@ -1472,13 +1476,15 @@ export default function EducatorsModule() {
     setNecwrLoading(false);
   }, []);
 
-  useEffect(() => { loadEducators(); }, [loadEducators]);
+  useEffect(() => { loadEducators(); API("/api/rooms").then(r => { if (Array.isArray(r)) setFilterRooms(r); }).catch(() => {}); }, [loadEducators]);
   useEffect(() => { if (selected) loadDetail(selected); }, [selected, loadDetail]);
 
   const filtered = educators.filter(e => {
     const name = `${e.first_name} ${e.last_name}`.toLowerCase();
     if (search && !name.includes(search.toLowerCase())) return false;
     if (filterStatus !== "all" && e.status !== filterStatus) return false;
+    if (selectedRoom && String(e.preferred_room_id || e.room_id || "") !== String(selectedRoom)) return false;
+    if (selectedQualification && e.qualification !== selectedQualification) return false;
     return true;
   });
 
@@ -1616,8 +1622,18 @@ export default function EducatorsModule() {
         )}
       </div>
       {mainTab==="list" && <>
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search educators…" style={{ flex:1, ...inp }} />
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search educators…" style={{ flex:1, minWidth:180, ...inp }} />
+        <select value={selectedRoom} onChange={e=>setSelectedRoom(e.target.value)}
+          style={{ padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:13,background:"#fff",fontFamily:"inherit" }}>
+          <option value="">All Rooms</option>
+          {filterRooms.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <select value={selectedQualification} onChange={e=>setSelectedQualification(e.target.value)}
+          style={{ padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:13,background:"#fff",fontFamily:"inherit" }}>
+          <option value="">All Qualifications</option>
+          {Object.entries(QUAL_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
+        </select>
         {["active","inactive","all"].map(s=>(
           <button key={s} onClick={()=>setFilterStatus(s)} style={{ padding:"8px 16px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,background:filterStatus===s?purple:"#EDE8F4",color:filterStatus===s?"#fff":purple }}>
             {s[0].toUpperCase()+s.slice(1)}

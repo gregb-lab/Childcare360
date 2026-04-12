@@ -474,9 +474,10 @@ function KioskScreen({ onExit }) {
       alignItems:"center",justifyContent:"center",zIndex:9000,fontFamily:"system-ui,sans-serif",
       transition:"background 0.3s"}}>
 
-      {/* Header */}
-      <div style={{position:"absolute",top:0,left:0,right:0,padding:"16px 24px",
-        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      {/* Header — right:16 prevents admin button clip on smaller screens */}
+      <div style={{position:"absolute",top:0,left:0,right:0,padding:"16px 24px 16px 24px",
+        display:"flex",justifyContent:"space-between",alignItems:"center",
+        boxSizing:"border-box",overflow:"visible"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#7C3AED,#A78BFA)",
             display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:18}}>⚙️</div>
@@ -484,11 +485,11 @@ function KioskScreen({ onExit }) {
             {localStorage.getItem("kiosk_centre_name") || "Childcare360"} — Sign In/Out
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:13,color:MU}}>{new Date().toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"long"})}</div>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+          <div style={{fontSize:13,color:MU,whiteSpace:"nowrap"}}>{new Date().toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"long"})}</div>
           <button onClick={()=>setShowExit(true)}
             style={{padding:"6px 14px",borderRadius:8,background:"rgba(0,0,0,0.12)",border:"1px solid rgba(0,0,0,0.15)",
-              color:DARK,cursor:"pointer",fontSize:12,fontWeight:600}}>
+              color:DARK,cursor:"pointer",fontSize:12,fontWeight:600,flexShrink:0,whiteSpace:"nowrap"}}>
             ⚙️ Admin
           </button>
         </div>

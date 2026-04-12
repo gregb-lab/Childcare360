@@ -104,14 +104,14 @@ r.get('/invoices', (req, res) => {
     if (search)   { where.push('(c.first_name || " " || c.last_name LIKE ? OR i.invoice_number LIKE ?)'); vals.push(`%${search}%`, `%${search}%`); }
 
     const total = D().prepare(
-      `SELECT COUNT(*) as n FROM invoices i JOIN children c ON c.id=i.child_id WHERE ${where.join(' AND ')}`
+      `SELECT COUNT(*) as n FROM invoices i LEFT JOIN children c ON c.id=i.child_id WHERE ${where.join(' AND ')}`
     ).get(...vals)?.n || 0;
 
     const invoices = D().prepare(`
       SELECT i.*, c.first_name, c.last_name, r.name as room_name,
         CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
       FROM invoices i
-      JOIN children c ON c.id=i.child_id
+      LEFT JOIN children c ON c.id=i.child_id
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE ${where.join(' AND ')}
       ORDER BY i.created_at DESC
@@ -182,7 +182,7 @@ r.post('/invoices', (req, res) => {
     let ccsCents = 0;
     if (apply_ccs) {
       const ccsDetails = D().prepare(
-        'SELECT * FROM ccs_details WHERE child_id=? AND tenant_id=? AND status="active" LIMIT 1'
+        "SELECT * FROM ccs_details WHERE child_id=? AND tenant_id=? AND status='active' LIMIT 1"
       ).get(child_id, req.tenantId);
       if (ccsDetails?.ccs_percentage > 0) {
         // Get room hourly cap
@@ -241,13 +241,13 @@ r.put('/invoices/:id', (req, res) => {
   try {
     const { notes, due_date, status, line_items } = req.body;
 
-    const updates = ["updated_at=datetime('now')" ];
+    const updates = [];
     const vals = [];
     if (notes !== undefined)    { updates.push('notes=?'); vals.push(notes); }
     if (due_date)               { updates.push('due_date=?'); vals.push(due_date); }
     if (status)                 { updates.push('status=?'); vals.push(status); }
 
-    if (updates.length > 1) {
+    if (updates.length > 0) {
       D().prepare((() => 'UPDATE invoices SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')())
         .run(...vals, req.params.id, req.tenantId);
     }
@@ -274,7 +274,7 @@ r.put('/invoices/:id', (req, res) => {
       })();
 
       D().prepare('UPDATE invoices SET total_fee=?, amount_due=? WHERE id=? AND tenant_id=?')
-        .run(gross/100, gross/100, req.params.id);
+        .run(gross/100, gross/100, req.params.id, req.tenantId);
     }
 
     res.json({ ok: true });
@@ -337,7 +337,7 @@ r.post('/invoices/:id/pay', (req, res) => {
 
     // Mark payment request as paid
     D().prepare("UPDATE payment_requests SET status='paid', paid_at=datetime('now'), payment_method=? WHERE invoice_id=? AND tenant_id=?")
-      .run(method, req.params.id);
+      .run(method, req.params.id, req.tenantId);
 
     res.json({ ok: true, fully_paid: fullyPaid, amount_paid: newPaid });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -391,7 +391,7 @@ r.post('/bulk-generate', (req, res) => {
         let ccsCents = 0;
         if (include_ccs) {
           const ccsDetails = D().prepare(
-            'SELECT * FROM ccs_details WHERE child_id=? AND tenant_id=? AND status="active" LIMIT 1'
+            "SELECT * FROM ccs_details WHERE child_id=? AND tenant_id=? AND status='active' LIMIT 1"
           ).get(child.id, req.tenantId);
 
           if (ccsDetails?.ccs_percentage > 0) {
