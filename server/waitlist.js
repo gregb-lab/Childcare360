@@ -37,7 +37,7 @@ r.put('/:id', requireAuth, requireTenant, (req, res) => {
     const fields = [
       'child_name', 'child_dob', 'parent_name', 'parent_email', 'parent_phone',
       'preferred_room', 'preferred_days', 'preferred_start',
-      'notes', 'priority', 'status',
+      'notes', 'priority', 'status', 'wants_casual', 'casual_days',
     ];
     const updates = {};
     for (const f of fields) {

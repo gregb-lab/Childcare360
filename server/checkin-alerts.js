@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
+import { createSpotOffer } from './casual-spots.js';
 
 const router = Router();
 
@@ -435,6 +436,13 @@ router.post('/gather/:id', (req, res) => {
       }
       D().prepare(`UPDATE checkin_alerts SET status='resolved', call_outcome='answered_no',
         resolved_at=datetime('now'), resolution='absent_confirmed' WHERE id=?`).run(req.params.id);
+      // Trigger casual spot offer
+      if (alert) {
+        const child = D().prepare('SELECT room_id FROM children WHERE id=?').get(alert.child_id);
+        if (child?.room_id) {
+          createSpotOffer({ tenantId: alert.tenant_id, roomId: child.room_id, date: alert.alert_date, source: 'checkin_alert', sourceId: alert.id, vacatedChildId: alert.child_id }).catch(e => console.error('[checkin-alert] spot offer error:', e.message));
+        }
+      }
       res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response><Say voice="Polly.Nicole">Thank you for letting us know. We hope to see them next time. Goodbye.</Say></Response>`);
     } else {
@@ -488,6 +496,11 @@ router.post('/sms-reply', (req, res) => {
       D().prepare(`UPDATE checkin_alerts SET status='resolved', sms_response='no',
         sms_response_at=datetime('now'), resolved_at=datetime('now'), resolution='absent_confirmed'
         WHERE id=?`).run(alert.id);
+      // Trigger casual spot offer
+      const child = D().prepare('SELECT room_id FROM children WHERE id=?').get(alert.child_id);
+      if (child?.room_id) {
+        createSpotOffer({ tenantId: alert.tenant_id, roomId: child.room_id, date: alert.alert_date, source: 'checkin_alert', sourceId: alert.id, vacatedChildId: alert.child_id }).catch(e => console.error('[checkin-alert] spot offer error:', e.message));
+      }
       res.type('text/xml').send('<Response><Message>Thank you for letting us know. We hope to see them next time!</Message></Response>');
     } else {
       res.type('text/xml').send('<Response><Message>Please reply YES if on the way or NO if not attending today.</Message></Response>');

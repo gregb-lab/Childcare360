@@ -43,11 +43,13 @@ import voiceRoutes, { webhookRouter, audioRouter } from './voice.js';
 import shiftVoiceRoutes, { shiftWebhooks } from './shift-voice.js';
 import retellRoutes, { retellWebhooks, setupRetellWebSocket } from './retell.js';
 import checkinAlertRoutes, { processCheckinAlerts } from './checkin-alerts.js';
+import casualSpotRoutes from './casual-spots.js';
 import rosterEnhancedRoutes from './roster-enhancements.js';
 import operationsRoutes from './operations.js';
 import crmRoutes from './crm.js';
 import engagementRoutes from './engagement.js';
 import ccsRoutes from './ccs.js';
+import ccsAbsenceRoutes from './ccs-absences.js';
 import integrationsRoutes from './integrations.js';
 import adminPowerRoutes from './admin-power.js';
 import childdevRoutes from './childdev.js';
@@ -342,6 +344,7 @@ app.use('/api/voice/audio', audioRouter);
 app.use('/api/shift-voice/webhook', shiftWebhooks);
 app.use('/api/retell/webhook', retellWebhooks); // no auth — called by Retell
 app.use('/api/checkin-alerts', checkinAlertRoutes); // has own auth — webhooks are unauthenticated
+app.use('/api/casual-spots', casualSpotRoutes); // has own auth — SMS webhook unauthenticated
 
 // ── One-shot CN seed endpoint ─────────────────────────────────────────────
 // Hit: GET /admin-seed-cn?token=childcare360seed
@@ -568,6 +571,7 @@ app.use('/api/operations', operationsRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/engagement', engagementRoutes);
 app.use('/api/ccs', ccsRoutes);
+app.use('/api/ccs-absences', ccsAbsenceRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/admin', adminPowerRoutes);
 app.use('/api/childdev', childdevRoutes);

@@ -9,6 +9,7 @@ import LearningJourneyModule from "./LearningJourneyModule.jsx";
 import EnrolmentModule from "./EnrolmentModule.jsx";
 import StaffWellbeingModule from "./StaffWellbeingModule.jsx";
 import WaitlistModule from "./WaitlistModule.jsx";
+import CasualSpotsModule from "./CasualSpotsModule.jsx";
 import ParentPortalModule from "./ParentPortalModule.jsx";
 import { UserMenu, useAuth } from "./AuthModule.jsx";
 
@@ -516,7 +517,7 @@ export default function ChildcareRosterApp() {
       "dashboard","children","clockinout","kiosk","rooms","daily_updates","child_dev",
       "medication_register","incidents","excursions","operations",
       "learning","learning_journey","observations","run_sheet","stories","ai_assistant","quality",
-      "enrolment","waitlist","crm","engagement",
+      "enrolment","waitlist","casual_spots","crm","engagement",
       "educators","roster","compliance","ratio_report","ratio_check","wellbeing","payroll","staff_wellbeing",
       "invoicing","invoicing_full","reports","analytics","ccs","payments",
       "message_centre","comms","bulk_comms","messaging","documents","voice",
@@ -756,7 +757,7 @@ export default function ChildcareRosterApp() {
     { id:'cat_today', label:'Today', icon:'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
       tabs:['dashboard','operations'] },
     { id:'cat_children', label:'Children', icon:'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
-      tabs:['children','enrolment','waitlist','kiosk','crm','medication_register'] },
+      tabs:['children','enrolment','waitlist','casual_spots','kiosk','crm','medication_register'] },
     { id:'cat_educators', label:'Educators', icon:'M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z',
       tabs:['educators','roster','clockinout','wellbeing','leave_requests','staff_wellbeing','payroll'] },
     { id:'cat_learning', label:'Learning', icon:'M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z',
@@ -792,6 +793,7 @@ export default function ChildcareRosterApp() {
         { id: "children", label: "Children", icon: "children_icon" },
         { id: "enrolment", label: "Enrolments", icon: "people" },
         { id: "waitlist", label: "Waitlist", icon: "people" },
+        { id: "casual_spots", label: "Casual Spots", icon: "clock" },
         { id: "kiosk", label: "Kiosk Sign-In", icon: "clock" },
         { id: "crm", label: "CRM & Enquiries", icon: "people" },
         { id: "medication_register", label: "Medication Register", icon: "warning" },
@@ -1104,6 +1106,7 @@ export default function ChildcareRosterApp() {
           {activeTab === "learning_journey" && <LearningJourneyModule />}
           {activeTab === "enrolment" && <EnrolmentModule />}
           {activeTab === "waitlist" && <WaitlistModule />}
+          {activeTab === "casual_spots" && <CasualSpotsModule />}
           {activeTab === "stories" && <WeeklyStoryModule />}
           {activeTab === "ratio_report" && <RatioReportModule />}
           {activeTab === "operations" && <OperationsModule />}
