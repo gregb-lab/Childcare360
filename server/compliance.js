@@ -131,7 +131,7 @@ export function runDailyComplianceScan(tenantId) {
   let alerts = 0;
 
   children.forEach(child => {
-    const ageMonths = Math.floor((Date.now()-new Date(child.dob).getTime())/(30.44*86400000));
+    const ageMonths = ((d) => { const n=new Date(); return (n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); })(new Date(child.dob));
 
     // ── Immunisation ──
     const immDocs = D().prepare("SELECT COUNT(*) as c FROM child_documents WHERE child_id=? AND tenant_id=? AND category='immunisation'").get(child.id, tenantId)?.c || 0;
@@ -343,7 +343,7 @@ function buildLiveSnapshot(tenantId) {
 
   const children = D().prepare(`
     SELECT c.id, c.dob, c.room_id,
-           CAST((julianday('now') - julianday(c.dob)) * 12 / 30.44 AS INTEGER) as age_months
+           ((strftime('%Y','now')-strftime('%Y',c.dob))*12+(strftime('%m','now')-strftime('%m',c.dob))) as age_months
     FROM children c
     JOIN attendance_sessions a ON a.child_id = c.id
     WHERE c.tenant_id = ? AND c.active = 1

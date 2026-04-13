@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import helmet from 'helmet';
@@ -1272,7 +1273,7 @@ app.get('/api/children/simple', (req, res) => {
     const children = _D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id,
              r.name as room_name, c.active,
-             CAST((julianday('now')-julianday(c.dob))/30.44 AS INTEGER) as age_months
+             ((strftime('%Y','now')-strftime('%Y',c.dob))*12+(strftime('%m','now')-strftime('%m',c.dob))) as age_months
       FROM children c
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE c.tenant_id=? AND c.active=1

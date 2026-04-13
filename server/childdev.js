@@ -361,7 +361,7 @@ r.get('/milestones/:childId', (req, res) => {
     if (!child) return res.status(404).json({ error: 'Child not found' });
 
     const ageMonths = child.dob
-      ? Math.floor((Date.now() - new Date(child.dob)) / (1000 * 60 * 60 * 24 * 30.44))
+      ? ((d) => { const n=new Date(); return (n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); })(new Date(child.dob))
       : 0;
 
     const achieved = D().prepare(
@@ -612,8 +612,8 @@ r.get('/transitions/upcoming/school-age', (req, res) => {
   try {
     const upcoming = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id, r.name as room_name,
-        CAST((julianday(date('now')) - julianday(c.dob)) / 30.44 AS INTEGER) as age_months,
-        CAST((julianday(date(c.dob,'+5 years')) - julianday(date('now'))) / 30.44 AS INTEGER) as months_to_school,
+        ((strftime('%Y','now')-strftime('%Y',c.dob))*12+(strftime('%m','now')-strftime('%m',c.dob))) as age_months,
+        (((strftime('%Y',c.dob)+5)-strftime('%Y','now'))*12+(strftime('%m',c.dob)-strftime('%m','now'))) as months_to_school,
         (SELECT id FROM transition_reports tr WHERE tr.child_id=c.id AND tr.tenant_id=c.tenant_id LIMIT 1) as has_report
       FROM children c
       LEFT JOIN rooms r ON r.id=c.room_id

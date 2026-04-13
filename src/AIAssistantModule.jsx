@@ -107,7 +107,7 @@ function AIWriterTab() {
       const r=await API("/api/ai-assistant/generate",{method:"POST",body:{
         ...form,
         child_name:child?`${child.first_name} ${child.last_name}`:null,
-        age_months:child?.dob?Math.floor((Date.now()-new Date(child.dob))/(1000*60*60*24*30.44)):null,
+        age_months:child?.dob?(()=>{const d=new Date(child.dob),n=new Date();return(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth());})():null,
         room_name:child?.room_name||null,
         anthropic_key: anthropicKey||undefined,
       }});

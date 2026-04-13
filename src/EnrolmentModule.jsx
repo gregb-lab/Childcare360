@@ -20,7 +20,7 @@ const btnS = { background: lp, color: purple, border: `1px solid ${purple}30`, b
 const btnGhost = { background: "none", border: "none", cursor: "pointer", color: purple, fontSize: 12, fontWeight: 600 };
 
 const fmtDate = s => s ? new Date(s).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—";
-const ageFromDob = dob => { if (!dob) return ""; const m = (new Date() - new Date(dob)) / (1000 * 60 * 60 * 24 * 30.5); return m < 24 ? `${Math.round(m)}m` : `${Math.round(m/12)}y ${Math.round(m%12)}m`; };
+const ageFromDob = dob => { if (!dob) return ""; const d=new Date(dob),n=new Date(),m=(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); return m < 24 ? `${m}m` : `${Math.floor(m/12)}y ${m%12}m`; };
 
 const DAYS = ["Mon","Tue","Wed","Thu","Fri"];
 const STATUS_CONFIG = {

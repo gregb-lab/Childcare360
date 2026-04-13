@@ -13,13 +13,46 @@ const btnP={padding:"10px 22px",borderRadius:10,border:"none",background:P,color
 const btnS={padding:"10px 20px",borderRadius:10,border:`1px solid ${P}`,background:"#fff",color:P,fontWeight:600,cursor:"pointer",fontSize:14};
 
 const TRACKS=[
-  {id:"playful",  label:"Playful & Bright",  mood:"happy",     url:"https://cdn.pixabay.com/download/audio/2022/10/25/audio_2eefea3b5c.mp3"},
-  {id:"warm",     label:"Warm Strings",       mood:"warm",      url:"https://cdn.pixabay.com/download/audio/2021/11/25/audio_c1ef4bc2af.mp3"},
-  {id:"gentle",   label:"Gentle Piano",       mood:"calm",      url:"https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1c07.mp3"},
-  {id:"uplifting",label:"Uplifting",          mood:"joyful",    url:"https://cdn.pixabay.com/download/audio/2022/01/27/audio_d4c5765dff.mp3"},
-  {id:"cinematic",label:"Cinematic Year End", mood:"epic",      url:"https://cdn.pixabay.com/download/audio/2022/11/22/audio_febc508520.mp3"},
-  {id:"nostalgic",label:"Nostalgic",          mood:"nostalgic", url:"https://cdn.pixabay.com/download/audio/2022/08/02/audio_2dde668d05.mp3"},
+  {id:"playful",  label:"Playful & Bright",  mood:"happy"},
+  {id:"warm",     label:"Warm Strings",       mood:"warm"},
+  {id:"gentle",   label:"Gentle Piano",       mood:"calm"},
+  {id:"uplifting",label:"Uplifting",          mood:"joyful"},
+  {id:"cinematic",label:"Cinematic Year End", mood:"epic"},
+  {id:"nostalgic",label:"Nostalgic",          mood:"nostalgic"},
 ];
+
+// ── Ambient music generator (Web Audio API) ──────────────────────────────────
+// Generates a loopable ambient chord pad as a WAV blob URL. No external CDN needed.
+const _musicCache={};
+function generateAmbientUrl(mood){
+  if(_musicCache[mood])return _musicCache[mood];
+  const sr=22050,dur=20,len=sr*dur;
+  const chords={
+    happy:[261.63,329.63,392.00],warm:[220.00,277.18,329.63],
+    calm:[196.00,246.94,293.66],joyful:[293.66,369.99,440.00],
+    wonder:[174.61,220.00,261.63],epic:[164.81,207.65,246.94],
+    nostalgic:[185.00,233.08,277.18],
+  };
+  const freqs=chords[mood]||chords.calm,amp=0.04;
+  const buf=new Float32Array(len);
+  for(let i=0;i<len;i++){
+    const t=i/sr,env=Math.min(t/2,1)*Math.min((dur-t)/2,1);
+    let s=0;for(const f of freqs)s+=Math.sin(2*Math.PI*f*t);
+    // Add gentle vibrato for warmth
+    const vibrato=1+0.002*Math.sin(2*Math.PI*4.5*t);
+    buf[i]=s/freqs.length*amp*env*vibrato;
+  }
+  const dataLen=len*2,hdr=44,ab=new ArrayBuffer(hdr+dataLen),v=new DataView(ab);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  w(0,'RIFF');v.setUint32(4,hdr+dataLen-8,true);w(8,'WAVE');w(12,'fmt ');
+  v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+  w(36,'data');v.setUint32(40,dataLen,true);
+  for(let i=0;i<len;i++){const s=Math.max(-1,Math.min(1,buf[i]));v.setInt16(hdr+i*2,s<0?s*0x8000:s*0x7FFF,true);}
+  const url=URL.createObjectURL(new Blob([ab],{type:'audio/wav'}));
+  _musicCache[mood]=url;return url;
+}
+function getTrackUrl(trackId){const t=TRACKS.find(t=>t.id===trackId);return t?generateAmbientUrl(t.mood):generateAmbientUrl('calm');}
 
 const EYLF_LABELS={1:"Identity",2:"Community",3:"Wellbeing",4:"Learning",5:"Communication"};
 const EYLF_COLORS=["#C9929E","#9B7DC0","#6BA38B","#D4A26A","#6B89B8"];
@@ -309,7 +342,7 @@ function StoryPlayer({data,trackUrl,onClose}){
 }
 
 // ── Story Card ─────────────────────────────────────────────────────────────────
-function StoryCard({story,onPlay,onDelete,onPublish,onUnpublish}){
+function StoryCard({story,onPlay,onEdit,onDelete,onPublish,onUnpublish}){
   const photos=story.photo_urls||[];
   const palIdx=(story.id?.charCodeAt(0)||0)%PALETTE.length;
   const [c1,c2]=PALETTE[palIdx];
@@ -336,6 +369,7 @@ function StoryCard({story,onPlay,onDelete,onPublish,onUnpublish}){
           {story.status==="draft"
             ?<button onClick={onPublish} style={{...btnP,padding:"6px 14px",fontSize:12,flex:1}}>Publish →</button>
             :<button onClick={onUnpublish} style={{...btnS,padding:"6px 14px",fontSize:12,flex:1}}>Unpublish</button>}
+          <button onClick={onEdit} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${P}`,background:PL,color:P,fontSize:12,cursor:"pointer",fontWeight:600}}>Edit</button>
           <button onClick={onDelete} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #FCA5A5",background:"#FEF2F2",color:"#DC2626",fontSize:12,cursor:"pointer"}}>Del</button>
         </div>
       </div>
@@ -367,14 +401,20 @@ export default function WeeklyStoryModule(){
   const [stories,setStories]=useState([]);
   const [loadingStories,setLoadingStories]=useState(true);
   const [playing,setPlaying]=useState(null);
+  const [editingStory,setEditingStory]=useState(null);
   const [libFilter,setLibFilter]=useState("all");
   const [tenantName,setTenantName]=useState("our centre");
 
   useEffect(()=>{
-    API("/api/children/simple").then(r=>{const c=Array.isArray(r)?r:(r.children||r.data||[]);setChildren(c);if(c[0])setSelectedChild(c[0].id);}).catch(()=>{});
-    API("/api/rooms/simple").then(r=>{const rm=Array.isArray(r)?r:(r.rooms||r.data||[]);setRooms(rm);if(rm[0])setSelectedRoom(rm[0].id);}).catch(()=>{});
-    API("/api/dashboard").then(r=>{if(r.centre?.name)setTenantName(r.centre.name);}).catch(()=>{});
-    loadStories();
+    const init=()=>{
+      const token=localStorage.getItem("c360_token");
+      if(!token){setTimeout(init,500);return;}
+      API("/api/children/simple").then(r=>{const c=Array.isArray(r)?r:(r.children||r.data||[]);setChildren(c);if(c[0])setSelectedChild(c[0].id);}).catch(()=>{});
+      API("/api/rooms/simple").then(r=>{const rm=Array.isArray(r)?r:(r.rooms||r.data||[]);setRooms(rm);if(rm[0])setSelectedRoom(rm[0].id);}).catch(()=>{});
+      API("/api/dashboard").then(r=>{if(r.centre?.name)setTenantName(r.centre.name);}).catch(()=>{});
+      loadStories();
+    };
+    init();
   },[]);
 
   const loadStories=async()=>{setLoadingStories(true);try{const r=await API("/api/stories?limit=30");setStories(r.stories||[]);}catch(e){}finally{setLoadingStories(false);};};
@@ -420,7 +460,7 @@ export default function WeeklyStoryModule(){
                observations:weekData.observations?.length||0},
         highlights:(weekData.observations||[]).slice(0,2).map(o=>o.narrative).filter(Boolean),
         eylf:weekData.eylf||[],
-        trackUrl:TRACKS.find(t=>t.id===selectedTrack)?.url||TRACKS[0].url,
+        trackUrl:getTrackUrl(selectedTrack),
       });
       toast("Story created! Playing now…");
       loadStories();
@@ -428,9 +468,11 @@ export default function WeeklyStoryModule(){
     finally{setCreating(false);};
   };
 
-  const publish=async id=>{await API(`/api/stories/${id}/publish`,{method:"POST"});toast("Published!");loadStories();};
+  const publish=async id=>{await API(`/api/stories/${id}/publish`,{method:"POST"});try{await API(`/api/stories/${id}/notify-families`,{method:"POST"});toast("Published & families notified!");}catch(e){toast("Published (notification failed)","warning");}loadStories();};
   const unpublish=async id=>{await API(`/api/stories/${id}/unpublish`,{method:"POST"});toast("Unpublished");loadStories();};
-  const del=async id=>{if(!(await window.showConfirm("Delete?")))return;await API(`/api/stories/${id}`,{method:"DELETE"});toast("Deleted");loadStories();}; // catch: .catch(e=>console.error('API error:',e))
+  const del=async id=>{if(!(await window.showConfirm("Delete?")))return;await API(`/api/stories/${id}`,{method:"DELETE"});toast("Deleted");loadStories();};
+  const editStory=s=>{setEditingStory(s);setSelectedTrack(s.music_track_id||s.music_track||"gentle");setTab("create");};
+  const updateStory=async()=>{if(!editingStory)return;setCreating(true);try{await API(`/api/stories/${editingStory.id}`,{method:"PUT",body:{music_track:selectedTrack}});toast("Story updated!");setEditingStory(null);loadStories();}catch(e){toast(e.message||"Update failed","error");}finally{setCreating(false);};};
 
   const play=s=>setPlaying({
     id:s.id,period:s.period||"week",year:s.year,term:s.term,week_start:s.week_start,
@@ -438,7 +480,7 @@ export default function WeeklyStoryModule(){
     photos:s.photo_urls||[],
     stats:{stories:0,activities:0,photos:(s.photo_urls||[]).length,eylf:0,observations:0},
     highlights:[],eylf:[],
-    trackUrl:TRACKS.find(t=>t.id===s.music_track_id)?.url||TRACKS[0].url,
+    trackUrl:getTrackUrl(s.music_track_id||s.music_track||'gentle'),
   });
 
   const filteredStories=libFilter==="all"?stories:stories.filter(s=>s.period===libFilter);
@@ -487,7 +529,7 @@ export default function WeeklyStoryModule(){
             </div>
           ):(
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:18}}>
-              {filteredStories.map(s=><StoryCard key={s.id} story={s} onPlay={()=>play(s)} onDelete={()=>del(s.id)} onPublish={()=>publish(s.id)} onUnpublish={()=>unpublish(s.id)}/>)}
+              {filteredStories.map(s=><StoryCard key={s.id} story={s} onPlay={()=>play(s)} onEdit={()=>editStory(s)} onDelete={()=>del(s.id)} onPublish={()=>publish(s.id)} onUnpublish={()=>unpublish(s.id)}/>)}
             </div>
           )}
         </>
@@ -495,6 +537,12 @@ export default function WeeklyStoryModule(){
 
       {tab==="create"&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,maxWidth:860}}>
+          {editingStory&&(
+            <div style={{gridColumn:"1/-1",padding:"12px 18px",borderRadius:12,background:"#EDE4F0",border:`2px solid ${P}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{fontSize:14,fontWeight:700,color:DARK}}>✏️ Editing: {editingStory.child_name||editingStory.room_name||"Story"} — {editingStory.week_start||editingStory.week_starting||""}</div>
+              <button onClick={()=>{setEditingStory(null);setTab("library");}} style={{background:"none",border:"none",cursor:"pointer",color:P,fontWeight:600,fontSize:13}}>Cancel</button>
+            </div>
+          )}
           {/* Left */}
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             <div style={card}>
@@ -547,9 +595,18 @@ export default function WeeklyStoryModule(){
                 ))}
               </div>
             </div>
-            <button style={{...btnP,padding:14,fontSize:16,opacity:(creating||!weekData)?0.6:1}} onClick={create} disabled={creating||!weekData}>
-              {creating?"Creating story…":"🎬 Create & Play"}
-            </button>
+            {editingStory?(
+              <div style={{display:"flex",gap:10}}>
+                <button style={{...btnP,padding:14,fontSize:16,flex:1,opacity:creating?0.6:1}} onClick={updateStory} disabled={creating}>
+                  {creating?"Updating…":"✏️ Update Story"}
+                </button>
+                <button style={{...btnS,padding:14,fontSize:14}} onClick={()=>{setEditingStory(null);setTab("library");}}>Cancel</button>
+              </div>
+            ):(
+              <button style={{...btnP,padding:14,fontSize:16,opacity:(creating||!weekData)?0.6:1}} onClick={create} disabled={creating||!weekData}>
+                {creating?"Creating story…":"🎬 Create & Play"}
+              </button>
+            )}
             <div style={{...card,background:"#F9F8FF",padding:"14px 18px"}}>
               <div style={{fontSize:12,color:MUTED,lineHeight:1.8}}>
                 <div>📸 Photos animate in with cinematic zoom</div>

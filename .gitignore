@@ -20,3 +20,4 @@ railway.json
 railway.toml
 nixpacks.toml
 childcare360-app/
+.env.*

@@ -32,7 +32,10 @@ r.get('/', (req, res) => {
                c.medical_notes,
                mp.plan_type as condition_type, mp.condition_name, mp.notes as medical_plan_notes,
                a.sign_in, a.sign_out, a.absent,
-               rsc.activities_completed, rsc.notes as rsc_notes, rsc.id as rsc_id
+               rsc.activities_completed, rsc.notes as rsc_notes, rsc.id as rsc_id,
+               rsc.attended, rsc.mood, rsc.observations, rsc.learning_highlights, rsc.educator_notes,
+               (SELECT o.narrative FROM observations o WHERE o.child_id=c.id AND o.tenant_id=? ORDER BY o.timestamp DESC LIMIT 1) as last_observation,
+               (SELECT date(o.timestamp) FROM observations o WHERE o.child_id=c.id AND o.tenant_id=? ORDER BY o.timestamp DESC LIMIT 1) as last_obs_date
         FROM children c
         LEFT JOIN medical_plans mp ON mp.child_id=c.id AND mp.status='current' AND mp.tenant_id=?
         LEFT JOIN attendance_sessions a ON a.child_id=c.id AND a.date=? AND a.tenant_id=?
@@ -40,7 +43,7 @@ r.get('/', (req, res) => {
         LEFT JOIN run_sheet_children rsc ON rsc.child_id=c.id AND rsc.run_sheet_id=drs.id
         WHERE c.room_id=? AND c.tenant_id=? AND c.active=1
         ORDER BY c.first_name
-      `).all(req.tenantId, today, req.tenantId, today, req.tenantId, room.id, req.tenantId);
+      `).all(req.tenantId, req.tenantId, req.tenantId, today, req.tenantId, today, req.tenantId, room.id, req.tenantId);
 
       return {
         room: { id: room.id, name: room.name, group_label: room.group_label, ratio: room.ratio, capacity: room.capacity },

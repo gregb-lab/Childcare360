@@ -119,7 +119,7 @@ router.get('/immunisations/:childId', (req, res) => {
   const records = D().prepare('SELECT * FROM immunisation_records WHERE child_id=? AND tenant_id=? ORDER BY date_given DESC')
     .all(req.params.childId, req.tenantId);
   const child = D().prepare('SELECT dob FROM children WHERE id=? AND tenant_id=?').get(req.params.childId, req.tenantId);
-  const ageMonths = child ? Math.floor((Date.now() - new Date(child.dob).getTime()) / (30.44*86400000)) : 0;
+  const ageMonths = child?.dob ? ((d) => { const n=new Date(); return (n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); })(new Date(child.dob)) : 0;
   const due = NIP_SCHEDULE.filter(v => v.months <= ageMonths);
   const given = records.map(r => r.vaccine_name + '_' + r.dose_number);
   const overdue = due.filter(v => !given.includes(v.vaccine + '_' + v.dose));
@@ -245,7 +245,7 @@ function analyseDocument(docId, tenantId) {
     let extracted = { type: doc.category, docType: doc.doc_type };
 
     if (doc.category === 'immunisation') {
-      const ageMonths = child ? Math.floor((Date.now()-new Date(child.dob).getTime())/(30.44*86400000)) : 24;
+      const ageMonths = child?.dob ? ((d) => { const n=new Date(); return (n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); })(new Date(child.dob)) : 24;
       const due = NIP_SCHEDULE.filter(v => v.months <= ageMonths);
       const existing = D().prepare('SELECT COUNT(*) as c FROM immunisation_records WHERE child_id=? AND tenant_id=?').get(doc.child_id, tenantId)?.c || 0;
       extracted.analysis = {

@@ -412,7 +412,7 @@ function OneOffPayment() {
 export default function ParentPortalModule() {
   const [tab, setTab] = useState("home");
   const [children, setChildren] = useState([]);
-  const [selectedChildId, setSelectedChildId] = useState(null);
+  const [selectedChildId, setSelectedChildId] = useState(() => localStorage.getItem("c360_preview_child_id") || null);
   const [messages, setMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -429,7 +429,8 @@ export default function ParentPortalModule() {
       ]);
       if (Array.isArray(ch) && ch.length) {
         setChildren(ch);
-        if (!selectedChildId) setSelectedChildId(ch[0].id);
+        const previewId = localStorage.getItem("c360_preview_child_id");
+        if (!selectedChildId) setSelectedChildId(previewId && ch.some(c => c.id === previewId) ? previewId : ch[0].id);
       } else {
         // Staff/admin: load all children for preview mode
         const allCh = await API("/api/children").catch(()=>[]);

@@ -166,7 +166,7 @@ r.post('/generate', async (req, res) => {
       });
     }
 
-    const prompt = buildPrompt(session_type, { child_name, age_months, observation_notes, activity, eylf_focus, room_name });
+    const prompt = req.body.prompt_override || buildPrompt(session_type, { child_name, age_months, observation_notes, activity, eylf_focus, room_name });
 
     // Call Anthropic Claude
     const response = await fetch('https://api.anthropic.com/v1/messages', {

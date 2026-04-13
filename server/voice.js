@@ -30,11 +30,11 @@ function safeNumber(intended) {
 
 // ─── Core helpers ─────────────────────────────────────────────────────────────
 
-function getBase() {
+function getBase(req) {
   if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
   if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
-  // Auto-detect from AWS internal domain
-  if (process.env.APP_DOMAIN) return process.env.APP_DOMAIN.replace(/\/+$/, '');
+  if (req?.headers?.['x-forwarded-host']) return `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers['x-forwarded-host']}`;
+  if (req?.headers?.host) return `http://${req.headers.host}`;
   return '';
 }
 
@@ -108,7 +108,7 @@ setInterval(() => {
 const ttsUrlCache = new Map();
 const TTS_URL_CACHE_MAX = 100;
 
-async function elevenLabsStream(text, settings) {
+async function elevenLabsStream(text, settings, baseUrl) {
   const key = settings?.elevenlabs_api_key;
   if (!key) return null;
 
@@ -119,6 +119,13 @@ async function elevenLabsStream(text, settings) {
   const cacheKey = `${voiceId}|${model}|${text}`;
   if (ttsUrlCache.has(cacheKey)) {
     return `<Play>${ttsUrlCache.get(cacheKey)}</Play>`;
+  }
+
+  // baseUrl is required — Twilio needs an absolute URL for the stream proxy
+  const base = baseUrl || getBase();
+  if (!base) {
+    console.error('[ElevenLabs] No base URL available — cannot create stream URL for Twilio');
+    return null;
   }
 
   try {
@@ -147,7 +154,7 @@ async function elevenLabsStream(text, settings) {
     streamTokens.set(token, { stream: nodeStream, expires: Date.now() + 30000 });
     setTimeout(() => streamTokens.delete(token), 30000);
 
-    const url = `${getBase()}/api/voice/audio/stream/${token}`;
+    const url = `${base}/api/voice/audio/stream/${token}`;
     console.log(`[ElevenLabs] stream token created: ${token}`);
     return `<Play>${url}</Play>`;
 
@@ -183,19 +190,69 @@ function speakPolly(text, settings) {
 
 // speak — tries ElevenLabs streaming, falls back to Polly immediately.
 // EL stream is kicked off and handed to Twilio as it arrives — no full-file wait.
-async function speak(text, settings) {
-  const el = await elevenLabsStream(text, settings);
+async function speak(text, settings, baseUrl) {
+  const el = await elevenLabsStream(text, settings, baseUrl);
   if (el) return el;
   return speakPolly(text, settings);
 }
 
 // gatherWith — speechTimeout="auto" is THE key latency fix.
 // Twilio uses speech-end detection instead of waiting N seconds of silence.
-async function gatherWith(action, text, settings) {
-  const inner = await speak(text, settings);
+async function gatherWith(action, text, settings, baseUrl) {
+  const inner = await speak(text, settings, baseUrl);
   const lang  = settings?.call_language || 'en-AU';
   return `<Gather input="speech" action="${action}" method="POST" timeout="10" speechTimeout="auto" language="${lang}" speechModel="phone_call" enhanced="true">\n  ${inner}\n</Gather>`;
 }
+// ─── Call persona / system prompts ────────────────────────────────────────────
+
+function getCallPersona(call, settings, ctx, tenantName) {
+  const centreName = tenantName || 'the childcare centre';
+
+  // INBOUND — educator calling in sick or general enquiry
+  if (call.direction === 'inbound') {
+    if (call.purpose === 'sick_call' || ctx.sickCallDetected) {
+      return `You are an AI phone assistant for ${centreName} childcare centre.
+
+You are handling an INBOUND SICK CALL from an educator who cannot come to work.
+- Be empathetic and brief — they may be unwell
+- If they haven't given their name yet, ask for it warmly
+- Ask which date and shift they are calling about (if not already established)
+- Ask the reason briefly (optional — don't push if they decline)
+- Tell them you will notify the centre manager immediately
+- End with "Thank you [name], I hope you feel better soon. The manager has been notified."
+- Keep responses to 1-2 sentences maximum. Be warm and natural.`;
+    }
+
+    return `You are an AI phone assistant for ${centreName} childcare centre.
+
+You handle inbound calls from educators and parents.
+- Greet warmly and determine the reason for their call
+- If someone mentions being sick, unwell, or unable to come in, acknowledge it with empathy and help them report their absence
+- For general enquiries, be helpful and concise
+- If you cannot help with something, let them know a manager will follow up
+- Keep responses to 1-2 sentences maximum. Be warm and natural.`;
+  }
+
+  // OUTBOUND — calling to fill a shift
+  if (call.purpose === 'sick_cover' || call.purpose === 'shift_fill') {
+    const shiftInfo = ctx.shift_date ? ` The shift is on ${ctx.shift_date} from ${ctx.shift_start || 'TBC'} to ${ctx.shift_end || 'TBC'}${ctx.room_name ? ` in the ${ctx.room_name} room` : ''}.` : '';
+    return `You are an AI phone assistant for ${centreName} childcare centre.
+
+You are making an OUTBOUND call to an educator to ask if they can cover an available shift.${shiftInfo}
+- You have already introduced yourself and stated the shift details in the greeting
+- Listen for a clear yes or no response
+- If YES: confirm the shift details back to them and let them know you'll send an SMS confirmation
+- If NO: thank them politely and end the call. Do not pressure them.
+- If they ask questions about the shift (room, ratio, age group), answer from context if available, otherwise say the manager can provide those details
+- If they need to check and call back, that's fine — note it
+- Keep responses to 1-2 sentences maximum. Be warm and natural.`;
+  }
+
+  // OUTBOUND — general
+  return settings?.ai_persona ||
+    `You are a friendly AI assistant for ${centreName}. Help with general enquiries. If someone is calling about a sick day or shift cancellation, acknowledge it warmly. Keep responses to 1-2 sentences maximum.`;
+}
+
 // ─── Conversation helpers ──────────────────────────────────────────────────────
 
 function saveTurn(callId, role, content) {
@@ -456,7 +513,7 @@ router.post('/call', requireAuth, requireTenant, async (req, res) => {
            purpose || 'general', context_type || null, context_id || null, req.userId,
            context_data ? JSON.stringify([{ role: '_context', content: JSON.stringify(context_data) }]) : '[]');
     const client = await getTwilioClient(settings);
-    const base = getBase();
+    const base = getBase(req);
     const call = await client.calls.create({
       to: actualNumber, from: settings.twilio_phone_number,
       url: `${base}/api/voice/webhook/answer/${callId}`,
@@ -473,35 +530,52 @@ router.post('/call', requireAuth, requireTenant, async (req, res) => {
 // ─── TEST CALL ────────────────────────────────────────────────────────────────
 
 router.post('/test', requireAuth, requireTenant, async (req, res) => {
-  const { to_number } = req.body;
+  const { to_number, call_type, context_data } = req.body;
   if (!to_number) return res.status(400).json({ error: 'to_number required' });
   const settings = getSettings(req.tenantId);
   if (!settings?.twilio_account_sid) return res.status(400).json({ error: 'Voice not configured' });
   const actualNumber = safeNumber(to_number);
   const callId = uuid();
+  const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(req.tenantId)?.name || 'the centre';
+
+  // For sick_cover / shift_fill tests, use the real call flow so mode-aware prompts engage
+  const isScenarioTest = call_type === 'sick_cover' || call_type === 'shift_fill';
+  const purpose = isScenarioTest ? call_type : 'test';
+
+  // Build context for scenario tests
+  let transcript = '[]';
+  if (isScenarioTest && context_data) {
+    const ctx = { tenantName, ...context_data };
+    transcript = JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]);
+  }
+
   try {
     D().prepare(`INSERT INTO voice_calls (id,tenant_id,direction,status,from_number,to_number,purpose,initiated_by,transcript) VALUES (?,?,?,?,?,?,?,?,?)`)
-      .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, actualNumber, 'test', req.userId, '[]');
+      .run(callId, req.tenantId, 'outbound', 'initiated', settings.twilio_phone_number, actualNumber, purpose, req.userId, transcript);
     const client = await getTwilioClient(settings);
-    const base = getBase();
+    const base = getBase(req);
+    const webhookUrl = isScenarioTest
+      ? `${base}/api/voice/webhook/answer/${callId}`
+      : `${base}/api/voice/webhook/answer/${callId}?test=1`;
     const call = await client.calls.create({
       to: actualNumber, from: settings.twilio_phone_number,
-      url: `${base}/api/voice/webhook/answer/${callId}?test=1`,
+      url: webhookUrl,
       statusCallback: `${base}/api/voice/webhook/status/${callId}`,
-      statusCallbackMethod: 'POST', statusCallbackEvent: ['initiated','ringing','answered','completed']
+      statusCallbackMethod: 'POST', statusCallbackEvent: ['initiated','ringing','answered','completed'],
+      ...(isScenarioTest ? { record: true, recordingStatusCallback: `${base}/api/voice/webhook/recording/${callId}` } : {})
     });
     setStatus(callId, 'ringing', { sid: call.sid });
-    res.json({ ok: true, callId, callSid: call.sid, message: `Test call initiated to ${to_number}` });
+    const typeLabel = call_type === 'sick_cover' ? 'Sick cover test' : call_type === 'shift_fill' ? 'Shift fill test' : 'Test';
+    res.json({ ok: true, callId, callSid: call.sid, message: `${typeLabel} call initiated to ${to_number}` });
   } catch(e) { setStatus(callId, 'failed', { error: e.message }); res.status(500).json({ error: e.message }); }
 });
 
 // ─── DEBUG ───────────────────────────────────────────────────────────────────
 router.get('/debug', requireAuth, requireTenant, (req, res) => {
   const settings = getSettings(req.tenantId);
-  const base = getBase();
+  const base = getBase(req);
   res.json({
     base,
-    APP_DOMAIN: process.env.APP_DOMAIN || null,
     APP_DOMAIN: process.env.APP_DOMAIN || null,
     PUBLIC_URL: process.env.PUBLIC_URL || null,
     voice_active: settings?.active,
@@ -538,7 +612,7 @@ router.get('/logs', requireAuth, requireTenant, (req, res) => {
 // ─── INBOUND URL ──────────────────────────────────────────────────────────────
 
 router.get('/inbound-url', requireAuth, requireTenant, (req, res) => {
-  res.json({ url: `${getBase()}/api/voice/webhook/inbound/${req.tenantId}` });
+  res.json({ url: `${getBase(req)}/api/voice/webhook/inbound/${req.tenantId}` });
 });
 
 // ─── DIAGNOSTICS ─────────────────────────────────────────────────────────────
@@ -548,7 +622,7 @@ router.get('/diag', requireAuth, requireTenant, async (req, res) => {
   try { await import('twilio'); r.checks.twilio = { ok: true }; } catch(e) { r.checks.twilio = { ok: false, error: e.message }; }
   r.checks.elevenlabs_key = { ok: !!process.env.ELEVENLABS_API_KEY, value: process.env.ELEVENLABS_API_KEY ? 'set (env)' : 'not in env' };
   r.checks.anthropic_key  = { ok: !!process.env.ANTHROPIC_API_KEY,  value: process.env.ANTHROPIC_API_KEY ? 'set' : 'NOT SET' };
-  r.checks.webhook_base   = { ok: !!getBase(), value: getBase() || 'EMPTY' };
+  r.checks.webhook_base   = { ok: !!getBase(req), value: getBase(req) || 'EMPTY' };
   r.checks.tts_cache_dir  = { ok: true, value: TTS_CACHE_DIR };
   try { r.checks.voice_settings = { ok: true, value: D().prepare('SELECT COUNT(*) as n FROM voice_settings').get()?.n + ' rows' }; }
   catch(e) { r.checks.voice_settings = { ok: false, error: e.message }; }
@@ -581,23 +655,40 @@ webhooks.post('/answer/:callId', async (req, res) => {
       console.log('[Voice:answer] TEST mode — playing test message');
       const msg = 'Hello! This is a test call from Childcare360. Your AI voice agent is working correctly. Have a great day!';
       saveTurn(callId, 'assistant', msg);
-      const ttsXml = await speak(msg, settings);
+      const ttsXml = await speak(msg, settings, getBase(req));
       console.log('[Voice:answer] TEST ttsXml:', ttsXml.slice(0,100));
       return res.send(twiml(ttsXml + '<Hangup/>'));
     }
 
-    const base = getBase();
+    const base = getBase(req);
     if (!base) console.error('[Voice:answer] WARNING: getBase() is empty — webhook URLs will be broken');
-    const greeting = settings?.outbound_greeting || 'Hello, this is a call from your childcare centre.';
+
+    // Build context-aware greeting for outbound calls
+    let greeting;
+    let ctx = {};
+    try { ctx = JSON.parse(JSON.parse(call.transcript || '[]').find(t => t.role === '_context')?.content || '{}'); } catch(e) {}
+
+    if ((call.purpose === 'sick_cover' || call.purpose === 'shift_fill') && ctx.shift_date) {
+      const fmtT = t => { const [h,m] = (t||'').split(':').map(Number); const ap=h<12?'AM':'PM'; const h12=h%12||12; return m?`${h12}:${String(m).padStart(2,'0')} ${ap}`:`${h12} ${ap}`; };
+      const centreName = ctx.centreName || ctx.tenantName || 'your childcare centre';
+      const educatorName = ctx.educatorName ? `, ${ctx.educatorName}` : '';
+      greeting = `Hello${educatorName}, this is the AI assistant calling from ${centreName}. We have a shift available on ${ctx.shift_date} from ${fmtT(ctx.shift_start)} to ${fmtT(ctx.shift_end)}${ctx.room_name ? ` in the ${ctx.room_name} room` : ''}. Are you available to cover this shift?`;
+    } else {
+      greeting = settings?.outbound_greeting || 'Hello, this is a call from your childcare centre.';
+    }
+
     saveTurn(callId, 'assistant', greeting);
     const gatherUrl = `${base}/api/voice/webhook/gather/${callId}`;
     console.log(`[Voice:answer] gatherUrl=${gatherUrl}`);
-    const greetXml = await speak(greeting, settings);
-    console.log('[Voice:answer] greetXml:', greetXml.slice(0,100));
+
+    // Generate both TTS segments in parallel to reduce latency
+    const [gatherXml, fallbackXml] = await Promise.all([
+      gatherWith(gatherUrl, greeting, settings, base),
+      speak("Sorry, I didn't catch that.", settings, base)
+    ]);
+    console.log('[Voice:answer] greetXml:', gatherXml.slice(0,100));
     res.send(twiml(
-      (await gatherWith(gatherUrl, greeting, settings)) +
-      (await speak("Sorry, I didn't catch that.", settings)) +
-      `<Redirect method="POST">${gatherUrl}</Redirect>`
+      gatherXml + fallbackXml + `<Redirect method="POST">${gatherUrl}</Redirect>`
     ));
   } catch(e) {
     console.error('[Voice:answer] EXCEPTION:', e.message, e.stack?.slice(0,300));
@@ -614,12 +705,12 @@ webhooks.post('/gather/:callId', async (req, res) => {
     const call = D().prepare('SELECT * FROM voice_calls WHERE id=?').get(callId);
     if (!call) { console.error(`[Voice:gather] FAIL — no call record callId=${callId}`); return res.send(twiml('<Hangup/>')); }
     const settings = getSettings(call.tenant_id);
-    const base = getBase();
+    const base = getBase(req);
     const gatherUrl = `${base}/api/voice/webhook/gather/${callId}`;
 
     if (!speechResult) {
       return res.send(twiml(
-        (await gatherWith(gatherUrl, "I'm sorry, I couldn't hear you. Could you please speak again?", settings)) + '<Hangup/>'
+        (await gatherWith(gatherUrl, "I'm sorry, I couldn't hear you. Could you please speak again?", settings, base)) + '<Hangup/>'
       ));
     }
 
@@ -638,7 +729,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
       const farewell = "Thank you for calling. Take care and feel better soon. Goodbye!";
       saveTurn(callId, 'assistant', farewell);
       setStatus(callId, 'completed', { outcome: 'completed_naturally' });
-      return res.send(twiml((await speak(farewell, settings)) + '<Hangup/>'));
+      return res.send(twiml((await speak(farewell, settings, base)) + '<Hangup/>'));
     }
 
     // ── SICK CALL DETECTION ─────────────────────────────────────────────────────
@@ -667,7 +758,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
         ctx.awaitingShiftChoice = true;
         D().prepare("UPDATE voice_calls SET transcript=? WHERE id=?")
           .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
-        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings, base)) + '<Hangup/>'));
       }
       const ask = `I'm sorry about that. Could you tell me which day and room your shift is so I can find it?`;
       saveTurn(callId, 'assistant', ask);
@@ -675,7 +766,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
       ctx.sickCallDetected = true;
       D().prepare("UPDATE voice_calls SET transcript=? WHERE id=?")
         .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
-      return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+      return res.send(twiml((await gatherWith(gatherUrl, ask, settings, base)) + '<Hangup/>'));
     }
 
     // ── Step 3: Process confirmed shift ─────────────────────────────────────────
@@ -693,7 +784,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
       if (!confirmedShift) {
         const err = "I'm sorry, I lost track of the shift details. Could you call back and I'll get that sorted for you?";
         saveTurn(callId, 'assistant', err);
-        return res.send(twiml((await speak(err, settings)) + '<Hangup/>'));
+        return res.send(twiml((await speak(err, settings, base)) + '<Hangup/>'));
       }
 
       const fmtT = t => { const [h,m] = t.split(':').map(Number); const ap=h<12?'AM':'PM'; const h12=h%12||12; return m?`${h12}:${String(m).padStart(2,'0')} ${ap}`:`${h12} ${ap}`; };
@@ -736,7 +827,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
           await startShiftFillCalls(tenantId, fillId);
         } catch(err) { console.error('[Voice] Sick call background error:', err.message); }
       });
-      return res.send(twiml((await speak(confirmMsg, settings)) + '<Hangup/>'));
+      return res.send(twiml((await speak(confirmMsg, settings, base)) + '<Hangup/>'));
     }
 
     // ── Step 1: Initial sick call — look up their shifts ────────────────────────
@@ -749,7 +840,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
         ctx.sickCallDetected = true;
         D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
           .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
-        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings, base)) + '<Hangup/>'));
       }
 
       // Look up to 14 days for upcoming shifts
@@ -783,7 +874,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
           .run(absId, call.tenant_id, ctx.educatorId, today, 'sick', 'Called in sick — no shifts found in roster', 0, 'phone');
         D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
           .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
-        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings, base)) + '<Hangup/>'));
       }
 
       if (upcomingShifts.length === 1) {
@@ -795,7 +886,7 @@ webhooks.post('/gather/:callId', async (req, res) => {
         ctx.upcomingShifts = upcomingShifts;
         D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
           .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
-        return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+        return res.send(twiml((await gatherWith(gatherUrl, ask, settings, base)) + '<Hangup/>'));
       }
 
       // Multiple shifts — list them
@@ -809,31 +900,33 @@ webhooks.post('/gather/:callId', async (req, res) => {
       ctx.upcomingShifts = upcomingShifts.slice(0, 3);
       D().prepare("UPDATE voice_calls SET purpose='sick_call', transcript=? WHERE id=?")
         .run(JSON.stringify([{ role: '_context', content: JSON.stringify(ctx) }]), callId);
-      return res.send(twiml((await gatherWith(gatherUrl, ask, settings)) + '<Hangup/>'));
+      return res.send(twiml((await gatherWith(gatherUrl, ask, settings, base)) + '<Hangup/>'));
     }
     // ── General AI conversation ─────────────────────────────────────────────────
     const tenantName = ctx.tenantName || 'the childcare centre';
-    const persona = settings?.ai_persona ||
-      `You are a friendly AI assistant for ${tenantName}. Help with general enquiries. If someone is calling about a sick day or shift cancellation, acknowledge it warmly. Keep responses to 1-2 sentences maximum.`;
+    const persona = getCallPersona(call, settings, ctx, tenantName);
 
     const aiResponse = await askClaude(getTranscript(callId), persona, JSON.stringify(ctx));
     if (!aiResponse) {
       const fallback = "I'm sorry, I'm having a little trouble understanding. Could you say that again?";
       saveTurn(callId, 'assistant', fallback);
-      return res.send(twiml((await gatherWith(gatherUrl, fallback, settings)) + '<Hangup/>'));
+      return res.send(twiml((await gatherWith(gatherUrl, fallback, settings, base)) + '<Hangup/>'));
     }
     console.log(`[Voice:gather] Claude: "${aiResponse.slice(0, 100)}"`);
     saveTurn(callId, 'assistant', aiResponse);
 
     if (['goodbye','have a great day','take care','have a wonderful day','feel better'].some(p => aiResponse.toLowerCase().includes(p))) {
       setStatus(callId, 'completed', { outcome: 'completed_naturally' });
-      return res.send(twiml((await speak(aiResponse, settings)) + '<Hangup/>'));
+      return res.send(twiml((await speak(aiResponse, settings, base)) + '<Hangup/>'));
     }
 
+    // Generate both TTS segments in parallel
+    const [gatherXml2, followUpXml] = await Promise.all([
+      gatherWith(gatherUrl, aiResponse, settings, base),
+      speak("Is there anything else I can help you with?", settings, base)
+    ]);
     res.send(twiml(
-      (await gatherWith(gatherUrl, aiResponse, settings)) +
-      (await speak("Is there anything else I can help you with?", settings)) +
-      `<Redirect method="POST">${gatherUrl}</Redirect>`
+      gatherXml2 + followUpXml + `<Redirect method="POST">${gatherUrl}</Redirect>`
     ));
   } catch(e) {
     console.error('[Voice:gather] EXCEPTION:', e.message, e.stack?.slice(0,400));
@@ -873,7 +966,7 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
 
     // Register statusCallback with Twilio so completed/failed/no-answer updates our DB
     // (For inbound calls this can't be set in TwiML — must use REST API)
-    const base = getBase();
+    const base = getBase(req);
     try {
       const client = await getTwilioClient(settings);
       await client.calls(req.body.CallSid).update({
@@ -893,11 +986,12 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
 
     // NOTE: Do NOT saveTurn for the greeting — it would make Claude's first message 'assistant'
     // which the API rejects. The greeting is context-only.
-    res.send(twiml(
-      (await gatherWith(`${base}/api/voice/webhook/gather/${callId}`, personalGreeting, settings)) +
-      (await speak("I'm sorry, I didn't catch that. Please call back if you need assistance.", settings)) +
-      '<Hangup/>'
-    ));
+    // Generate both TTS segments in parallel
+    const [inboundGatherXml, inboundFallbackXml] = await Promise.all([
+      gatherWith(`${base}/api/voice/webhook/gather/${callId}`, personalGreeting, settings, base),
+      speak("I'm sorry, I didn't catch that. Please call back if you need assistance.", settings, base)
+    ]);
+    res.send(twiml(inboundGatherXml + inboundFallbackXml + '<Hangup/>'));
   } catch(e) {
     console.error('[Voice] Inbound error:', e.message, e.stack?.slice(0, 200));
     res.send(twiml('<Say>Thank you for calling. Please try again shortly.</Say><Hangup/>'));
@@ -1004,9 +1098,10 @@ async function retellFetch(path, method, body, apiKey) {
   return data;
 }
 
-function getPublicBase() {
+function getPublicBase(req) {
   if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
   if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  if (req?.headers?.host) return `http://${req.headers.host}`;
   return '';
 }
 

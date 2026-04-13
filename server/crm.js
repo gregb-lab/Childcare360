@@ -74,7 +74,7 @@ r.post('/enquiries', (req, res) => {
             source, assigned_to } = req.body;
 
     const ageMonths = child_dob
-      ? Math.floor((Date.now() - new Date(child_dob))/(1000*60*60*24*30.44))
+      ? ((d) => { const n=new Date(); return (n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); })(new Date(child_dob))
       : null;
 
     // Auto next follow-up in 24hrs

@@ -117,7 +117,7 @@ r.post('/ai-reenrolment-plan', requireAuth, requireTenant, (req, res) => {
   
   // Simulate age-based room transitions for next year
   const AGE_GROUPS = { babies: { min: 0, max: 24 }, toddlers: { min: 24, max: 36 }, preschool: { min: 36, max: 72 }, oshc: { min: 60, max: 156 } };
-  const ageAt = (dob, refDate) => { const d = new Date(refDate || Date.now()); const b = new Date(dob); return (d - b) / (1000 * 60 * 60 * 24 * 30.5); };
+  const ageAt = (dob, refDate) => { const d = new Date(refDate || Date.now()); const b = new Date(dob); return (d.getFullYear()-b.getFullYear())*12+(d.getMonth()-b.getMonth()); };
   
   const transitions = currentChildren.filter(c => c.dob).map(c => {
     const ageInJan = ageAt(c.dob, `${year}-01-28`);

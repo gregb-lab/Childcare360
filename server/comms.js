@@ -222,7 +222,7 @@ r.get('/immunisation/:childId', (req, res) => {
     if (!child) return res.status(404).json({ error: 'Child not found' });
 
     const ageMonths = child.dob
-      ? Math.floor((Date.now() - new Date(child.dob)) / (1000*60*60*24*30.44))
+      ? ((d) => { const n=new Date(); return (n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); })(new Date(child.dob))
       : 0;
 
     // Get AU schedule up to child's age + 3 months ahead
@@ -300,7 +300,7 @@ r.get('/immunisation-compliance', (req, res) => {
   try {
     const children = D().prepare(`
       SELECT c.id, c.first_name, c.last_name, c.dob, c.room_id, r.name as room_name,
-        CAST((julianday('now')-julianday(c.dob))/30.44 AS INTEGER) as age_months
+        ((strftime('%Y','now')-strftime('%Y',c.dob))*12+(strftime('%m','now')-strftime('%m',c.dob))) as age_months
       FROM children c
       LEFT JOIN rooms r ON r.id=c.room_id
       WHERE c.tenant_id=? AND c.active=1 AND c.dob IS NOT NULL

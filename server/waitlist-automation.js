@@ -51,7 +51,7 @@ r.get('/queue', (req, res) => {
       const room = rooms.find(r => r.id === item.preferred_room || r.age_group === item.preferred_room);
       const availability = room ? roomMap[room.id]?.available : null;
       const dob = item.child_dob ? new Date(item.child_dob) : null;
-      const ageMonths = dob ? Math.floor((Date.now() - dob) / (1000*60*60*24*30.44)) : null;
+      const ageMonths = dob ? ((d) => { const n=new Date(); return (n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); })(new Date(dob)) : null;
 
       return {
         ...item,

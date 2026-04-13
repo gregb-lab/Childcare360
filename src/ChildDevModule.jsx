@@ -425,7 +425,7 @@ function MilestonesTab() {
                 background:selChild===c.id?PL:"#fff",color:DARK,textAlign:"left",cursor:"pointer",fontSize:13}}>
               <div style={{fontWeight:selChild===c.id?700:400}}>{c.first_name} {c.last_name}</div>
               {c.dob&&<div style={{fontSize:11,color:MU,marginTop:2}}>
-                {Math.floor((Date.now()-new Date(c.dob))/(1000*60*60*24*30.44))}m old
+                {(()=>{const d=new Date(c.dob),n=new Date();return(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth());})()}m old
               </div>}
             </button>
           ))}

@@ -63,12 +63,12 @@ const ACTIVITY_OPENERS = [
   'worked with focus and determination',
 ];
 
-// Music tracks (royalty-free, hosted externally or in /public/music/)
+// Music tracks — audio is generated client-side via Web Audio API (no external CDN)
 const MUSIC_TRACKS = [
-  { id: 'gentle-piano', label: 'Gentle Piano', url: 'https://www.bensound.com/bensound-music/bensound-slowmotion.mp3', mood: 'calm' },
-  { id: 'playful-ukulele', label: 'Playful Ukulele', url: 'https://www.bensound.com/bensound-music/bensound-ukulele.mp3', mood: 'happy' },
-  { id: 'warm-acoustic', label: 'Warm Acoustic', url: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3', mood: 'warm' },
-  { id: 'dreamy', label: 'Dreamy', url: 'https://www.bensound.com/bensound-music/bensound-dreams.mp3', mood: 'wonder' },
+  { id: 'gentle-piano', label: 'Gentle Piano', mood: 'calm' },
+  { id: 'playful-ukulele', label: 'Playful Ukulele', mood: 'happy' },
+  { id: 'warm-acoustic', label: 'Warm Acoustic', mood: 'warm' },
+  { id: 'dreamy', label: 'Dreamy', mood: 'wonder' },
 ];
 
 // Slide duration rules: 15–25s total, 3–5s per slide
@@ -439,6 +439,32 @@ router.post('/:id/publish', (req, res) => {
     const result = D().prepare("UPDATE parent_stories SET published=1, published_at=datetime('now'), status='published', updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(req.params.id, req.tenantId);
     if (result.changes === 0) return res.status(404).json({ error: 'Story not found' });
     res.json({ ok: true, published_at: new Date().toISOString() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/stories/:id/notify-families — notify parents that a story was published
+router.post('/:id/notify-families', (req, res) => {
+  try {
+    const story = D().prepare('SELECT ps.*, c.first_name FROM parent_stories ps JOIN children c ON c.id=ps.child_id WHERE ps.id=? AND ps.tenant_id=?').get(req.params.id, req.tenantId);
+    if (!story) return res.status(404).json({ error: 'Story not found' });
+    if (!story.published) return res.status(400).json({ error: 'Story not published yet' });
+
+    // Check if notifications table exists; create a simple one if not
+    try {
+      D().exec(`CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, type TEXT, title TEXT, message TEXT,
+        child_id TEXT, read INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now'))
+      )`);
+    } catch(e) {}
+
+    D().prepare(`INSERT INTO notifications (id, tenant_id, type, title, message, child_id, created_at)
+      VALUES (?,?,'story_published','New Story Available',?,?,datetime('now'))`)
+      .run(uuid(), req.tenantId,
+        `${story.first_name}'s ${story.week_starting ? 'weekly' : ''} story is ready to view!`,
+        story.child_id);
+
+    res.json({ ok: true, notified: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

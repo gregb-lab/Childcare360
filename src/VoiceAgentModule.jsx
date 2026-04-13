@@ -656,12 +656,16 @@ function TestCallTab() {
     setPolling(true);
   };
 
-  const makeCall = async () => {
+  const makeCall = async (callType = 'general', contextData = null) => {
     if (!phone.trim()) return;
-    setStatus({ type: 'loading', text: 'Initiating call…' });
+    const typeLabel = callType === 'sick_cover' ? 'Sick cover test' : callType === 'shift_fill' ? 'Shift fill test' : 'Test';
+    setStatus({ type: 'loading', text: `Initiating ${typeLabel.toLowerCase()} call…` });
     setCallData(null);
     try {
-      const d = await API('/test', { method: 'POST', body: JSON.stringify({ to_number: phone.trim() }) });
+      const body = { to_number: phone.trim() };
+      if (callType !== 'general') { body.call_type = callType; }
+      if (contextData) { body.context_data = contextData; }
+      const d = await API('/test', { method: 'POST', body: JSON.stringify(body) });
       setCallId(d.callId);
       setStatus({ type: 'success', text: d.message || 'Call initiated!' });
       startPolling(d.callId);
@@ -680,17 +684,52 @@ function TestCallTab() {
           Calls your phone to verify Twilio is connected and the AI agent is working.
           The agent will introduce itself and you can have a short conversation.
         </p>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <input value={phone} onChange={e => setPhone(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && makeCall()}
             placeholder="+61412345678" style={{ ...iStyle, flex: 1 }} />
-          <button onClick={makeCall} disabled={!phone.trim() || polling} style={{
-            padding: '10px 22px', borderRadius: 10, background: polling ? '#C4B5D9' : '#8B6DAF',
-            color: '#fff', border: 'none', cursor: polling ? 'not-allowed' : 'pointer',
-            fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap'
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <button onClick={() => makeCall('general')} disabled={!phone.trim() || polling} style={{
+            padding: '14px 24px', borderRadius: 10, border: 'none',
+            background: polling ? '#C4B5D9' : '#7C3AED', color: '#fff',
+            fontSize: 15, fontWeight: 600, cursor: (!phone.trim() || polling) ? 'not-allowed' : 'pointer',
+            opacity: (!phone.trim() || polling) ? 0.5 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
           }}>
-            {polling ? '📞 Calling…' : '📞 Call Me'}
+            {polling ? '⏳ Calling…' : '📞 General Test Call'}
           </button>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <button onClick={() => makeCall('sick_cover')} disabled={!phone.trim() || polling} style={{
+              padding: '12px 16px', borderRadius: 10, border: '2px solid #F59E0B',
+              background: '#FFFBEB', color: '#92400E', fontSize: 13, fontWeight: 600,
+              cursor: (!phone.trim() || polling) ? 'not-allowed' : 'pointer',
+              opacity: (!phone.trim() || polling) ? 0.5 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+            }}>
+              🤒 Test Sick Call
+            </button>
+
+            <button onClick={() => makeCall('shift_fill', {
+              educatorName: 'Sarah', shift_date: 'tomorrow',
+              shift_start: '08:00', shift_end: '15:00',
+              room_name: 'Butterflies'
+            })} disabled={!phone.trim() || polling} style={{
+              padding: '12px 16px', borderRadius: 10, border: '2px solid #10B981',
+              background: '#ECFDF5', color: '#065F46', fontSize: 13, fontWeight: 600,
+              cursor: (!phone.trim() || polling) ? 'not-allowed' : 'pointer',
+              opacity: (!phone.trim() || polling) ? 0.5 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+            }}>
+              📋 Test Shift Fill
+            </button>
+          </div>
+
+          <div style={{ fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 4 }}>
+            Sick Call: AI acts as inbound sick-leave handler &nbsp;|&nbsp; Shift Fill: AI calls as if offering Sarah a shift in Butterflies
+          </div>
         </div>
 
         {status && (

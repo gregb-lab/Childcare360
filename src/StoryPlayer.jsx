@@ -15,11 +15,38 @@
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 
+// ── Ambient music generator (Web Audio API) ──────────────────────────────────
+const _musicCache={};
+function generateAmbientUrl(mood){
+  if(_musicCache[mood])return _musicCache[mood];
+  const sr=22050,dur=20,len=sr*dur;
+  const chords={
+    calm:[196.00,246.94,293.66],happy:[261.63,329.63,392.00],
+    warm:[220.00,277.18,329.63],wonder:[174.61,220.00,261.63],
+  };
+  const freqs=chords[mood]||chords.calm,amp=0.04;
+  const buf=new Float32Array(len);
+  for(let i=0;i<len;i++){
+    const t=i/sr,env=Math.min(t/2,1)*Math.min((dur-t)/2,1);
+    let s=0;for(const f of freqs)s+=Math.sin(2*Math.PI*f*t);
+    buf[i]=s/freqs.length*amp*env*(1+0.002*Math.sin(2*Math.PI*4.5*t));
+  }
+  const dataLen=len*2,hdr=44,ab=new ArrayBuffer(hdr+dataLen),v=new DataView(ab);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  w(0,'RIFF');v.setUint32(4,hdr+dataLen-8,true);w(8,'WAVE');w(12,'fmt ');
+  v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+  w(36,'data');v.setUint32(40,dataLen,true);
+  for(let i=0;i<len;i++){const s=Math.max(-1,Math.min(1,buf[i]));v.setInt16(hdr+i*2,s<0?s*0x8000:s*0x7FFF,true);}
+  const url=URL.createObjectURL(new Blob([ab],{type:'audio/wav'}));
+  _musicCache[mood]=url;return url;
+}
+
 const MUSIC_TRACKS = {
-  'gentle-piano':    'https://www.bensound.com/bensound-music/bensound-slowmotion.mp3',
-  'playful-ukulele': 'https://www.bensound.com/bensound-music/bensound-ukulele.mp3',
-  'warm-acoustic':   'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3',
-  'dreamy':          'https://www.bensound.com/bensound-music/bensound-dreams.mp3',
+  'gentle-piano':    'calm',
+  'playful-ukulele': 'happy',
+  'warm-acoustic':   'warm',
+  'dreamy':          'wonder',
 };
 
 const EYLF_COLORS = ['#7C3AED', '#0891B2', '#16A34A', '#D97706', '#DC2626'];
@@ -160,9 +187,9 @@ export default function StoryPlayer({ story, onClose, autoPlay = true }) {
 
   // Audio
   useEffect(() => {
-    const trackUrl = story?.music_track ? MUSIC_TRACKS[story.music_track] : null;
-    if (!trackUrl || !audioRef.current) return;
-    audioRef.current.src = trackUrl;
+    const mood = story?.music_track ? MUSIC_TRACKS[story.music_track] : null;
+    if (!mood || !audioRef.current) return;
+    audioRef.current.src = generateAmbientUrl(mood);
     audioRef.current.volume = 0.35;
     audioRef.current.loop = true;
     if (!paused) audioRef.current.play().catch(() => {});

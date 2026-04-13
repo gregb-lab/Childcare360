@@ -10,27 +10,20 @@ const API = (path, opts = {}) => {
 };
 
 const ANTHROPIC_API = async (prompt) => {
-  const key = localStorage.getItem("c360_anthropic_key");
-  if (!key) return null;
+  // Route through server to avoid CORS block on direct browser→Anthropic calls
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const r = await API("/api/ai-assistant/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: "claude-opus-4-5",
-        max_tokens: 600,
-        messages: [{ role: "user", content: prompt }]
-      })
+      body: { session_type: "observation", prompt_override: prompt }
     });
-    const d = await r.json();
-    return d.content?.[0]?.text || null;
+    return r.generated_text || r.content || r.text || null;
   } catch(e) { return null; }
 };
 
 const toast = (msg, type = "success") => { if (window.showToast) window.showToast(msg, type); };
 const purple = "#8B6DAF", lp = "#F0EBF8";
 const fmtDate = d => d ? new Date(d + "T00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
-const ageLabel = dob => { if (!dob) return ""; const m = Math.floor((new Date() - new Date(dob)) / (1000 * 60 * 60 * 24 * 30.44)); return m < 24 ? `${m}mo` : `${Math.floor(m/12)}y ${m%12}mo`; };
+const ageLabel = dob => { if (!dob) return ""; const d=new Date(dob),n=new Date(),m=(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); return m < 24 ? `${m}mo` : `${Math.floor(m/12)}y ${m%12}mo`; };
 
 const MOODS = [
   { v: "great",   emoji: "😄", label: "Great",   color: "#2E7D32" },
@@ -110,7 +103,8 @@ export default function RunSheetModule() {
         const cd = {};
         d.forEach(r => r.children.forEach(c => {
           cd[c.id] = {
-            attended: c.attended, mood: c.mood || "", observations: c.observations || "",
+            attended: c.attended != null ? !!c.attended : (!!c.sign_in && !c.absent),
+            mood: c.mood || "", observations: c.observations || "",
             learning_highlights: c.learning_highlights || "", educator_notes: c.educator_notes || "",
             activities_completed: c.activities_completed || [],
           };
@@ -131,8 +125,6 @@ export default function RunSheetModule() {
   };
 
   const aiSuggest = async (child, cd) => {
-    const key = localStorage.getItem("c360_anthropic_key");
-    if (!key) { toast("Add your Anthropic API key in Settings → Integrations to use AI suggestions", "error"); return; }
     setAiLoading(p => ({ ...p, [child.id]: true }));
     const ageStr = ageLabel(child.dob);
     const lastObs = child.last_observation ? `Last observation: "${child.last_observation.slice(0,200)}"` : "No previous observations.";
@@ -187,6 +179,22 @@ Use Australian early childhood education language aligned with EYLF principles.`
     setChildData(p => ({ ...p, [childId]: { ...(p[childId] || {}), [field]: val } }));
   };
 
+  const toggleAttendance = async (roomId, childId, currentAttended) => {
+    const newVal = !currentAttended;
+    updateChild(childId, "attended", newVal);
+    try {
+      const sid = await ensureSheet(roomId);
+      if (!sid) return;
+      await API(`/api/runsheet/child/${childId}`, {
+        method: "PUT",
+        body: { run_sheet_id: sid, ...(childData[childId] || {}), attended: newVal },
+      });
+    } catch(e) {
+      updateChild(childId, "attended", currentAttended);
+      toast("Failed to update attendance", "error");
+    }
+  };
+
   const toggleActivity = (childId, act) => {
     const cur = childData[childId]?.activities_completed || [];
     const next = cur.includes(act) ? cur.filter(a => a !== act) : [...cur, act];
@@ -227,8 +235,11 @@ Use Australian early childhood education language aligned with EYLF principles.`
               </button>
             </div>
             <DatePicker value={date} onChange={v => setDate(v)} max={new Date().toISOString().slice(0,10)} />
-            {view === "rooms" && <button onClick={() => setPrintMode(!printMode)} style={btnS}>
-              {printMode ? "📋 Normal View" : "🖨 Print View"}
+            {view === "rooms" && <button onClick={() => {
+              if (printMode) { setPrintMode(false); }
+              else { setPrintMode(true); setTimeout(() => { window.print(); setPrintMode(false); }, 300); }
+            }} style={btnS}>
+              🖨 Print
             </button>}
             <button onClick={load} style={btnS}>↻ Refresh</button>
           </div>
@@ -322,7 +333,7 @@ Use Australian early childhood education language aligned with EYLF principles.`
                     {/* Attendance toggle */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                       <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, fontWeight: 600, color: isPresent ? "#2E7D32" : "#8A7F96" }}>
-                        <div onClick={() => updateChild(child.id, "attended", !cd.attended)}
+                        <div onClick={() => toggleAttendance(roomData.room.id, child.id, cd.attended)}
                           style={{ width: 40, height: 22, borderRadius: 11, background: isPresent ? "#6BA38B" : "#DDD", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
                           <div style={{ position: "absolute", top: 3, left: isPresent ? 20 : 3, width: 16, height: 16, borderRadius: 8, background: "#fff", transition: "left 0.2s" }} />
                         </div>

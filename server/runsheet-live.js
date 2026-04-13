@@ -49,7 +49,7 @@ export function calculateRunSheetState(tenantId, date) {
   // 1. Children currently signed in (sign_in set, sign_out null)
   const children = db.prepare(`
     SELECT c.id, c.first_name, c.last_name, c.room_id, c.dob,
-      CAST((julianday('now') - julianday(c.dob)) / 30.44 AS INTEGER) as age_months,
+      ((strftime('%Y','now')-strftime('%Y',c.dob))*12+(strftime('%m','now')-strftime('%m',c.dob))) as age_months,
       a.sign_in
     FROM children c
     JOIN attendance_sessions a ON a.child_id = c.id
