@@ -11,11 +11,35 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
+import { mkdirSync } from 'fs';
+import { extname } from 'path';
+
+let multer;
+try { multer = (await import('multer')).default; } catch(e) { multer = null; }
 
 const r = Router();
 r.use(requireAuth, requireTenant);
 
 const now = () => new Date().toISOString();
+
+// Column migrations are deferred to first use via ensureMsgCols()
+let _msgColsMigrated = false;
+function ensureMsgCols() {
+  if (_msgColsMigrated) return;
+  try { D().exec('ALTER TABLE thread_messages ADD COLUMN attachments TEXT DEFAULT \'[]\''); } catch(e) {}
+  try { D().exec('ALTER TABLE thread_messages ADD COLUMN acknowledge_required INTEGER DEFAULT 0'); } catch(e) {}
+  try { D().exec('ALTER TABLE thread_messages ADD COLUMN ack_at TEXT'); } catch(e) {}
+  try { D().exec('ALTER TABLE thread_messages ADD COLUMN ack_by TEXT'); } catch(e) {}
+  _msgColsMigrated = true;
+}
+
+// Multer upload for message attachments
+const MSG_DIR = './uploads/messages';
+try { mkdirSync(MSG_DIR, { recursive: true }); } catch(e) {}
+const msgUpload = multer ? multer({ storage: multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, MSG_DIR),
+  filename: (_req, file, cb) => cb(null, uuid() + extname(file.originalname))
+}), limits: { fileSize: 50 * 1024 * 1024 } }) : null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TWO-WAY PARENT MESSAGING
@@ -23,6 +47,7 @@ const now = () => new Date().toISOString();
 
 r.get('/threads', (req, res) => {
   try {
+    ensureGroupCols();
     const { child_id, status } = req.query;
     const where = ['t.tenant_id=?'];
     const vals  = [req.tenantId];
@@ -47,28 +72,79 @@ r.get('/threads', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-r.post('/threads', (req, res) => {
+let _groupColsMigrated = false;
+function ensureGroupCols() {
+  if (_groupColsMigrated) return;
+  try { D().exec('ALTER TABLE message_threads ADD COLUMN to_group_label TEXT'); } catch(e) {}
+  try { D().exec('ALTER TABLE message_threads ADD COLUMN recipient_count INTEGER DEFAULT 1'); } catch(e) {}
+  _groupColsMigrated = true;
+}
+
+const handleCreateThread = (req, res) => {
+  ensureGroupCols(); ensureMsgCols();
   try {
-    const { child_id, subject, body, sender_name } = req.body;
+    const { child_id, subject, body, sender_name, acknowledge_required, recipients: rawRecipients } = req.body;
     if (!subject || !body) return res.status(400).json({ error: 'subject and body required' });
 
+    const user = D().prepare('SELECT name, email FROM users WHERE id=?').get(req.userId);
+    const resolvedName = sender_name || user?.name || user?.email?.split('@')[0] || 'Centre';
+    const files = (req.files || []).map(f => ({ url: '/uploads/messages/' + f.filename, name: f.originalname, size: f.size, type: f.mimetype }));
+    const ackFlag = acknowledge_required === '1' || acknowledge_required === true ? 1 : 0;
+    const fileJson = JSON.stringify(files);
+
+    // Parse recipients — may be JSON string from FormData or array
+    let parsedRecipients = [];
+    try { parsedRecipients = typeof rawRecipients === 'string' ? JSON.parse(rawRecipients) : (Array.isArray(rawRecipients) ? rawRecipients : []); } catch(e) {}
+
+    // Expand any group IDs
+    let groupLabel = null;
+    let expandedCount = 0;
+    const allRecipients = [];
+    for (const r2 of parsedRecipients) {
+      const rid = typeof r2 === 'string' ? r2 : r2?.id;
+      if (rid && rid.startsWith('group_')) {
+        const expanded = expandGroup(rid, req.tenantId);
+        allRecipients.push(...expanded);
+        expandedCount += expanded.length;
+        // Use the first group name as label
+        if (!groupLabel) {
+          const label = typeof r2 === 'object' ? r2.name : rid.replace('group_', '').replace(/_/g, ' ');
+          groupLabel = label + ' (' + expanded.length + ')';
+        }
+      } else if (rid) {
+        allRecipients.push({ recipient_id: rid, recipient_name: typeof r2 === 'object' ? r2.name : '', recipient_type: typeof r2 === 'object' ? r2.type : 'individual' });
+      }
+    }
+
+    // Deduplicate by recipient_id
+    const seen = new Set();
+    const unique = allRecipients.filter(r2 => { const k = r2.recipient_id || r2.recipient_email; if (!k || seen.has(k)) return false; seen.add(k); return true; });
+    const recipientCount = unique.length || 1;
+
+    // Create thread
     const threadId = uuid();
     D().prepare(`
-      INSERT INTO message_threads (id, tenant_id, child_id, subject, last_message_at, last_message_preview, unread_parent)
-      VALUES (?,?,?,?,datetime('now'),?,1)
-    `).run(threadId, req.tenantId, child_id||null, subject, body.slice(0,100));
+      INSERT INTO message_threads (id, tenant_id, child_id, subject, last_message_at, last_message_preview, unread_parent, to_group_label, recipient_count)
+      VALUES (?,?,?,?,datetime('now'),?,1,?,?)
+    `).run(threadId, req.tenantId, child_id||null, subject, body.slice(0,100), groupLabel, recipientCount);
 
     D().prepare(`
-      INSERT INTO thread_messages (id, tenant_id, thread_id, sender_type, sender_name, sender_user_id, body)
-      VALUES (?,?,?,'admin',?,?,?)
-    `).run(uuid(), req.tenantId, threadId, sender_name||'Centre', req.userId||null, body);
+      INSERT INTO thread_messages (id, tenant_id, thread_id, sender_type, sender_name, sender_user_id, body, attachments, acknowledge_required)
+      VALUES (?,?,?,'admin',?,?,?,?,?)
+    `).run(uuid(), req.tenantId, threadId, resolvedName, req.userId||null, body, fileJson, ackFlag);
 
-    res.json({ id: threadId, ok: true });
+    res.json({ id: threadId, ok: true, recipient_count: recipientCount, group_label: groupLabel });
   } catch(e) { res.status(500).json({ error: e.message }); }
-});
+};
+if (msgUpload) {
+  r.post('/threads', msgUpload.array('attachments', 10), handleCreateThread);
+} else {
+  r.post('/threads', handleCreateThread);
+}
 
 r.get('/threads/:id', (req, res) => {
   try {
+    ensureMsgCols();
     const thread = D().prepare(`
       SELECT t.*, c.first_name, c.last_name
       FROM message_threads t
@@ -90,6 +166,7 @@ r.get('/threads/:id', (req, res) => {
 
 r.post('/threads/:id/reply', (req, res) => {
   try {
+    ensureMsgCols();
     const { body, sender_type = 'admin', sender_name } = req.body;
     if (!body) return res.status(400).json({ error: 'body required' });
 
@@ -97,11 +174,15 @@ r.post('/threads/:id/reply', (req, res) => {
       .get(req.params.id, req.tenantId);
     if (!thread) return res.status(404).json({ error: 'Not found' });
 
+    // Resolve real user name
+    const user = D().prepare('SELECT name, email FROM users WHERE id=?').get(req.userId);
+    const resolvedName = sender_name === 'Centre' ? (user?.name || user?.email?.split('@')[0] || 'Centre') : (sender_name || 'Centre');
+
     D().prepare(`
       INSERT INTO thread_messages (id, tenant_id, thread_id, sender_type, sender_name, sender_user_id, body)
       VALUES (?,?,?,?,?,?,?)
     `).run(uuid(), req.tenantId, req.params.id, sender_type,
-           sender_name||'Centre', req.userId||null, body);
+           resolvedName, req.userId||null, body);
 
     // Update thread metadata
     const unreadField = sender_type === 'admin' ? 'unread_parent=1' : 'unread_admin=unread_admin+1';
@@ -331,6 +412,67 @@ r.get('/immunisation-compliance', (req, res) => {
     };
 
     res.json({ compliance, summary });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── GROUP EXPANSION ──────────────────────────────────────────────────────
+function expandGroup(groupId, tenantId) {
+  const db = D();
+  if (groupId === 'group_all_parents') {
+    return db.prepare("SELECT pc.id as recipient_id, pc.name as recipient_name, pc.email as recipient_email, 'parent' as recipient_type FROM parent_contacts pc JOIN children c ON c.id=pc.child_id WHERE pc.tenant_id=? AND c.active=1").all(tenantId);
+  }
+  if (groupId === 'group_all_educators') {
+    return db.prepare("SELECT e.id as recipient_id, e.first_name || ' ' || e.last_name as recipient_name, e.email as recipient_email, 'educator' as recipient_type FROM educators e WHERE e.tenant_id=? AND e.status='active'").all(tenantId);
+  }
+  if (groupId === 'group_all_staff') {
+    return db.prepare("SELECT u.id as recipient_id, COALESCE(u.name, u.email) as recipient_name, u.email as recipient_email, 'staff' as recipient_type FROM users u JOIN tenant_members tm ON tm.user_id=u.id WHERE tm.tenant_id=?").all(tenantId);
+  }
+  if (groupId === 'group_admin') {
+    return db.prepare("SELECT u.id as recipient_id, COALESCE(u.name, u.email) as recipient_name, u.email as recipient_email, 'admin' as recipient_type FROM users u JOIN tenant_members tm ON tm.user_id=u.id WHERE tm.tenant_id=? AND tm.role IN ('admin','director','manager','owner')").all(tenantId);
+  }
+  if (groupId.startsWith('group_room_parents_')) {
+    const roomId = groupId.replace('group_room_parents_', '');
+    return db.prepare("SELECT pc.id as recipient_id, pc.name as recipient_name, pc.email as recipient_email, 'parent' as recipient_type FROM parent_contacts pc JOIN children c ON c.id=pc.child_id WHERE pc.tenant_id=? AND c.room_id=? AND c.active=1").all(tenantId, roomId);
+  }
+  if (groupId.startsWith('group_room_educators_')) {
+    const roomId = groupId.replace('group_room_educators_', '');
+    return db.prepare("SELECT e.id as recipient_id, e.first_name || ' ' || e.last_name as recipient_name, e.email as recipient_email, 'educator' as recipient_type FROM educators e WHERE e.tenant_id=? AND e.preferred_room_id=?").all(tenantId, roomId);
+  }
+  return [];
+}
+
+// ─── RECIPIENTS ────────────────────────────────────────────────────────────
+r.get('/recipients', (req, res) => {
+  try {
+    const staff = D().prepare(
+      "SELECT e.id, e.first_name || ' ' || e.last_name as name, e.role_title as role, r.name as room_name, 'staff' as type FROM educators e LEFT JOIN rooms r ON r.id=e.preferred_room_id WHERE e.tenant_id=? AND e.status='active' ORDER BY e.first_name"
+    ).all(req.tenantId);
+    let parents = [];
+    try {
+      parents = D().prepare(
+        "SELECT pc.id, pc.name, pc.email, c.first_name || ' ' || c.last_name as child_name, 'parent' as type FROM parent_contacts pc JOIN children c ON c.id=pc.child_id WHERE pc.tenant_id=? AND c.active=1 ORDER BY pc.name"
+      ).all(req.tenantId);
+    } catch(e) {}
+    const rooms = D().prepare('SELECT id, name FROM rooms WHERE tenant_id=?').all(req.tenantId);
+    const groups = [
+      { id: 'group_all_parents', name: 'All parents', description: 'Every family enrolled at this centre', type: 'group', icon: 'parents' },
+      { id: 'group_all_educators', name: 'All educators', description: 'Every educator on staff', type: 'group', icon: 'educators' },
+      { id: 'group_all_staff', name: 'All staff', description: 'Educators, admin, and management', type: 'group', icon: 'staff' },
+      { id: 'group_admin', name: 'Admin & management', description: 'Directors, managers, and admin roles', type: 'group', icon: 'admin' },
+      ...rooms.map(rm => ({ id: 'group_room_parents_' + rm.id, name: rm.name + ' \u2014 parents', description: 'Parents of children in ' + rm.name, type: 'group', icon: 'room_parents', room_id: rm.id })),
+      ...rooms.map(rm => ({ id: 'group_room_educators_' + rm.id, name: rm.name + ' \u2014 educators', description: 'Educators assigned to ' + rm.name, type: 'group', icon: 'room_educators', room_id: rm.id })),
+    ];
+    res.json({ staff, parents, groups });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── ACKNOWLEDGE ────────────────────────────────────────────────────────────
+r.post('/messages/:id/acknowledge', (req, res) => {
+  try {
+    ensureMsgCols();
+    D().prepare("UPDATE thread_messages SET ack_at=datetime('now'), ack_by=? WHERE id=? AND tenant_id=?")
+      .run(req.userId, req.params.id, req.tenantId);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

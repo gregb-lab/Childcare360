@@ -209,10 +209,14 @@ r.post('/logo', requireAuth, requireTenant, requireRole('owner', 'admin', 'direc
       // AI colour suggestion (non-fatal)
       let suggested_colors = null;
       try {
-        // Check if any AI provider is configured
-        const providers = D().prepare('SELECT * FROM ai_providers WHERE tenant_id=?').all(req.tenantId);
-        const anthropicProv = providers.find(p => p.provider === 'anthropic');
-        const apiKey = anthropicProv?.api_key || process.env.ANTHROPIC_API_KEY;
+        // Check if any AI provider is configured (try multiple tables)
+        let apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) {
+          try { const p = D().prepare("SELECT api_key FROM ai_provider_config WHERE tenant_id=? AND provider='anthropic'").get(req.tenantId); if (p?.api_key) apiKey = p.api_key; } catch(e) {}
+        }
+        if (!apiKey) {
+          try { const p = D().prepare("SELECT key_value FROM tenant_credentials WHERE tenant_id=? AND provider='anthropic' AND key_name='api_key'").get(req.tenantId); if (p?.key_value) apiKey = p.key_value; } catch(e) {}
+        }
         if (apiKey) {
           const imageData = fs.readFileSync(req.file.path);
           const base64 = imageData.toString('base64');

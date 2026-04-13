@@ -34,8 +34,8 @@ function getSettings(tenantId) {
   return {
     ...db,
     retell_api_key:         process.env.RETELL_API_KEY || db.retell_api_key,
-    retell_agent_id:        db.retell_agent_id,
-    retell_phone_number_id: db.retell_phone_number_id,
+    retell_agent_id:        process.env.RETELL_AGENT_ID || db.retell_agent_id,
+    retell_phone_number_id: process.env.RETELL_PHONE_NUMBER_ID || db.retell_phone_number_id,
     elevenlabs_api_key:     process.env.ELEVENLABS_API_KEY || db.elevenlabs_api_key,
     elevenlabs_voice_id:    db.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM',
     call_language:          db.call_language || 'en-AU',
@@ -66,7 +66,13 @@ async function retellFetch(path, method, body, apiKey) {
 // ── Claude response (same as voice.js) ───────────────────────────────────────
 
 async function askClaude(messages, systemPrompt) {
-  const key = process.env.ANTHROPIC_API_KEY;
+  let key = process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    try { const p = D().prepare("SELECT api_key FROM ai_provider_config WHERE provider='anthropic' LIMIT 1").get(); if (p?.api_key) key = p.api_key; } catch(e) {}
+  }
+  if (!key) {
+    try { const p = D().prepare("SELECT key_value FROM tenant_credentials WHERE provider='anthropic' AND key_name='api_key' LIMIT 1").get(); if (p?.key_value) key = p.key_value; } catch(e) {}
+  }
   if (!key) return "I'm sorry, the AI system is temporarily unavailable.";
 
   // Ensure first message is user role
@@ -541,9 +547,33 @@ async function buildResponse(lastUserMsg, messages, meta, tenantId, settings, te
     return { content: `I'm sorry, I couldn't find anyone by that name. Could you spell your last name for me?` };
   }
 
-  // General AI conversation
-  const systemPrompt = settings.ai_persona ||
-    `You are a warm, professional AI assistant for ${tenantName}. Help educators and parents with enquiries. Keep responses to 1-2 sentences. Never use lists.`;
+  // General AI conversation — use enriched system prompt
+  let centreHours = '7:00am to 6:00pm';
+  try {
+    const ts = D().prepare('SELECT open_time, close_time FROM tenant_settings WHERE tenant_id=?').get(tenantId);
+    if (ts) centreHours = `${ts.open_time || '7:00'} to ${ts.close_time || '18:00'}`;
+  } catch(e) {}
+
+  const systemPrompt = `You are Charlotte, a warm and professional AI phone assistant for ${tenantName}, an Australian childcare centre.
+
+PERSONALITY: Warm, friendly, reassuring. Professional but approachable — like a helpful centre director. Australian English ("centre" not "daycare", "kinder" not "kindergarten"). Keep responses to 1-2 short sentences — this is a phone call. Never say "As an AI" or mention being a language model.
+
+YOU CAN HELP WITH:
+- Centre hours (${centreHours}), location, and general info
+- Enrolment enquiries and waitlist — take name and callback number
+- Program info for age groups (babies, toddlers, kinder)
+- Recording sick day absences for children
+- Messages for specific staff members — take name and message
+- Educator shift enquiries
+
+RULES:
+- Medical emergency → "Please hang up and call 000 immediately"
+- If you cannot help, offer to have someone call them back
+- Always end calls warmly
+- Never give medical or legal advice
+
+${settings.ai_persona ? 'ADDITIONAL CONTEXT:\n' + settings.ai_persona : ''}`;
+
   const response = await askClaude(messages, systemPrompt);
   return { content: response || `I'm not sure I understood that. Could you say that again?` };
 }

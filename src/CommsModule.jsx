@@ -34,15 +34,15 @@ export default function CommsModule() {
   },[]);
 
   return (
-    <div style={{padding:"24px 28px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:24}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",padding:"24px 28px 0",boxSizing:"border-box"}}>
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16,flexShrink:0}}>
         <span style={{fontSize:28}}>💬</span>
         <div>
           <h1 style={{margin:0,fontSize:22,fontWeight:900,color:DARK}}>Communications & Health</h1>
           <p style={{margin:"3px 0 0",fontSize:13,color:MU}}>Parent messaging · Health events · Immunisation tracking</p>
         </div>
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:24,borderBottom:"1px solid #EDE8F4",paddingBottom:12}}>
+      <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid #EDE8F4",paddingBottom:12,flexShrink:0}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{padding:"8px 16px",borderRadius:9,border:"none",cursor:"pointer",fontSize:13,
@@ -56,9 +56,11 @@ export default function CommsModule() {
           </button>
         ))}
       </div>
-      {tab==="messages"     && <MessagesTab onUnreadChange={setUnread}/>}
-      {tab==="health"       && <HealthTab />}
-      {tab==="immunisation" && <ImmunisationTab />}
+      <div style={{flex:1,minHeight:0,overflow:"hidden"}}>
+        {tab==="messages"     && <MessagesTab onUnreadChange={setUnread}/>}
+        {tab==="health"       && <HealthTab />}
+        {tab==="immunisation" && <ImmunisationTab />}
+      </div>
     </div>
   );
 }
@@ -71,7 +73,12 @@ function MessagesTab({onUnreadChange}) {
   const [reply,setReply]=useState("");
   const [showNew,setShowNew]=useState(false);
   const [children,setChildren]=useState([]);
-  const [newForm,setNewForm]=useState({child_id:"",subject:"",body:""});
+  const [newForm,setNewForm]=useState({child_id:"",subject:"",body:"",acknowledge_required:false});
+  const [attachments,setAttachments]=useState([]);
+  const [recipientOpts,setRecipientOpts]=useState({staff:[],parents:[],groups:[]});
+  const [selectedRecipients,setSelectedRecipients]=useState([]);
+  const [recipientMode,setRecipientMode]=useState('groups');
+  const [recipientSearch,setRecipientSearch]=useState('');
   const bottomRef=useRef(null);
 
   const load=useCallback(()=>{
@@ -86,6 +93,7 @@ function MessagesTab({onUnreadChange}) {
   },[onUnreadChange]);
 
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{if(showNew)API("/api/comms/recipients").then(d=>setRecipientOpts(d||{})).catch(()=>{});},[showNew]);
 
   const openThread=async(id)=>{
     const r=await API(`/api/comms/threads/${id}`.catch(e=>console.error('API error:',e)));
@@ -102,31 +110,99 @@ function MessagesTab({onUnreadChange}) {
     openThread(active.id);
   };
 
+  const resetCompose=()=>{setShowNew(false);setNewForm({child_id:"",subject:"",body:"",acknowledge_required:false});setAttachments([]);setSelectedRecipients([]);setRecipientSearch("");};
+  const addRecipient=(r2)=>{if(!selectedRecipients.find(x=>x.id===r2.id))setSelectedRecipients(p=>[...p,r2]);};
+  const removeRecipient=(id)=>setSelectedRecipients(p=>p.filter(r2=>r2.id!==id));
+
   const createThread=async()=>{
     if(!newForm.subject||!newForm.body)return;
-    const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}}).catch(e=>console.error('API error:',e));
-    setShowNew(false);setNewForm({child_id:"",subject:"",body:""});
-    load();
-    if(r?.id)openThread(r?.id);
+    const payload={...newForm,recipients:selectedRecipients.map(r2=>({id:r2.id,name:r2.name,type:r2.type}))};
+    if(attachments.length>0){
+      const fd=new FormData();fd.append('subject',payload.subject);fd.append('body',payload.body);
+      if(payload.child_id)fd.append('child_id',payload.child_id);
+      fd.append('acknowledge_required',payload.acknowledge_required?'1':'0');
+      fd.append('recipients',JSON.stringify(payload.recipients));
+      attachments.forEach(f=>fd.append('attachments',f));
+      const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
+      const res2=await fetch('/api/comms/threads',{method:'POST',headers:{...(t?{Authorization:'Bearer '+t}:{}),
+        ...(tid?{'x-tenant-id':tid}:{})},body:fd}).then(r2=>r2.json()).catch(e=>console.error('API error:',e));
+      resetCompose();load();if(res2?.id)openThread(res2.id);
+    }else{
+      const r=await API("/api/comms/threads",{method:"POST",body:payload}).catch(e=>console.error('API error:',e));
+      resetCompose();load();if(r?.id)openThread(r?.id);
+    }
   };
 
   return (
-    <div style={{display:"flex",gap:0,flex:1,minHeight:0,borderRadius:14,overflow:"hidden",border:"1px solid #EDE8F4"}}>
+    <div style={{display:"flex",gap:0,height:"100%",borderRadius:14,overflow:"hidden",border:"1px solid #EDE8F4",minHeight:0}}>
       {/* Thread list */}
-      <div style={{width:300,flexShrink:0,borderRight:"1px solid #EDE8F4",overflowY:"auto",background:"#FDFBFF"}}>
+      <div style={{width:320,flexShrink:0,borderRight:"1px solid #EDE8F4",overflowY:"auto",background:"#FDFBFF",minHeight:0}}>
         <div style={{padding:"12px 14px",borderBottom:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontWeight:700,fontSize:13,color:DARK}}>Conversations</div>
           <button onClick={()=>setShowNew(v=>!v)} style={{...bp,padding:"5px 12px",fontSize:11}}>+ New</button>
         </div>
 
         {showNew&&(
-          <div style={{padding:"12px 14px",borderBottom:"1px solid #EDE8F4",background:"#F8F5FC"}}>
-            <div style={{marginBottom:8}}>
-              <label style={lbl}>Child (optional)</label>
-              <select value={newForm.child_id} onChange={e=>setNewForm(p=>({...p,child_id:e.target.value}))} style={inp}>
-                <option value="">All families / General</option>
-                {children.map(c=><option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-              </select>
+          <div style={{padding:"12px 14px",borderBottom:"1px solid #EDE8F4",background:"#F8F5FC",maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
+            {/* TO — recipient picker */}
+            <div style={{marginBottom:10}}>
+              <label style={lbl}>To</label>
+              {/* Selected pills */}
+              {selectedRecipients.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
+                {selectedRecipients.map(r2=>(
+                  <span key={r2.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,background:"#EEEDFE",border:"1px solid #534AB7",fontSize:11,color:"#3C3489"}}>
+                    {r2.type==="group"?"👥 ":""}{r2.name}
+                    <button onClick={()=>removeRecipient(r2.id)} style={{border:"none",background:"none",cursor:"pointer",fontSize:13,lineHeight:1,color:"#534AB7",padding:0}}>×</button>
+                  </span>
+                ))}
+              </div>}
+              {/* Mode toggle */}
+              <div style={{display:"flex",gap:0,marginBottom:8,border:"1px solid #DDD6EE",borderRadius:8,overflow:"hidden",width:"fit-content"}}>
+                {["groups","individual"].map(m=>(
+                  <button key={m} onClick={()=>setRecipientMode(m)} style={{padding:"5px 12px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",background:recipientMode===m?P:"transparent",color:recipientMode===m?"#fff":MU}}>{m==="groups"?"Groups":"Individual"}</button>
+                ))}
+              </div>
+              {recipientMode==="groups"&&(()=>{
+                const top4=(recipientOpts.groups||[]).filter(g=>["group_all_parents","group_all_educators","group_all_staff","group_admin"].includes(g.id));
+                const roomP=(recipientOpts.groups||[]).filter(g=>g.id.startsWith("group_room_parents_"));
+                const roomE=(recipientOpts.groups||[]).filter(g=>g.id.startsWith("group_room_educators_"));
+                return(<div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+                    {top4.map(g=><button key={g.id} onClick={()=>addRecipient({id:g.id,name:g.name,type:"group"})}
+                      style={{padding:"7px 10px",borderRadius:8,border:selectedRecipients.find(r2=>r2.id===g.id)?"1.5px solid #534AB7":"1px solid #DDD6EE",background:selectedRecipients.find(r2=>r2.id===g.id)?"#EEEDFE":"#fff",color:selectedRecipients.find(r2=>r2.id===g.id)?"#3C3489":DARK,fontSize:11,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
+                      {g.name}{g.description&&<span style={{display:"block",fontSize:9,fontWeight:400,color:MU,marginTop:1}}>{g.description}</span>}
+                    </button>)}
+                  </div>
+                  {roomP.length>0&&<div>
+                    <div style={{fontSize:10,fontWeight:700,color:MU,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:4}}>By room</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+                      {roomP.map(g=><button key={g.id} onClick={()=>addRecipient({id:g.id,name:g.name,type:"group"})}
+                        style={{padding:"5px 8px",borderRadius:6,border:selectedRecipients.find(r2=>r2.id===g.id)?"1.5px solid #534AB7":"1px solid #EDE8F4",background:selectedRecipients.find(r2=>r2.id===g.id)?"#EEEDFE":"#fff",color:selectedRecipients.find(r2=>r2.id===g.id)?"#3C3489":"#6B5F7A",fontSize:10,fontWeight:500,cursor:"pointer",textAlign:"left"}}>{g.name}</button>)}
+                      {roomE.map(g=><button key={g.id} onClick={()=>addRecipient({id:g.id,name:g.name,type:"group"})}
+                        style={{padding:"5px 8px",borderRadius:6,border:selectedRecipients.find(r2=>r2.id===g.id)?"1.5px solid #534AB7":"1px solid #EDE8F4",background:selectedRecipients.find(r2=>r2.id===g.id)?"#EEEDFE":"#fff",color:selectedRecipients.find(r2=>r2.id===g.id)?"#3C3489":"#6B5F7A",fontSize:10,fontWeight:500,cursor:"pointer",textAlign:"left"}}>{g.name}</button>)}
+                    </div>
+                  </div>}
+                </div>);
+              })()}
+              {recipientMode==="individual"&&<div>
+                <input type="text" placeholder="Search staff or parents..." value={recipientSearch} onChange={e=>setRecipientSearch(e.target.value)} style={{...inp,marginBottom:6}} autoFocus/>
+                <div style={{maxHeight:150,overflowY:"auto",border:"1px solid #EDE8F4",borderRadius:8}}>
+                  {(recipientOpts.staff||[]).filter(s=>!recipientSearch||s.name.toLowerCase().includes(recipientSearch.toLowerCase())).slice(0,6).map(s=>(
+                    <div key={s.id} onClick={()=>addRecipient({id:s.id,name:s.name,type:"staff"})}
+                      style={{padding:"7px 10px",cursor:"pointer",display:"flex",justifyContent:"space-between",borderBottom:"1px solid #F0EBF8",background:selectedRecipients.find(r2=>r2.id===s.id)?"#EEEDFE":"transparent",fontSize:12}}>
+                      <span>{s.name} <span style={{fontSize:10,color:MU}}>{s.role}{s.room_name?" · "+s.room_name:""}</span></span>
+                      <span style={{fontSize:10,color:selectedRecipients.find(r2=>r2.id===s.id)?"#16A34A":"#534AB7"}}>{selectedRecipients.find(r2=>r2.id===s.id)?"Added":"Add"}</span>
+                    </div>
+                  ))}
+                  {(recipientOpts.parents||[]).filter(p2=>!recipientSearch||p2.name.toLowerCase().includes(recipientSearch.toLowerCase())||(p2.child_name||"").toLowerCase().includes(recipientSearch.toLowerCase())).slice(0,6).map(p2=>(
+                    <div key={p2.id} onClick={()=>addRecipient({id:p2.id,name:p2.name,type:"parent"})}
+                      style={{padding:"7px 10px",cursor:"pointer",display:"flex",justifyContent:"space-between",borderBottom:"1px solid #F0EBF8",background:selectedRecipients.find(r2=>r2.id===p2.id)?"#EEEDFE":"transparent",fontSize:12}}>
+                      <span>{p2.name} <span style={{fontSize:10,color:MU}}>parent of {p2.child_name}</span></span>
+                      <span style={{fontSize:10,color:selectedRecipients.find(r2=>r2.id===p2.id)?"#16A34A":"#534AB7"}}>{selectedRecipients.find(r2=>r2.id===p2.id)?"Added":"Add"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>}
             </div>
             <div style={{marginBottom:8}}>
               <label style={lbl}>Subject</label>
@@ -136,9 +212,22 @@ function MessagesTab({onUnreadChange}) {
               <label style={lbl}>Message</label>
               <textarea value={newForm.body} onChange={e=>setNewForm(p=>({...p,body:e.target.value}))} rows={3} style={{...inp,resize:"vertical"}}/>
             </div>
+            <div style={{marginBottom:8}}>
+              <input type="file" id="compose-attach" accept="image/*,video/*,.pdf,.doc,.docx" multiple style={{display:"none"}}
+                onChange={e=>setAttachments(p=>[...p,...Array.from(e.target.files)])}/>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <button type="button" onClick={()=>document.getElementById('compose-attach').click()} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #DDD6EE",background:"transparent",cursor:"pointer",color:MU}}>Attach file</button>
+                <label style={{fontSize:11,color:MU,display:"flex",alignItems:"center",gap:4,cursor:"pointer"}}>
+                  <input type="checkbox" checked={newForm.acknowledge_required} onChange={e=>setNewForm(p=>({...p,acknowledge_required:e.target.checked}))} /> Require acknowledgement
+                </label>
+              </div>
+              {attachments.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>
+                {attachments.map((f,i)=><div key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:6,background:"#F0EBF8",display:"flex",alignItems:"center",gap:4}}>{f.name}<button onClick={()=>setAttachments(p=>p.filter((_,j)=>j!==i))} style={{border:"none",background:"none",cursor:"pointer",color:MU,fontSize:13,lineHeight:1}}>×</button></div>)}
+              </div>}
+            </div>
             <div style={{display:"flex",gap:6}}>
               <button onClick={createThread} style={{...bp,fontSize:11,padding:"6px 12px"}}>Send</button>
-              <button onClick={()=>setShowNew(false)} style={{...bs,fontSize:11,padding:"6px 12px"}}>Cancel</button>
+              <button onClick={resetCompose} style={{...bs,fontSize:11,padding:"6px 12px"}}>Cancel</button>
             </div>
           </div>
         )}
@@ -149,8 +238,9 @@ function MessagesTab({onUnreadChange}) {
             <div key={t.id} onClick={()=>openThread(t.id)}
               style={{padding:"12px 14px",borderBottom:"1px solid #F0EBF8",cursor:"pointer",
                 background:active?.id===t.id?"#F3E8FF":t.unread_admin>0?"#FAFAFF":"#fff"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
-                <div style={{fontWeight:t.unread_admin>0?700:500,fontSize:13,color:DARK,
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3,gap:8}}>
+                {t.unread_admin>0&&<div style={{width:8,height:8,borderRadius:"50%",background:"#534AB7",marginTop:5,flexShrink:0}}/>}
+                <div style={{fontWeight:t.unread_admin>0?700:400,fontSize:13,color:DARK,
                   overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>
                   {t.subject}
                 </div>
@@ -158,10 +248,10 @@ function MessagesTab({onUnreadChange}) {
                   <span style={{background:P,color:"#fff",borderRadius:20,padding:"1px 6px",fontSize:10,fontWeight:900,flexShrink:0,marginLeft:6}}>{t.unread_admin}</span>
                 )}
               </div>
-              {(t.first_name||t.room_name)&&(
+              {(t.to_group_label||t.first_name||t.room_name)&&(
                 <div style={{fontSize:11,color:MU}}>
-                  {t.first_name?`${t.first_name} ${t.last_name} · `:""}
-                  {t.room_name||""}
+                  {t.to_group_label?<span style={{fontWeight:600}}>👥 {t.to_group_label}</span>
+                    :t.first_name?`${t.first_name} ${t.last_name}${t.room_name?" · "+t.room_name:""}`:t.room_name||""}
                 </div>
               )}
               <div style={{fontSize:11,color:MU,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -173,7 +263,7 @@ function MessagesTab({onUnreadChange}) {
       </div>
 
       {/* Message view */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",background:"#fff"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",background:"#fff",minHeight:0,overflow:"hidden"}}>
         {!active?(
           <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:MU}}>
             <div style={{textAlign:"center"}}><div style={{fontSize:40}}>💬</div><div style={{marginTop:8}}>Select a conversation</div></div>
@@ -186,32 +276,43 @@ function MessagesTab({onUnreadChange}) {
                 <div style={{fontWeight:700,fontSize:14,color:DARK}}>{active.subject}</div>
                 {active.first_name&&<div style={{fontSize:12,color:MU}}>{active.first_name} {active.last_name}</div>}
               </div>
-              <button onClick={async()=>{await API(`/api/comms/threads/${active.id}/close`,{method:"PUT"});setActive(null);load();}} // error: caught by caller
-                style={{...bs,fontSize:11,padding:"5px 12px",color:MU,borderColor:"#EDE8F4"}}>
-                Close
-              </button>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>{const last=messages[messages.length-1];setShowNew(true);setNewForm({child_id:active.child_id||"",subject:"Fwd: "+active.subject,body:"\n\n--- Forwarded ---\nFrom: "+(last?.sender_name||"")+" \n\n"+(last?.body||"")});}} style={{...bs,fontSize:11,padding:"5px 12px"}}>Forward</button>
+                <button onClick={async()=>{await API(`/api/comms/threads/${active.id}/close`,{method:"PUT"});setActive(null);load();}}
+                  style={{...bs,fontSize:11,padding:"5px 12px",color:MU,borderColor:"#EDE8F4"}}>Close</button>
+              </div>
             </div>
 
             {/* Messages */}
-            <div style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:12}}>
-              {messages.map(m=>(
+            <div style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:12,minHeight:0}}>
+              {messages.map(m=>{
+                let attachments=[];try{attachments=JSON.parse(m.attachments||'[]');}catch{}
+                return(
                 <div key={m.id} style={{display:"flex",flexDirection:"column",
                   alignItems:m.sender_type==="admin"?"flex-end":"flex-start"}}>
                   <div style={{maxWidth:"70%",padding:"10px 14px",borderRadius:12,
                     background:m.sender_type==="admin"?P:"#F0EBF8",
                     color:m.sender_type==="admin"?"#fff":DARK}}>
-                    <div style={{fontSize:13,lineHeight:1.5}}>{m.body}</div>
+                    <div style={{fontSize:13,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{m.body}</div>
+                    {attachments.length>0&&<div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:4}}>
+                      {attachments.map((a,i)=>a.type?.startsWith('image')?<img key={i} src={a.url} alt={a.name} style={{maxWidth:200,borderRadius:6}}/>:<a key={i} href={a.url} target="_blank" rel="noopener" style={{fontSize:11,color:m.sender_type==="admin"?"#fff":P,textDecoration:"underline"}}>{a.name}</a>)}
+                    </div>}
+                    {m.acknowledge_required&&!m.ack_at&&(
+                      <button onClick={async()=>{await API('/api/comms/messages/'+m.id+'/acknowledge',{method:'POST'});openThread(active.id);}}
+                        style={{marginTop:8,padding:"6px 14px",borderRadius:6,border:"none",background:"#534AB7",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}>Acknowledge</button>
+                    )}
+                    {m.ack_at&&<div style={{fontSize:10,marginTop:4,opacity:0.7}}>Acknowledged {fmtDT(m.ack_at)}</div>}
                   </div>
                   <div style={{fontSize:10,color:MU,marginTop:3,paddingLeft:4}}>
                     {m.sender_name||m.sender_type} · {fmtDT(m.created_at)}
                   </div>
                 </div>
-              ))}
+              );})}
               <div ref={bottomRef}/>
             </div>
 
             {/* Reply */}
-            <div style={{padding:"12px 18px",borderTop:"1px solid #EDE8F4",display:"flex",gap:10}}>
+            <div style={{padding:"12px 18px",borderTop:"1px solid #EDE8F4",display:"flex",gap:10,flexShrink:0}}>
               <textarea value={reply} onChange={e=>setReply(e.target.value)}
                 onKeyDown={e=>{if(e.key==="Enter"&&e.metaKey)sendReply();}}
                 placeholder="Type a message… (Cmd+Enter to send)"
