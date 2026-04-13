@@ -455,7 +455,13 @@ export default function ChildcareRosterApp() {
   const [portalEmulatorMode,  setPortalEmulatorMode]  = useState("parent");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("c360_sidebar_collapsed") === "true");
   const [collapsedGroups, setCollapsedGroups] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("c360_collapsed_groups") || "{}"); } catch { return {}; }
+    try {
+      const stored = JSON.parse(localStorage.getItem("c360_collapsed_groups") || "{}");
+      // Ensure Finance and Reports & Analytics are always expanded by default
+      delete stored["Finance"];
+      delete stored["Reports & Analytics"];
+      return stored;
+    } catch { return {}; }
   });
   const [pinnedTabs, setPinnedTabs] = useState(() => {
     try { return JSON.parse(localStorage.getItem("c360_pinned_tabs") || "[]"); } catch { return []; }
@@ -762,9 +768,9 @@ export default function ChildcareRosterApp() {
         { id: "ai_config", label: "AI Providers", icon: "smart_toy" },
         { id: "developer_api", label: "API & Integrations", icon: "settings" },
     ]},
-    ...(auth?.isPlatformAdmin ? [{ label: "Platform", items: [
+    ...((auth?.isPlatformAdmin || ['admin','owner','director'].includes(auth?.currentTenant?.role)) ? [{ label: "Platform", items: [
         { id: "owner_portal", label: "Owner Portal", icon: "platform" },
-        { id: "hq_dashboard", label: "HQ Dashboard", icon: "dashboard" },
+        ...(auth?.isPlatformAdmin ? [{ id: "hq_dashboard", label: "HQ Dashboard", icon: "dashboard" }] : []),
     ]}] : []),
   ];
 
@@ -1135,7 +1141,7 @@ export default function ChildcareRosterApp() {
           {activeTab === "notifications" && <Suspense fallback={null}><NotificationsInbox /></Suspense>}
           {activeTab === "hq_dashboard" && <Suspense fallback={null}><HQDashboard /></Suspense>}
           {activeTab === "payments" && <Suspense fallback={null}><PaymentsModule /></Suspense>}
-          {activeTab === "owner_portal" && auth?.isPlatformAdmin && <OwnerPortal />}
+          {activeTab === "owner_portal" && <OwnerPortal />}
           {activeTab === "ratio_check" && <RatioCheckModule />}
           {activeTab === "ai_config" && <AIConfigModule />}
           </Suspense>
@@ -4414,6 +4420,146 @@ function DataManagementPanel() {
   );
 }
 
+function UsersPanel({ API2 }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: "", name: "", role: "educator" });
+  const [inviting, setInviting] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    API2("/api/settings/users").then(d => {
+      setUsers(Array.isArray(d) ? d : []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [API2]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const roleColors = { owner: "#7E5BA3", admin: "#5B21B6", director: "#0F766E", manager: "#B45309", educator: "#1D4ED8", viewer: "#6B7280", parent: "#059669" };
+  const roleLabel = (r) => (r || "").charAt(0).toUpperCase() + (r || "").slice(1);
+
+  const handleInvite = async () => {
+    if (!inviteForm.email || !inviteForm.role) return;
+    setInviting(true);
+    try {
+      const result = await API2("/api/settings/users", { method: "POST", body: inviteForm });
+      if (result.error) { window.showToast && window.showToast(result.error, "error"); }
+      else { window.showToast && window.showToast("User added", "success"); setShowInvite(false); setInviteForm({ email: "", name: "", role: "educator" }); load(); }
+    } catch (e) { window.showToast && window.showToast("Failed to add user", "error"); }
+    setInviting(false);
+  };
+
+  const handleRemove = async (userId, name) => {
+    if (!confirm(`Remove ${name || "this user"} from the organisation?`)) return;
+    try {
+      const result = await API2(`/api/settings/users/${userId}`, { method: "DELETE" });
+      if (result.error) { window.showToast && window.showToast(result.error, "error"); }
+      else { window.showToast && window.showToast("User removed", "success"); load(); }
+    } catch (e) { window.showToast && window.showToast("Failed to remove", "error"); }
+  };
+
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await API2(`/api/settings/users/${userId}`, { method: "PUT", body: { role: newRole } });
+      load();
+    } catch (e) { window.showToast && window.showToast("Failed to update role", "error"); }
+  };
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "#A89DB5" }}>Loading users...</div>;
+
+  return (
+    <div>
+      <div style={{ ...cardStyle, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Team Members</h3>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#A89DB5" }}>{users.length} user{users.length !== 1 ? "s" : ""} in this organisation</p>
+          </div>
+          <button onClick={() => setShowInvite(!showInvite)} style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: "#8B6DAF", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+            {showInvite ? "Cancel" : "+ Add User"}
+          </button>
+        </div>
+
+        {showInvite && (
+          <div style={{ padding: 16, background: "#F9F7FF", borderRadius: 10, border: "1px solid #EDE8F4", marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, color: "#7A6E8A", fontWeight: 700, display: "block", marginBottom: 4 }}>Email *</label>
+                <input style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, width: "100%", boxSizing: "border-box" }} type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="user@example.com" />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: "#7A6E8A", fontWeight: 700, display: "block", marginBottom: 4 }}>Full Name</label>
+                <input style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, width: "100%", boxSizing: "border-box" }} value={inviteForm.name} onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))} placeholder="First Last" />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: "#7A6E8A", fontWeight: 700, display: "block", marginBottom: 4 }}>Role *</label>
+                <select style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, width: "100%", boxSizing: "border-box" }} value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}>
+                  {["admin", "director", "manager", "educator", "viewer"].map(r => <option key={r} value={r}>{roleLabel(r)}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => setShowInvite(false)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #DDD6EE", background: "#fff", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+              <button onClick={handleInvite} disabled={!inviteForm.email || inviting} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#8B6DAF", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", opacity: (!inviteForm.email || inviting) ? 0.5 : 1 }}>
+                {inviting ? "Adding..." : "Add User"}
+              </button>
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: 11, color: "#A89DB5" }}>Default password: Childcare2024! — user should change on first login.</p>
+          </div>
+        )}
+
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #EDE8F4" }}>
+              {["Name", "Email", "Role", "Last Login", "Status", ""].map(h => (
+                <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: "#8A7F96", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.user_id} style={{ borderBottom: "1px solid #F0EBF8" }}>
+                <td style={{ padding: "10px" }}><span style={{ fontWeight: 600 }}>{u.name || "\u2014"}</span></td>
+                <td style={{ padding: "10px", color: "#6B5F7A" }}>{u.email}</td>
+                <td style={{ padding: "10px" }}>
+                  <select value={u.role} onChange={e => handleRoleChange(u.user_id, e.target.value)} style={{ padding: "3px 6px", borderRadius: 6, border: "1px solid " + (roleColors[u.role] || "#888") + "40", background: (roleColors[u.role] || "#888") + "15", color: roleColors[u.role] || "#888", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    {["owner", "admin", "director", "manager", "educator", "viewer", "parent"].map(r => <option key={r} value={r}>{roleLabel(r)}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: "10px", color: "#A89DB5", fontSize: 11 }}>{u.last_login ? new Date(u.last_login).toLocaleDateString("en-AU") : "Never"}</td>
+                <td style={{ padding: "10px" }}>
+                  {u.locked ? <span style={{ fontSize: 10, color: "#DC2626", fontWeight: 700 }}>Locked</span>
+                    : u.active ? <span style={{ fontSize: 10, color: "#059669", fontWeight: 700 }}>Active</span>
+                    : <span style={{ fontSize: 10, color: "#D97706", fontWeight: 700 }}>Inactive</span>}
+                </td>
+                <td style={{ padding: "10px", textAlign: "right" }}>
+                  <button onClick={() => handleRemove(u.user_id, u.name)} style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", fontSize: 10, cursor: "pointer" }}>Remove</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MfaSettingsPanel() {
+  return (
+    <div>
+      <h3 style={{margin:"0 0 16px",fontSize:16,color:"#3D3248"}}>Two-Factor Authentication</h3>
+      <p style={{color:"#6B7280",fontSize:14,margin:"0 0 16px"}}>
+        Multi-factor authentication adds an extra layer of security to admin accounts.
+      </p>
+      <div style={{padding:"12px 16px",background:"#EDE8F4",borderRadius:8,fontSize:13,color:"#5B21B6"}}>
+        MFA configuration will be available in a future update with Cognito identity management.
+      </div>
+    </div>
+  );
+}
+
 function SettingsView() {
   const [stab, setStab] = useState("service");
   const [svc, setSvc]   = useState(null);
@@ -4482,7 +4628,7 @@ function SettingsView() {
     setTesting(null);
   };
 
-    const STABS = [{id:"service",l:"⚙️ Service"},{id:"regulatory",l:"📜 Regulatory"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
+    const STABS = [{id:"service",l:"⚙️ Service"},{id:"users",l:"👥 Users"},{id:"notifications",l:"🔔 Notifications"},{id:"regulatory",l:"📜 Regulatory"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
   const purple2="#8B6DAF", lp2="#F0EBF8";
   const inp2={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:12,width:"100%",boxSizing:"border-box"};
   const lbl2={fontSize:11,color:"#7A6E8A",fontWeight:700,display:"block",marginBottom:4};
@@ -4563,10 +4709,48 @@ function SettingsView() {
                     {["Australia/Sydney","Australia/Melbourne","Australia/Brisbane","Australia/Perth","Australia/Adelaide","Australia/Darwin","Australia/Hobart","Pacific/Auckland"].map(tz=><option key={tz} value={tz}>{tz}</option>)}
                   </select>
                 </div>
+                <div style={{gridColumn:"span 2",marginTop:12,paddingTop:16,borderTop:"1px solid #EDE8F4"}}>
+                  <h4 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:"#3D3248"}}>Branding</h4>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
+                    <div>
+                      <label style={lbl2}>Centre Logo</label>
+                      <div style={{display:"flex",alignItems:"center",gap:12,padding:12,background:"#F8F5F1",borderRadius:10,border:"1px dashed #D9D0C7"}}>
+                        {svc.logo_url ? <img src={svc.logo_url} alt="Logo" style={{height:48,borderRadius:6}}/> : <span style={{fontSize:13,color:"#A89DB5"}}>No logo uploaded</span>}
+                        <label style={{padding:"6px 14px",borderRadius:8,background:purple2,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                          Upload
+                          <input type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
+                            const file=e.target.files?.[0]; if(!file) return;
+                            const fd=new FormData(); fd.append("logo",file);
+                            const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
+                            try{
+                              const r=await fetch("/api/settings/logo",{method:"POST",headers:{...(t?{Authorization:"Bearer "+t}:{}),...(tid?{"x-tenant-id":tid}:{})},body:fd});
+                              const d=await r.json();
+                              if(d.url){setSvc(s=>({...s,logo_url:d.url})); window.showToast&&window.showToast("Logo uploaded","success");}
+                              else{window.showToast&&window.showToast(d.error||"Upload failed","error");}
+                            }catch(err){window.showToast&&window.showToast("Upload failed","error");}
+                          }}/>
+                        </label>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={lbl2}>Brand Colour</label>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <input type="color" value={svc.brand_color||"#8B6DAF"} onChange={e=>setSvc(s=>({...s,brand_color:e.target.value}))} style={{width:44,height:36,border:"none",borderRadius:6,cursor:"pointer",padding:0}}/>
+                        <input style={{...inp2,width:100,fontFamily:"monospace"}} value={svc.brand_color||"#8B6DAF"} onChange={e=>setSvc(s=>({...s,brand_color:e.target.value}))}/>
+                        <div style={{width:60,height:28,borderRadius:6,background:svc.brand_color||"#8B6DAF"}}/>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
+      )}
+
+      {/* ── USERS TAB ── */}
+      {stab==="users" && (
+        <UsersPanel API2={API2} />
       )}
 
       {/* ── AI PROVIDERS TAB ── */}

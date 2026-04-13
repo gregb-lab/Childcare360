@@ -7,10 +7,14 @@ const r = Router();
 
 // ─── Platform admin middleware ──────────────────────────────────────────────
 function requirePlatformAdmin(req, res, next) {
-  const admin = D().prepare('SELECT role FROM platform_admins WHERE user_id = ?').get(req.userId);
-  if (!admin) return res.status(403).json({ error: 'Platform admin access required' });
-  req.platformRole = admin.role;
-  next();
+  try {
+    const admin = D().prepare('SELECT role FROM platform_admins WHERE user_id = ?').get(req.userId);
+    if (!admin) return res.status(403).json({ error: 'Platform admin access required' });
+    req.platformRole = admin.role;
+    next();
+  } catch(e) {
+    return res.status(403).json({ error: 'Platform admin access required' });
+  }
 }
 
 r.use(requireAuth);

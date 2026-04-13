@@ -104,7 +104,7 @@ r.put('/', requireAuth, requireTenant, requireRole('owner','admin','director'), 
 
 // GET /api/settings/users — list users in this tenant
 r.get('/users', requireAuth, requireTenant, requireRole('owner','admin','director'), (req, res) => {
-  const members = D().prepare(`SELECT tm.*, u.name, u.email, u.phone, u.last_login, u.email_verified, u.locked FROM tenant_members tm JOIN users u ON u.id=tm.user_id WHERE tm.tenant_id=? ORDER BY tm.created_at DESC`).all(req.tenantId);
+  const members = D().prepare(`SELECT tm.*, u.name, u.email, u.phone, u.last_login, u.email_verified, u.locked FROM tenant_members tm JOIN users u ON u.id=tm.user_id WHERE tm.tenant_id=? ORDER BY tm.joined_at DESC`).all(req.tenantId);
   res.json(members);
 });
 
@@ -113,6 +113,64 @@ r.put('/users/:userId', requireAuth, requireTenant, requireRole('admin'), (req, 
   const { role, active } = req.body;
   D().prepare('UPDATE tenant_members SET role=COALESCE(?,role), active=COALESCE(?,active) WHERE user_id=? AND tenant_id=?').run(role || null, active !== undefined ? (active ? 1 : 0) : null, req.params.userId, req.tenantId);
   res.json({ ok: true });
+});
+
+// POST /api/settings/users — invite/create a user
+r.post('/users', requireAuth, requireTenant, requireRole('owner', 'admin', 'director'), async (req, res) => {
+  try {
+    const { email, name, role } = req.body;
+    if (!email || !role) return res.status(400).json({ error: 'Email and role are required' });
+
+    // Check if user already exists
+    let user = D().prepare('SELECT id FROM users WHERE email=?').get(email.toLowerCase().trim());
+    if (!user) {
+      const bcrypt = await import('bcryptjs').catch(() => import('bcrypt'));
+      const hash = (bcrypt.default || bcrypt).hashSync('Childcare2024!', 10);
+      const userId = uuid();
+      D().prepare('INSERT INTO users (id, email, password_hash, name, email_verified, created_at) VALUES (?,?,?,?,1,datetime(\'now\'))').run(userId, email.toLowerCase().trim(), hash, name || '');
+      user = { id: userId };
+    }
+
+    // Check if already a member
+    const existing = D().prepare('SELECT id FROM tenant_members WHERE user_id=? AND tenant_id=?').get(user.id, req.tenantId);
+    if (existing) return res.status(409).json({ error: 'User is already a member of this organisation' });
+
+    D().prepare('INSERT INTO tenant_members (id, user_id, tenant_id, role, active, invited_by, joined_at) VALUES (?,?,?,?,1,?,datetime(\'now\'))').run(uuid(), user.id, req.tenantId, role, req.userId);
+    res.json({ ok: true, userId: user.id });
+  } catch (e) { console.error('[settings:invite]', e); res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/settings/users/:userId — remove from tenant
+r.delete('/users/:userId', requireAuth, requireTenant, requireRole('owner', 'admin'), (req, res) => {
+  try {
+    if (req.params.userId === req.userId) return res.status(400).json({ error: 'Cannot remove yourself' });
+    D().prepare('DELETE FROM tenant_members WHERE user_id=? AND tenant_id=?').run(req.params.userId, req.tenantId);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/settings/logo — upload logo
+r.post('/logo', requireAuth, requireTenant, requireRole('owner', 'admin', 'director'), async (req, res) => {
+  try {
+    const multer = (await import('multer')).default;
+    const path = await import('path');
+    const { existsSync, mkdirSync } = await import('fs');
+    const logoDir = path.join(process.cwd(), 'uploads', 'logos');
+    if (!existsSync(logoDir)) mkdirSync(logoDir, { recursive: true });
+    const storage = multer.diskStorage({
+      destination: (r, f, cb) => cb(null, logoDir),
+      filename: (r, f, cb) => cb(null, uuid() + path.extname(f.originalname).toLowerCase()),
+    });
+    const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+    upload.single('logo')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      const url = '/uploads/logos/' + req.file.filename;
+      initSettings();
+      D().prepare('UPDATE tenant_settings SET logo_url=?, updated_at=datetime(\'now\') WHERE tenant_id=?').run(url, req.tenantId);
+      res.json({ ok: true, url });
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // GET /api/settings/integrations

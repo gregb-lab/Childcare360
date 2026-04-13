@@ -84,9 +84,11 @@ export function OwnerPortal() {
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenantDetail, setTenantDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setAccessDenied(false);
     try {
       const [ov, ts, cmp, rev, inc, wl, wb, al] = await Promise.all([
         API("/api/platform/metrics/overview"),
@@ -98,6 +100,7 @@ export function OwnerPortal() {
         API("/api/platform/wellbeing").catch(() => ({ wellbeing: [] })),
         API("/api/platform/audit?limit=100").catch(() => ({ logs: [] })),
       ]);
+      if (ov.error) { setAccessDenied(true); setLoading(false); return; }
       setOverview(ov);
       setTenants(ts.tenants || []);
       setComparison(cmp.comparison || []);
@@ -163,6 +166,19 @@ export function OwnerPortal() {
     { id: "audit", label: "Audit Log", icon: "📋" },
     { id: "competitive", label: "Market Intel", icon: "🎯" },
   ];
+
+  if (accessDenied) {
+    return (
+      <div style={{ textAlign: "center", padding: 60 }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <div style={{ fontSize: 18, color: "#3D3248", fontWeight: 700, marginBottom: 8 }}>Platform Owner Access Required</div>
+        <div style={{ fontSize: 13, color: "#8A7F96", maxWidth: 400, margin: "0 auto", lineHeight: 1.6 }}>
+          The Owner Portal provides multi-centre management and platform-wide analytics.
+          Contact your Childcare360 account manager to upgrade to Platform Owner access.
+        </div>
+      </div>
+    );
+  }
 
   if (loading && !overview) {
     return (
