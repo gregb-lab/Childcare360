@@ -2,7 +2,7 @@
 // EYLF V2.0 / MTOP V2.0 Aligned — Child Profiles, AI-Guided Planning Wizard,
 // Daily Observations & Progress Tracking
 // ────────────────────────────────────────────────────────────────────────────────
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
 import { EYLF_OUTCOMES, MTOP_OUTCOMES, DEV_DOMAINS, SKILL_LEVELS, OBSERVATION_TYPES, REFLECTION_PROMPTS, ACTIVITY_BANK, NQS_AREAS } from "./nqf-data.js";
 import DatePicker from "./DatePicker.jsx";
@@ -1160,11 +1160,17 @@ function WizardHeader({ step, total, title, subtitle, onBack, onNext, nextLabel 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ██  OBSERVATIONS VIEW — Daily Progress Tracking & Documentation
 // ═══════════════════════════════════════════════════════════════════════════════
-export function ObservationsView({ children, rooms, observations, setObservations }) {
+export function ObservationsView({ children: propChildren, rooms: propRooms, observations, setObservations }) {
   const [showForm, setShowForm] = useState(false);
   const [filterRoom, setFilterRoom] = useState("all");
   const [filterChild, setFilterChild] = useState("all");
   const [filterDate, setFilterDate] = useState(todayStr());
+  const [apiChildren, setApiChildren] = useState([]);
+  const [apiRooms, setApiRooms] = useState([]);
+
+  // Use API children/rooms if loaded, fall back to props
+  const children = apiChildren.length > 0 ? apiChildren : propChildren;
+  const rooms = apiRooms.length > 0 ? apiRooms : propRooms;
 
   // Form state
   const [formChild, setFormChild] = useState("");
@@ -1175,15 +1181,71 @@ export function ObservationsView({ children, rooms, observations, setObservation
   const [formProgress, setFormProgress] = useState({});
   const [formMedia, setFormMedia] = useState([]);
   const [formFollowUp, setFormFollowUp] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
+  const API = useCallback((path, opts = {}) => {
+    const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+    return fetch(path, {
+      method: opts.method || "GET",
+      headers: { "Content-Type": "application/json", ...(t ? { Authorization: "Bearer " + t } : {}), ...(tid ? { "x-tenant-id": tid } : {}) },
+      ...(opts.body ? { body: JSON.stringify(opts.body) } : {})
+    }).then(r => r.json());
+  }, []);
+
+  const loadObservations = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filterDate) params.set("date", filterDate);
+      if (filterRoom !== "all") params.set("room_id", filterRoom);
+      if (filterChild !== "all") params.set("child_id", filterChild);
+      const data = await API(`/api/learning/observations?${params}`);
+      if (data.observations) setObservations(data.observations.map(o => ({
+        id: o.id,
+        childId: o.child_id,
+        childName: o.child_name || "Unknown",
+        type: o.type || "jotting",
+        narrative: o.narrative,
+        domains: Array.isArray(o.domains) ? o.domains : [],
+        eylfOutcomes: Array.isArray(o.eylf_outcomes) ? o.eylf_outcomes : [],
+        progressUpdates: typeof o.progress_updates === "object" ? o.progress_updates : {},
+        media: Array.isArray(o.media) ? o.media : [],
+        followUp: o.follow_up || "",
+        timestamp: o.timestamp || o.created_at || "",
+        educatorName: o.educator_name || "Educator",
+        roomName: o.room_name || "",
+      })));
+    } catch (e) {
+      console.error("Failed to load observations", e);
+    }
+  }, [API, filterDate, filterRoom, filterChild, setObservations]);
+
+  useEffect(() => {
+    const t = localStorage.getItem("c360_token");
+    if (!t) return;
+    loadObservations();
+    // Load real children and rooms so IDs match DB observations
+    API("/api/children").then(data => {
+      const list = Array.isArray(data) ? data : (data.children || []);
+      setApiChildren(list.map(c => ({
+        id: c.id, firstName: c.first_name, lastName: c.last_name,
+        dob: c.dob, roomId: c.room_id, roomName: c.room_name,
+        allergies: c.allergies, domains: {},
+      })));
+    }).catch(() => {});
+    API("/api/live-status").then(data => {
+      if (data.rooms) setApiRooms(data.rooms.map(r => ({ id: r.id, name: r.name })));
+    }).catch(() => {});
+  }, [loadObservations, API]);
 
   const filteredObs = useMemo(() => {
     return observations.filter(o => {
       if (filterDate && !o.timestamp.startsWith(filterDate)) return false;
       if (filterRoom !== "all") {
-        const child = children.find(c => c.id === o.childId);
-        if (!child || child.roomId !== parseInt(filterRoom)) return false;
+        const child = children.find(c => String(c.id) === String(o.childId));
+        if (!child || String(child.roomId) !== String(filterRoom)) return false;
       }
-      if (filterChild !== "all" && o.childId !== parseInt(filterChild)) return false;
+      if (filterChild !== "all" && String(o.childId) !== String(filterChild)) return false;
       return true;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }, [observations, filterDate, filterRoom, filterChild, children]);
@@ -1205,36 +1267,81 @@ export function ObservationsView({ children, rooms, observations, setObservation
     setFormEylf([]); setFormProgress({}); setFormMedia([]); setFormFollowUp("");
   };
 
-  const submitObservation = () => {
+  const submitObservation = async () => {
     if (!formChild || !formNarrative.trim()) return;
-    const child = children.find(c => c.id === parseInt(formChild));
-    const obs = {
-      id: `obs_${Date.now()}`,
-      childId: parseInt(formChild),
-      childName: child ? `${child.firstName} ${child.lastName}` : "Unknown",
-      type: formType,
-      narrative: formNarrative.trim(),
-      domains: formDomains,
-      eylfOutcomes: formEylf,
-      progressUpdates: formProgress,
-      media: formMedia,
-      followUp: formFollowUp,
-      timestamp: new Date().toISOString(),
-      educatorName: "Current Educator",
-    };
-    setObservations(prev => [...prev, obs]);
-    resetForm();
-    setShowForm(false);
+    setSaving(true);
+    try {
+      const body = {
+        child_id: formChild,
+        type: formType,
+        narrative: formNarrative.trim(),
+        domains: formDomains,
+        eylf_outcomes: formEylf,
+        progress_updates: formProgress,
+        media: formMedia.filter(m => !m.pending).map(m => ({ id: m.id, type: m.type, name: m.name })),
+        follow_up: formFollowUp || null,
+      };
+      let result;
+      if (editingId) {
+        result = await API(`/api/learning/observations/${editingId}`, { method: "PUT", body });
+      } else {
+        result = await API("/api/learning/observations", { method: "POST", body });
+      }
+      if (result.error) throw new Error(result.error);
+      if (window.showToast) window.showToast(editingId ? "Observation updated" : "Observation saved", "success");
+      resetForm();
+      setEditingId(null);
+      setShowForm(false);
+      await loadObservations();
+    } catch (e) {
+      if (window.showToast) window.showToast("Failed to save: " + e.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (obs) => {
+    setFormChild(String(obs.childId));
+    setFormType(obs.type || "jotting");
+    setFormNarrative(obs.narrative || "");
+    setFormDomains(obs.domains || []);
+    setFormEylf(obs.eylfOutcomes || []);
+    setFormProgress(obs.progressUpdates || {});
+    setFormMedia(obs.media || []);
+    setFormFollowUp(obs.followUp || "");
+    setEditingId(obs.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this observation? This cannot be undone.")) return;
+    try {
+      const result = await API(`/api/learning/observations/${id}`, { method: "DELETE" });
+      if (result.error) throw new Error(result.error);
+      if (window.showToast) window.showToast("Observation deleted", "success");
+      await loadObservations();
+    } catch (e) {
+      if (window.showToast) window.showToast("Delete failed: " + e.message, "error");
+    }
   };
 
   const toggleDomain = (id) => setFormDomains(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]);
   const toggleEylf = (id) => setFormEylf(prev => prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id]);
 
-  // Simulated media attachment
   const attachMedia = () => {
-    const types = ["📷 Photo", "🎥 Video", "🎤 Audio Note", "🖼️ Work Sample"];
-    const type = types[Math.floor(Math.random() * types.length)];
-    setFormMedia(prev => [...prev, { id: `media_${Date.now()}`, type, name: `${type} — ${new Date().toLocaleTimeString(undefined)}` }]);
+    document.getElementById("obs-photo-upload")?.click();
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    const newMedia = files.map(f => ({
+      id: `media_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      type: f.type.startsWith("video/") ? "Video" : "Photo",
+      name: f.name,
+      pending: true,
+    }));
+    setFormMedia(prev => [...prev, ...newMedia]);
+    e.target.value = "";
   };
 
   return (
@@ -1247,7 +1354,7 @@ export function ObservationsView({ children, rooms, observations, setObservation
             <span style={tagStyle("#9B7DC0")}>{childrenWithObs} / {children.length} children documented</span>
           </div>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(!showForm); }} style={btnPrimary}>
+        <button onClick={() => { resetForm(); setEditingId(null); setShowForm(!showForm); }} style={btnPrimary}>
           {showForm ? "✕ Close" : "📝 New Observation"}
         </button>
       </div>
@@ -1255,7 +1362,7 @@ export function ObservationsView({ children, rooms, observations, setObservation
       {/* New Observation Form */}
       {showForm && (
         <div style={{ ...card, marginBottom: 20, border: "1px solid #8B6DAF40" }}>
-          <h3 style={{ margin: "0 0 16px", fontSize: 16, color: "#3D3248" }}>📝 Record Observation</h3>
+          <h3 style={{ margin: "0 0 16px", fontSize: 16, color: "#3D3248" }}>{editingId ? "✏️ Edit Observation" : "📝 Record Observation"}</h3>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
             {/* Child */}
@@ -1279,6 +1386,7 @@ export function ObservationsView({ children, rooms, observations, setObservation
             {/* Media */}
             <div>
               <label style={labelStyle}>Attachments</label>
+              <input type="file" id="obs-photo-upload" accept="image/*,video/*" multiple style={{ display: "none" }} onChange={handleFileSelect} />
               <button onClick={attachMedia} style={{ ...btnSecondary, width: "100%" }}>📎 Attach Photo/Video</button>
               {formMedia.length > 0 && (
                 <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -1352,7 +1460,7 @@ export function ObservationsView({ children, rooms, observations, setObservation
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
                 {formDomains.map(dId => {
                   const d = getDomain(dId);
-                  const child = children.find(c => c.id === parseInt(formChild));
+                  const child = children.find(c => String(c.id) === String(formChild));
                   const current = child?.domains[dId] || 1;
                   return (
                     <div key={dId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1379,10 +1487,10 @@ export function ObservationsView({ children, rooms, observations, setObservation
           </div>
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button onClick={() => setShowForm(false)} style={btnSecondary}>Cancel</button>
-            <button onClick={submitObservation} disabled={!formChild || !formNarrative.trim()}
-              style={{ ...btnPrimary, opacity: (!formChild || !formNarrative.trim()) ? 0.4 : 1 }}>
-              💾 Save Observation
+            <button onClick={() => { setShowForm(false); setEditingId(null); }} style={btnSecondary}>Cancel</button>
+            <button onClick={submitObservation} disabled={!formChild || !formNarrative.trim() || saving}
+              style={{ ...btnPrimary, opacity: (!formChild || !formNarrative.trim() || saving) ? 0.4 : 1 }}>
+              {saving ? "Saving..." : editingId ? "💾 Update Observation" : "💾 Save Observation"}
             </button>
           </div>
         </div>
@@ -1397,7 +1505,7 @@ export function ObservationsView({ children, rooms, observations, setObservation
         </select>
         <select value={filterChild} onChange={e => setFilterChild(e.target.value)} style={{ ...selectStyle, width: 200 }}>
           <option value="all">All Children</option>
-          {children.filter(c => filterRoom === "all" || c.roomId === parseInt(filterRoom)).map(c => (
+          {children.filter(c => filterRoom === "all" || String(c.roomId) === String(filterRoom)).map(c => (
             <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
           ))}
         </select>
@@ -1414,7 +1522,7 @@ export function ObservationsView({ children, rooms, observations, setObservation
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filteredObs.map(obs => {
-            const child = children.find(c => c.id === obs.childId);
+            const child = children.find(c => String(c.id) === String(obs.childId));
             const room = child ? rooms.find(r => r.id === child.roomId) : null;
             const obsType = OBSERVATION_TYPES.find(t => t.id === obs.type);
             const time = new Date(obs.timestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -1476,6 +1584,17 @@ export function ObservationsView({ children, rooms, observations, setObservation
                       <p style={{ fontSize: 12, color: "#8A7F96", margin: "4px 0 0" }}>{obs.followUp}</p>
                     </div>
                   )}
+
+                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    <button onClick={() => handleEdit(obs)}
+                      style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer", color: "#5C4E6A" }}>
+                      Edit
+                    </button>
+                    <button onClick={() => handleDelete(obs.id)}
+                      style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer" }}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             );

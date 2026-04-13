@@ -590,4 +590,118 @@ function autoAlbum(db, tenantId, storyId, eventName, tags, childIds) {
   } catch (e) {}
 }
 
+// ─── OBSERVATIONS CRUD ──────────────────────────────────────────────────────
+
+r.get('/observations', (req, res) => {
+  try {
+    const { date, room_id, child_id, limit = 50, offset = 0 } = req.query;
+    let query = `
+      SELECT o.*,
+        c.first_name || ' ' || c.last_name as child_name,
+        c.room_id as child_room_id,
+        rm.name as room_name,
+        u.name as educator_name
+      FROM observations o
+      LEFT JOIN children c ON c.id = o.child_id
+      LEFT JOIN rooms rm ON rm.id = c.room_id
+      LEFT JOIN users u ON u.id = o.educator_id
+      WHERE o.tenant_id = ?
+    `;
+    const params = [req.tenantId];
+    if (date) { query += ' AND o.timestamp LIKE ?'; params.push(date + '%'); }
+    if (room_id && room_id !== 'all') { query += ' AND c.room_id = ?'; params.push(room_id); }
+    if (child_id && child_id !== 'all') { query += ' AND o.child_id = ?'; params.push(child_id); }
+    query += ' ORDER BY o.timestamp DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), parseInt(offset));
+
+    const observations = D().prepare(query).all(...params).map(o => ({
+      ...o,
+      domains: J(o.domains),
+      eylf_outcomes: J(o.eylf_outcomes),
+      progress_updates: JO(o.progress_updates),
+      media: J(o.media),
+    }));
+
+    let countQuery = 'SELECT COUNT(*) as n FROM observations WHERE tenant_id = ?';
+    const countParams = [req.tenantId];
+    if (date) { countQuery += ' AND timestamp LIKE ?'; countParams.push(date + '%'); }
+    const total = D().prepare(countQuery).get(...countParams).n;
+
+    res.json({ observations, total });
+  } catch (e) { console.error('[observations:get]', e); res.status(500).json({ error: e.message }); }
+});
+
+r.post('/observations', (req, res) => {
+  try {
+    const { child_id, type, narrative, domains, eylf_outcomes, progress_updates, media, follow_up } = req.body;
+    if (!narrative?.trim()) return res.status(400).json({ error: 'Observation narrative is required' });
+    if (!child_id) return res.status(400).json({ error: 'Child is required' });
+
+    const id = uuid();
+    D().prepare(`INSERT INTO observations
+      (id, tenant_id, child_id, educator_id, type, narrative, domains, eylf_outcomes,
+       progress_updates, media, follow_up, timestamp, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'))`)
+      .run(
+        id, req.tenantId, child_id, req.userId,
+        type || 'jotting', narrative.trim(),
+        S(domains || []), S(eylf_outcomes || []),
+        SO(progress_updates || {}), S(media || []),
+        follow_up || null
+      );
+    res.json({ ok: true, id });
+  } catch (e) { console.error('[observations:post]', e); res.status(500).json({ error: e.message }); }
+});
+
+r.put('/observations/:id', (req, res) => {
+  try {
+    const { type, narrative, domains, eylf_outcomes, progress_updates, media, follow_up } = req.body;
+    const existing = D().prepare('SELECT id FROM observations WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
+    if (!existing) return res.status(404).json({ error: 'Observation not found' });
+
+    D().prepare(`UPDATE observations SET
+      type = COALESCE(?, type), narrative = COALESCE(?, narrative),
+      domains = COALESCE(?, domains), eylf_outcomes = COALESCE(?, eylf_outcomes),
+      progress_updates = COALESCE(?, progress_updates), media = COALESCE(?, media),
+      follow_up = COALESCE(?, follow_up)
+      WHERE id = ? AND tenant_id = ?`)
+      .run(
+        type || null, narrative || null,
+        domains ? S(domains) : null, eylf_outcomes ? S(eylf_outcomes) : null,
+        progress_updates ? SO(progress_updates) : null, media ? S(media) : null,
+        follow_up !== undefined ? (follow_up || null) : null,
+        req.params.id, req.tenantId
+      );
+    res.json({ ok: true });
+  } catch (e) { console.error('[observations:put]', e); res.status(500).json({ error: e.message }); }
+});
+
+r.delete('/observations/:id', (req, res) => {
+  try {
+    const result = D().prepare('DELETE FROM observations WHERE id = ? AND tenant_id = ?').run(req.params.id, req.tenantId);
+    if (result.changes === 0) return res.status(404).json({ error: 'Observation not found' });
+    res.json({ ok: true });
+  } catch (e) { console.error('[observations:del]', e); res.status(500).json({ error: e.message }); }
+});
+
+r.post('/observations/:id/upload', upload.array('photos', 10), handleUploadErrors, (req, res) => {
+  try {
+    const obs = D().prepare('SELECT id, media FROM observations WHERE id = ? AND tenant_id = ?').get(req.params.id, req.tenantId);
+    if (!obs) return res.status(404).json({ error: 'Observation not found' });
+
+    const files = (req.files || []).map(f => ({
+      id: uuid(),
+      url: '/uploads/' + f.filename,
+      filename: f.originalname,
+      size: f.size
+    }));
+
+    const existing = J(obs.media);
+    D().prepare('UPDATE observations SET media = ? WHERE id = ?')
+      .run(S([...existing, ...files]), req.params.id);
+
+    res.json({ ok: true, uploaded: files.length, files });
+  } catch (e) { console.error('[observations:upload]', e); res.status(500).json({ error: e.message }); }
+});
+
 export default r;
