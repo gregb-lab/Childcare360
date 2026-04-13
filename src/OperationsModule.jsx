@@ -57,12 +57,28 @@ export default function OperationsModule() {
         </div>
       </div>
 
-      <div style={{ display:"flex", gap:6, marginBottom:24, flexWrap:"wrap", borderBottom:`1px solid #EDE8F4`, paddingBottom:12 }}>
+      <div style={{ display:"flex", gap:6, marginBottom:0, flexWrap:"wrap", borderBottom:`1px solid #EDE8F4`, paddingBottom:12 }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ padding:"8px 14px", borderRadius:9, border:"none", cursor:"pointer", fontSize:13, fontWeight:tab===t.id?700:500,
               background:tab===t.id?P:"transparent", color:tab===t.id?"#fff":MUTED, whiteSpace:"nowrap" }}>
             {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{display:'flex',gap:8,padding:'8px 24px',marginBottom:24,
+        background:'#F5F3FF',borderBottom:'1px solid #EDE8F4'}}>
+        <span style={{fontSize:12,color:'#6B7280',marginRight:4,lineHeight:'28px'}}>Quick Access:</span>
+        {[
+          { tab:'daily_updates', icon:'\u270F\uFE0F', label:'Live Updates' },
+          { tab:'medication_register', icon:'\uD83D\uDC8A', label:'Medications' },
+          { tab:'incidents', icon:'\u26A0\uFE0F', label:'Incidents' },
+        ].map(q => (
+          <button key={q.tab} onClick={() => window.dispatchEvent(new CustomEvent('c360-navigate',{detail:{tab:q.tab}}))}
+            style={{fontSize:12,padding:'4px 10px',borderRadius:6,
+              border:'1px solid #DDD6EE',background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>
+            {q.icon} {q.label}
           </button>
         ))}
       </div>

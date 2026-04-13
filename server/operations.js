@@ -247,7 +247,7 @@ r.get('/sleep', (req, res) => {
     const rows = D().prepare(`
       SELECT sr.*, c.first_name, c.last_name, c.room_id, r.name as room_name,
              c.dob,
-             CAST((julianday('now') - julianday(c.dob)) * 12 / 30.44 AS INTEGER) as age_months
+             CAST(((strftime('%Y','now') - strftime('%Y',c.dob)) * 12 + (strftime('%m','now') - strftime('%m',c.dob))) AS INTEGER) as age_months
       FROM sleep_records sr
       JOIN children c ON c.id=sr.child_id
       LEFT JOIN rooms r ON r.id=sr.room_id
@@ -283,7 +283,7 @@ r.post('/sleep', (req, res) => {
     const child = D().prepare('SELECT dob FROM children WHERE id=? AND tenant_id=?')
       .get(child_id, req.tenantId);
     const ageMonths = child?.dob
-      ? Math.floor((Date.now() - new Date(child.dob)) / (1000*60*60*24*30.44))
+      ? (() => { const dob = new Date(child.dob); const now = new Date(); return (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth()); })()
       : 999;
     const nextCheckMins = ageMonths < 24 ? 20 : null; // 20 min initial check, then 2hr
     const nextCheck = nextCheckMins

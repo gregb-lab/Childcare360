@@ -114,6 +114,26 @@ export default function IncidentModule() {
     catch(e) { toast("Delete failed", "error"); }
   };
 
+  const updateStatus = async (id, status) => {
+    try {
+      const r = await API(`/api/incidents/${id}/status`, { method: "PUT", body: { status } });
+      if (r.error) { toast(r.error, "error"); return; }
+      toast(`Status updated to ${status.replace('_', ' ')}`);
+      load();
+    } catch(e) { toast("Status update failed", "error"); }
+  };
+
+  const STATUS_CONFIG = {
+    open:         { label: "Open",         color: "#E65100", bg: "#FFF3E0" },
+    under_review: { label: "Under Review", color: "#1565C0", bg: "#E3F2FD" },
+    closed:       { label: "Closed",       color: "#2E7D32", bg: "#E8F5E9" },
+  };
+
+  const StatusBadge = ({ s }) => {
+    const c = STATUS_CONFIG[s] || STATUS_CONFIG.open;
+    return <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: c.bg, color: c.color, border: `1px solid ${c.color}30` }}>{c.label}</span>;
+  };
+
   const SevBadge = ({ s }) => {
     const c = SEV_CONFIG[s] || SEV_CONFIG.minor;
     return <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: c.bg, color: c.color, border: `1px solid ${c.color}30` }}>{c.label}</span>;
@@ -149,7 +169,7 @@ export default function IncidentModule() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 20 }}>
         {[
           ["Total Records", stats.total, "#3D3248"],
           ["Minor", stats.minor, "#E65100"],
@@ -343,8 +363,9 @@ export default function IncidentModule() {
                     <span style={{ fontSize: 18 }}>{TYPE_CONFIG[inc.type]?.emoji || "⚠️"}</span>
                     <span style={{ fontWeight: 700, fontSize: 14, color: "#3D3248" }}>{inc.title || `${TYPE_CONFIG[inc.type]?.label || inc.type} — ${inc.date}`}</span>
                     <SevBadge s={inc.severity} />
-                    {inc.regulatory_report_required && <span style={{ fontSize: 10, fontWeight: 700, color: "#B71C1C", background: "#FFCDD2", padding: "2px 8px", borderRadius: 10 }}>🏛 Regulatory</span>}
-                    {inc.follow_up_required && !inc.follow_up_notes && <span style={{ fontSize: 10, fontWeight: 700, color: "#E65100", background: "#FFF3E0", padding: "2px 8px", borderRadius: 10 }}>⚡ Follow-up due</span>}
+                    <StatusBadge s={inc.status || 'open'} />
+                    {!!inc.regulatory_report_required && <span style={{ fontSize: 10, fontWeight: 700, color: "#B71C1C", background: "#FFCDD2", padding: "2px 8px", borderRadius: 10 }}>🏛 Regulatory</span>}
+                    {!!inc.follow_up_required && !inc.follow_up_notes && <span style={{ fontSize: 10, fontWeight: 700, color: "#E65100", background: "#FFF3E0", padding: "2px 8px", borderRadius: 10 }}>⚡ Follow-up due</span>}
                   </div>
                   <div style={{ fontSize: 12, color: "#8A7F96", display: "flex", gap: 16, flexWrap: "wrap" }}>
                     <span>📅 {inc.date}{inc.time ? ` at ${inc.time}` : ""}</span>
@@ -355,7 +376,19 @@ export default function IncidentModule() {
                     {inc.parent_notified ? <span style={{ color: "#2E7D32" }}>✓ Parent notified</span> : <span style={{ color: "#E65100" }}>⚠ Parent not yet notified</span>}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {(!inc.status || inc.status === 'open') && (
+                    <button onClick={e => { e.stopPropagation(); updateStatus(inc.id, 'under_review'); }}
+                      style={{ padding: "5px 10px", background: "#E3F2FD", color: "#1565C0", border: "1px solid #90CAF930", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📋 Review</button>
+                  )}
+                  {inc.status === 'under_review' && (
+                    <button onClick={e => { e.stopPropagation(); updateStatus(inc.id, 'closed'); }}
+                      style={{ padding: "5px 10px", background: "#E8F5E9", color: "#2E7D32", border: "1px solid #A5D6A730", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>✓ Close</button>
+                  )}
+                  {inc.status === 'closed' && (
+                    <button onClick={e => { e.stopPropagation(); updateStatus(inc.id, 'open'); }}
+                      style={{ padding: "5px 10px", background: "#FFF3E0", color: "#E65100", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 11 }}>↩ Reopen</button>
+                  )}
                   <button onClick={e => { e.stopPropagation(); openEdit(inc); }} style={{ padding: "5px 10px", background: lp, color: purple, border: `1px solid ${purple}30`, borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Edit</button>
                   <button onClick={e => { e.stopPropagation(); del(inc.id); }} style={{ padding: "5px 10px", background: "#FFEBEE", color: "#C06B73", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 12 }}>Delete</button>
                 </div>
@@ -365,9 +398,9 @@ export default function IncidentModule() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, fontSize: 13 }}>
                     {inc.description && <div><div style={lbl}>Description</div><div>{inc.description}</div></div>}
                     {inc.action_taken && <div><div style={lbl}>Action Taken</div><div>{inc.action_taken}</div></div>}
-                    {inc.first_aid_given && <div><div style={lbl}>First Aid</div><div>Administered{inc.first_aid_by ? ` by ${inc.first_aid_by}` : ""}</div></div>}
+                    {!!inc.first_aid_given && <div><div style={lbl}>First Aid</div><div>Administered{inc.first_aid_by ? ` by ${inc.first_aid_by}` : ""}</div></div>}
                     {inc.witness && <div><div style={lbl}>Witness</div><div>{inc.witness}</div></div>}
-                    {inc.parent_notified && <div><div style={lbl}>Parent Notification</div><div>Notified{inc.parent_notified_at ? ` at ${inc.parent_notified_at}` : ""} via {inc.parent_notified_method}</div></div>}
+                    {!!inc.parent_notified && <div><div style={lbl}>Parent Notification</div><div>Notified{inc.parent_notified_at ? ` at ${inc.parent_notified_at}` : ""} via {inc.parent_notified_method}</div></div>}
                     {inc.follow_up_notes && <div><div style={lbl}>Follow-up Notes</div><div>{inc.follow_up_notes}</div></div>}
                   </div>
                 </div>

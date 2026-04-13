@@ -6,8 +6,20 @@ const r = Router();
 r.use(requireAuth, requireTenant);
 const uuid = () => crypto.randomUUID();
 
+// Ensure status workflow columns exist (lazy migration)
+let _migrated = false;
+function ensureStatusColumns() {
+  if (_migrated) return;
+  try { D().prepare("ALTER TABLE incidents ADD COLUMN status TEXT DEFAULT 'open'").run(); } catch(e){}
+  try { D().prepare("ALTER TABLE incidents ADD COLUMN reviewed_by TEXT").run(); } catch(e){}
+  try { D().prepare("ALTER TABLE incidents ADD COLUMN reviewed_at TEXT").run(); } catch(e){}
+  try { D().prepare("ALTER TABLE incidents ADD COLUMN closed_at TEXT").run(); } catch(e){}
+  _migrated = true;
+}
+
 // GET /api/incidents — list all incidents
 r.get('/', (req, res) => {
+  ensureStatusColumns();
   try {
     const { from, to, child_id, type, severity } = req.query;
     let sql = `SELECT i.*, c.first_name, c.last_name, c.room_id, rm.name as room_name,
@@ -88,6 +100,26 @@ r.put('/:id', (req, res) => {
       req.params.id, req.tenantId
     );
     res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/incidents/:id/status — update workflow status
+r.put('/:id/status', (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['open', 'under_review', 'closed'];
+    if (!validStatuses.includes(status))
+      return res.status(400).json({ error: 'Invalid status' });
+    const updates = status === 'closed'
+      ? 'status=?, closed_at=datetime(\'now\'), updated_at=datetime(\'now\')'
+      : status === 'under_review'
+      ? 'status=?, reviewed_by=?, reviewed_at=datetime(\'now\'), updated_at=datetime(\'now\')'
+      : 'status=?, closed_at=NULL, reviewed_by=NULL, reviewed_at=NULL, updated_at=datetime(\'now\')';
+    const params = status === 'under_review'
+      ? [status, req.userName || null, req.params.id, req.tenantId]
+      : [status, req.params.id, req.tenantId];
+    D().prepare(`UPDATE incidents SET ${updates} WHERE id=? AND tenant_id=?`).run(...params);
+    res.json({ ok: true, status });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

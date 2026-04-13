@@ -485,6 +485,12 @@ export default function ChildcareRosterApp() {
     localStorage.setItem("c360_active_tab", tab);
   }, []);
 
+  // Expose navigate globally so child modules can cross-navigate
+  useEffect(() => {
+    window.navigate = navigate;
+    return () => { delete window.navigate; };
+  }, [navigate]);
+
   const [activeTab, setActiveTab] = useState(() => {
     const saved = localStorage.getItem("c360_active_tab");
     const validTabs = [
@@ -3872,7 +3878,7 @@ function ChildrenReportTab() {
 
   const exportCSV = () => {
     const rows=[["First Name","Last Name","DOB","Age","Room","Status","Allergies","Emergency Contact","Emergency Phone"]];
-    const ageStr = dob => { if(!dob)return""; const m=(new Date()-new Date(dob))/(1000*60*60*24*30.5); return m<24?Math.round(m)+"m":Math.round(m/12)+"y"; };
+    const ageStr = dob => { if(!dob)return""; const d=new Date(dob),n=new Date(),m=(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); return m<24?m+"m":Math.floor(m/12)+"y"; };
     filtered.forEach(c=>{
       rows.push([c.first_name,c.last_name,c.dob||"",ageStr(c.dob),c.room_name||"",c.status||"active",c.allergies||"",c.parent1_name||"",c.parent1_phone||""]);
     });
@@ -3881,7 +3887,7 @@ function ChildrenReportTab() {
   };
 
   const filtered = (data||[]).filter(c => filter==="all"||c.status===filter||(filter==="active"&&!c.status));
-  const ageStr = dob => { if(!dob)return"—"; const m=(new Date()-new Date(dob))/(1000*60*60*24*30.5); return m<24?Math.round(m)+"m":Math.round(m/12)+"y"; };
+  const ageStr = dob => { if(!dob)return"—"; const d=new Date(dob),n=new Date(),m=(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth()); return m<24?m+"m":Math.floor(m/12)+"y"; };
 
   return (
     <div>
