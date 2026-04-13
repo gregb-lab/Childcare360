@@ -19,6 +19,47 @@ router.get('/simple', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /attending — children attending a given week, with dietary info (for meal planning)
+router.get('/attending', (req, res) => {
+  try {
+    const { week_start } = req.query;
+    const children = D().prepare(`
+      SELECT c.id, c.first_name, c.last_name, c.room_id, c.dob,
+        c.allergies, c.medical_notes,
+        r.name as room_name
+      FROM children c
+      LEFT JOIN rooms r ON r.id=c.room_id
+      WHERE c.tenant_id=? AND c.active=1
+      ORDER BY r.name, c.first_name
+    `).all(req.tenantId);
+
+    // Also get dietary_requirements table entries
+    let dietaryMap = {};
+    try {
+      const reqs = D().prepare(`
+        SELECT dr.child_id, dr.requirement_type, dr.severity, dr.allergens
+        FROM dietary_requirements dr
+        WHERE dr.tenant_id=?
+      `).all(req.tenantId);
+      reqs.forEach(r => {
+        if (!dietaryMap[r.child_id]) dietaryMap[r.child_id] = [];
+        dietaryMap[r.child_id].push(r);
+      });
+    } catch(e) {}
+
+    const result = children.map(c => ({
+      ...c,
+      dietary_entries: dietaryMap[c.id] || [],
+      has_allergies: !!(c.allergies || (dietaryMap[c.id]||[]).some(d => d.severity === 'allergy')),
+      has_dietary: !!((dietaryMap[c.id]||[]).length > 0),
+    }));
+
+    const allergiesCount = result.filter(c => c.has_allergies).length;
+    const dietaryCount = result.filter(c => c.has_dietary).length;
+    res.json({ children: result, total: result.length, allergies_count: allergiesCount, dietary_count: dietaryCount, week_start });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /attendance-today — all children with today's sign-in status (MUST be before /:id)
 router.get('/attendance-today', (req, res) => {
   try {

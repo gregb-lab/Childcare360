@@ -175,7 +175,7 @@ r.post('/menus/:weekStarting', (req, res) => {
     const planId = existing?.id || uuid();
     if (existing) {
       D().prepare('UPDATE menu_plans SET plan_name=COALESCE(?,plan_name), updated_at=datetime(\'now\') WHERE id=? AND tenant_id=?')
-        .run(plan_name||null, planId);
+        .run(plan_name||null, planId, req.tenantId);
     } else {
       D().prepare(`
         INSERT INTO menu_plans (id,tenant_id,week_starting,plan_name,status)

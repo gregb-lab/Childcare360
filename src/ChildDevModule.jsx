@@ -114,36 +114,51 @@ function MenusTab() {
 
   const saveMenu=async()=>{
     setSaving(true);
-    const items=[];
-    Object.entries(grid).forEach(([key,val])=>{
-      if(!val.description)return;
-      const [day,meal]=key.split("_",2);
-      const mealType=key.substring(key.indexOf("_")+1);
-      items.push({day_of_week:parseInt(day),meal_type:mealType,...val});
-    });
-    await API(`/api/childdev/menus/${weekStart}`,{method:"POST",body:{plan_name:"Weekly Menu",items}}).catch(e=>console.error('API error:',e));
-    setSaving(false);setEditing(false);
-    API(`/api/childdev/menus/${weekStart}/allergen-check`).then(r=>setAllergenAlerts(r.alerts||[]));
-    load();
+    try {
+      const items=[];
+      Object.entries(grid).forEach(([key,val])=>{
+        if(!val.description)return;
+        const [day,meal]=key.split("_",2);
+        const mealType=key.substring(key.indexOf("_")+1);
+        items.push({day_of_week:parseInt(day),meal_type:mealType,...val});
+      });
+      const r=await API(`/api/childdev/menus/${weekStart}`,{method:"POST",body:{plan_name:"Weekly Menu",items}});
+      if(r.error) throw new Error(r.error);
+      window.showToast?.("Menu saved ✓","success");
+      setEditing(false);
+      API(`/api/childdev/menus/${weekStart}/allergen-check`).then(r=>setAllergenAlerts(r.alerts||[])).catch(()=>{});
+      load();
+    } catch(e) { window.showToast?.("Failed to save menu: "+e.message,"error"); }
+    finally { setSaving(false); }
   };
 
   const copyLastWeek=async()=>{
     const prev=new Date(weekStart);prev.setDate(prev.getDate()-7);
     const prevStr=prev.toISOString().split("T")[0];
-    await API(`/api/childdev/menus/${weekStart}/copy-from/${prevStr}`,{method:"POST"}).catch(e=>console.error('API error:',e));
-    load();
+    try {
+      const r=await API(`/api/childdev/menus/${weekStart}/copy-from/${prevStr}`,{method:"POST"});
+      if(r.error) throw new Error(r.error);
+      window.showToast?.("Last week's menu copied ✓","success");
+      load();
+    } catch(e) { window.showToast?.("Failed to copy: "+e.message,"error"); }
   };
 
   const addDietary=async()=>{
     if(!dietForm.child_id||!dietForm.requirement_type)return;
-    await API("/api/childdev/dietary",{method:"POST",body:dietForm}).catch(e=>console.error('API error:',e));
-    setDietForm({child_id:"",requirement_type:"",description:"",severity:"intolerance",allergens:[]});
-    load();
+    try {
+      const r=await API("/api/childdev/dietary",{method:"POST",body:dietForm});
+      if(r.error) throw new Error(r.error);
+      window.showToast?.("Dietary requirement saved ✓","success");
+      setDietForm({child_id:"",requirement_type:"",description:"",severity:"intolerance",allergens:[]});
+      load();
+    } catch(e) { window.showToast?.("Failed to save: "+e.message,"error"); }
   };
 
   const removeDietary=async(id)=>{
-    await API(`/api/childdev/dietary/${id}`,{method:"DELETE"}).catch(e=>console.error('API error:',e));
-    load();
+    try {
+      await API(`/api/childdev/dietary/${id}`,{method:"DELETE"});
+      load();
+    } catch(e) { window.showToast?.("Failed to remove","error"); }
   };
 
   const fmtWeek=w=>{
@@ -194,6 +209,35 @@ function MenusTab() {
               {a.action_plan&&<span style={{color:MU}}> · {a.action_plan}</span>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Dietary requirements summary — auto-populated from enrolled children */}
+      {dietary.length>0&&(
+        <div style={{...card,padding:"12px 18px",background:"#FFFBEB",border:"1px solid #FDE68A"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontWeight:700,fontSize:13,color:WA}}>
+              🥜 Dietary Requirements This Week — {dietary.length} children
+            </div>
+            <button onClick={()=>setShowDietary(v=>!v)} style={{...bg,fontSize:11,padding:"3px 10px"}}>
+              {showDietary?"Hide":"Show All"}
+            </button>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {dietary.filter(d=>d.severity==="allergy").map(d=>(
+              <span key={d.id} style={{fontSize:11,background:DA+"18",color:DA,padding:"3px 10px",borderRadius:20,fontWeight:700}}>
+                🚨 {d.first_name} {d.last_name}: {d.requirement_type} {d.allergens?.length>0?`(${d.allergens.join(", ")})`:""}
+              </span>
+            ))}
+            {dietary.filter(d=>d.severity!=="allergy").slice(0,showDietary?999:3).map(d=>(
+              <span key={d.id} style={{fontSize:11,background:WA+"18",color:WA,padding:"3px 10px",borderRadius:20,fontWeight:600}}>
+                {d.first_name} {d.last_name}: {d.requirement_type}
+              </span>
+            ))}
+            {!showDietary&&dietary.filter(d=>d.severity!=="allergy").length>3&&(
+              <span style={{fontSize:11,color:MU,padding:"3px 6px"}}>+{dietary.filter(d=>d.severity!=="allergy").length-3} more</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -370,9 +414,9 @@ function MilestonesTab() {
   };
 
   return (
-    <div style={{display:"flex",gap:20}}>
-      {/* Child list */}
-      <div style={{width:220,flexShrink:0}}>
+    <div style={{display:"flex",gap:20,height:"calc(100vh - 180px)",minHeight:500}}>
+      {/* Child list — scrollable */}
+      <div style={{width:220,flexShrink:0,overflowY:"auto",borderRight:"1px solid #EDE8F4",paddingRight:12}}>
         <div style={{fontWeight:700,fontSize:13,color:MU,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>Select Child</div>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
           {children.map(c=>(
@@ -388,8 +432,8 @@ function MilestonesTab() {
         </div>
       </div>
 
-      {/* Milestone content */}
-      <div style={{flex:1}}>
+      {/* Milestone content — scrollable */}
+      <div style={{flex:1,overflowY:"auto"}}>
         {!selChild&&(
           <div style={{...card,textAlign:"center",padding:"60px 20px",color:MU}}>
             <div style={{fontSize:40}}>🌱</div>
