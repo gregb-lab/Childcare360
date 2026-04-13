@@ -395,7 +395,7 @@ export async function setupRetellWebSocket(httpServer) {
         meta.tenantName   = tenantName;
         console.log(`[Retell:WS] call_details from=${from} educator=${educator?.first_name || 'unknown'}`);
         // Acknowledge — Retell will play begin_message from agent config
-        ws.send(JSON.stringify({ response_id, content: '', content_complete: true, end_call: false }));
+        ws.send(JSON.stringify({ response_id, content: 'Hi, thanks for calling ' + tenantName + '. This is Charlotte, how can I help you today?', content_complete: true, end_call: false }));
         return;
       }
 
