@@ -229,53 +229,106 @@ function AttendanceTab() {
 // ─── FORECAST TAB ─────────────────────────────────────────────────────────────
 function ForecastTab() {
   const [data,setData]=useState(null);
-  useEffect(()=>{API("/api/analytics/forecast").then(setData);},[]);
-  if(!data)return <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading analytics...</div></div>;
+  const [forecast,setForecast]=useState(null);
+  useEffect(()=>{
+    API("/api/analytics/forecast").then(setData);
+    API("/api/analytics/attendance-forecast?weeks=12").then(setForecast);
+  },[]);
+  if(!data&&!forecast)return <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:"#8A7F96"}}><div style={{width:36,height:36,border:"3px solid #EDE8F4",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:12}}/><div style={{fontSize:13,fontWeight:600}}>Loading analytics...</div></div>;
 
   const DOW_C={"1":"#7C3AED","2":"#0284C7","3":"#16A34A","4":"#D97706","5":"#DC2626"};
-  const maxForecast=Math.max(...(data.forecast||[]).map(d=>d.forecast_present),1);
+  const confColor={high:"#16A34A",medium:"#D97706",low:"#9CA3AF"};
+  const s=forecast?.summary||{};
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{...card,background:"#F3E8FF",border:"1px solid #C4B5FD",padding:"14px 18px"}}>
-        <div style={{fontWeight:700,fontSize:13,color:P}}>🔮 4-Week Attendance Forecast</div>
-        <p style={{fontSize:12,color:MU,margin:"4px 0 0"}}>
-          Based on your historical attendance patterns by day of week. Currently enrolled: <strong>{data.enrolled}</strong> children.
-        </p>
-      </div>
+      {/* Summary cards */}
+      {forecast&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+        {[
+          ["Avg Attendance Rate",s.avg_attendance_rate_pct?s.avg_attendance_rate_pct+"%":"—",P],
+          ["Scheduled Next Week",s.next_week_scheduled||0,"#3D3248"],
+          ["Expected to Attend",s.next_week_expected||0,"#16A34A"],
+          ["Casual Opportunities",s.casual_opportunity_next_week||0,"#D97706"],
+        ].map(([label,val,color])=>(
+          <div key={label} style={{...card,textAlign:"center",padding:"16px 14px"}}>
+            <div style={{fontSize:24,fontWeight:900,color}}>{val}</div>
+            <div style={{fontSize:11,color:MU,marginTop:4}}>{label}</div>
+          </div>
+        ))}
+      </div>}
 
-      <div style={card}>
-        <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:16}}>Projected Daily Attendance</div>
-        <div style={{display:"flex",alignItems:"flex-end",gap:4,height:120}}>
-          {(data.forecast||[]).map((d,i)=>{
-            const h=Math.round((d.forecast_present/maxForecast)*100);
-            const isThisWeek=i<5;
-            return (
-              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                <div style={{fontSize:9,color:DOW_C[d.dow]||P,fontWeight:700}}>{d.forecast_present}</div>
-                <div style={{width:"100%",height:h,
-                  background:isThisWeek?DOW_C[d.dow]||P:(DOW_C[d.dow]||P)+"60",
-                  borderRadius:"3px 3px 0 0",minHeight:4,
-                  border:isThisWeek?"none":`1px dashed ${DOW_C[d.dow]||P}`}}
-                  title={`${d.date}: ~${d.forecast_present} children`}/>
-                <div style={{fontSize:8,color:MU,transform:"rotate(-45deg)",transformOrigin:"top left",whiteSpace:"nowrap",marginTop:4}}>
-                  {d.date?.slice(5)}
-                </div>
+      {/* Forecast table */}
+      {forecast?.forecast_days?.length>0&&<div style={card}>
+        <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:4}}>📊 Attendance vs Scheduled — Next Week</div>
+        <div style={{fontSize:12,color:MU,marginBottom:14}}>Based on {s.total_days_analysed||0} days of historical data ({s.historical_weeks_analysed||12} weeks)
+          {(s.confirmed_absences_next_week||0)>0&&<span style={{marginLeft:8,background:"#FEF3CD",color:"#856404",padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600}}>{s.confirmed_absences_next_week} confirmed absence{s.confirmed_absences_next_week>1?"s":""} this week</span>}
+        </div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{borderBottom:"2px solid #EDE8F4"}}>
+            {["Day","Scheduled","Expected","No-shows","Rate","Casual spots","Confidence"].map(h=>(
+              <th key={h} style={{textAlign:"left",padding:"8px 10px",fontWeight:600,color:MU,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em"}}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {forecast.forecast_days.map(d=>(
+              <tr key={d.date} style={{borderBottom:"1px solid #F0EBF8"}}>
+                <td style={{padding:"10px 10px",fontWeight:600,color:DARK}}>{d.day_name} <span style={{fontSize:10,color:MU,fontWeight:400}}>{d.date?.slice(5)}</span></td>
+                <td style={{padding:"10px 10px"}}>{d.scheduled}</td>
+                <td style={{padding:"10px 10px",color:"#16A34A",fontWeight:600}}>{d.expected_attended}</td>
+                <td style={{padding:"10px 10px"}}>
+                  {(d.confirmed_absences||0)>0?<><span style={{color:"#DC2626",fontWeight:600}}>{d.confirmed_absences} confirmed</span>{(d.predicted_absences||0)>0&&<span style={{color:"#D97706"}}> + ~{d.predicted_absences} predicted</span>}</>
+                    :(d.expected_no_shows||0)>0?<span style={{color:"#D97706"}}>~{d.expected_no_shows} predicted</span>
+                    :<span style={{color:MU}}>0</span>}
+                </td>
+                <td style={{padding:"10px 10px"}}>{d.attendance_rate_pct}% <span style={{fontSize:9,color:MU}}>±{d.std_dev_pct}%</span></td>
+                <td style={{padding:"10px 10px"}}>
+                  {d.casual_opportunity>0?(
+                    <span style={{display:"inline-flex",gap:4,alignItems:"center"}}>
+                      {(d.casual_confirmed||0)>0&&<span style={{background:"#EAF3DE",color:"#3B6D11",padding:"2px 8px",borderRadius:20,fontWeight:600,fontSize:11}}>{d.casual_confirmed} confirmed</span>}
+                      {(d.casual_predicted||0)>0&&<span style={{background:"#F5F0F8",color:"#6B5F7A",padding:"2px 8px",borderRadius:20,fontWeight:500,fontSize:11}}>~{d.casual_predicted} likely</span>}
+                    </span>
+                  ):<span style={{color:MU,fontSize:11}}>None</span>}
+                </td>
+                <td style={{padding:"10px 10px"}}>
+                  <span style={{fontSize:10,fontWeight:600,color:confColor[d.confidence]||MU}}>{d.confidence}</span>
+                  <span style={{fontSize:9,color:MU,marginLeft:4}}>({d.historical_samples})</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{fontSize:11,color:MU,marginTop:10,display:"flex",gap:16}}>
+          <span><span style={{background:"#EAF3DE",padding:"1px 6px",borderRadius:4,marginRight:4,fontSize:10}}>Confirmed</span>Parent has notified absence</span>
+          <span><span style={{background:"#F5F0F8",padding:"1px 6px",borderRadius:4,marginRight:4,fontSize:10}}>~Predicted</span>Based on historical attendance</span>
+        </div>
+      </div>}
+
+      {/* Visual bar chart */}
+      {forecast?.forecast_days?.length>0&&<div style={card}>
+        <div style={{fontWeight:700,fontSize:14,color:DARK,marginBottom:14}}>Expected vs No-Shows — Visual</div>
+        <div style={{display:"flex",alignItems:"flex-end",gap:16,height:120}}>
+          {forecast.forecast_days.map(d=>{
+            const max=Math.max(...forecast.forecast_days.map(x=>x.scheduled),1);
+            const attH=Math.round(d.expected_attended/max*100);
+            const nsH=Math.round(d.expected_no_shows/max*100);
+            return(<div key={d.date} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+              <div style={{fontSize:9,color:DARK,fontWeight:700}}>{d.scheduled}</div>
+              <div style={{width:"100%",display:"flex",flexDirection:"column"}}>
+                <div style={{height:nsH,background:"#FCA049",borderRadius:"3px 3px 0 0",minHeight:nsH>0?4:0}} title={d.expected_no_shows+" no-shows"}/>
+                <div style={{height:attH,background:P,borderRadius:nsH>0?"0":"3px 3px 0 0",minHeight:4}} title={d.expected_attended+" attending"}/>
               </div>
-            );
+              <div style={{fontSize:10,fontWeight:600,color:DARK,marginTop:4}}>{d.day_name}</div>
+            </div>);
           })}
         </div>
-        <div style={{display:"flex",gap:12,fontSize:11,marginTop:20}}>
-          <span style={{display:"flex",alignItems:"center",gap:4}}>
-            <span style={{width:12,height:12,borderRadius:2,background:P,display:"inline-block"}}/>This week (solid)
-          </span>
-          <span style={{display:"flex",alignItems:"center",gap:4}}>
-            <span style={{width:12,height:12,borderRadius:2,border:`1px dashed ${P}`,display:"inline-block"}}/>Future weeks (projected)
-          </span>
+        <div style={{display:"flex",gap:16,fontSize:11,marginTop:12}}>
+          <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:12,borderRadius:2,background:P,display:"inline-block"}}/>Expected attending</span>
+          <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:12,borderRadius:2,background:"#FCA049",display:"inline-block"}}/>Expected no-shows (casual spots)</span>
         </div>
-      </div>
+      </div>}
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+      {/* Day-of-week averages from basic forecast */}
+      {data&&<div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
         {Object.entries(data.avg_by_dow||{}).map(([dow,avg])=>{
           const dayNames=["","Monday","Tuesday","Wednesday","Thursday","Friday"];
           return (
@@ -286,6 +339,11 @@ function ForecastTab() {
             </div>
           );
         })}
+      </div>}
+
+      {/* Methodology note */}
+      <div style={{fontSize:11,color:MU,padding:"8px 14px",background:"#F8F5F1",borderRadius:8,border:"1px solid #EDE8F4"}}>
+        Forecasts are based on {s.historical_weeks_analysed||12} weeks of historical attendance data. Casual spots = expected no-shows based on day-of-week averages. Always confirm with families before offering casual places.
       </div>
     </div>
   );

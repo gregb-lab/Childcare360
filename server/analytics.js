@@ -271,4 +271,145 @@ r.get('/educator-hours', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Attendance vs Scheduled forecast with casual opportunities ───────────────
+r.get('/attendance-forecast', (req, res) => {
+  try {
+    const db = D();
+    const weeks = parseInt(req.query.weeks) || 12;
+    const roomFilter = req.query.room_id ? 'AND c.room_id = ?' : '';
+    const roomParams = req.query.room_id ? [req.tenantId, req.query.room_id] : [req.tenantId];
+    const from = daysAgo(weeks * 7);
+
+    // Historical daily attendance
+    const histSql = 'SELECT a.date, strftime(\'%w\', a.date) as dow, COUNT(DISTINCT a.child_id) as scheduled, COUNT(DISTINCT CASE WHEN a.sign_in IS NOT NULL THEN a.child_id END) as attended, COUNT(DISTINCT CASE WHEN a.absent=1 THEN a.child_id END) as marked_absent FROM attendance_sessions a JOIN children c ON c.id=a.child_id WHERE a.tenant_id=? ' + roomFilter + ' AND a.date >= ? AND a.date < ? AND strftime(\'%w\', a.date) NOT IN (\'0\',\'6\') GROUP BY a.date ORDER BY a.date ASC';
+    const historical = db.prepare(histSql).all(...roomParams, from, today());
+
+    // Average rate by day of week
+    const byDayOfWeek = {};
+    for (let d = 1; d <= 5; d++) {
+      const dayData = historical.filter(h => parseInt(h.dow) === d);
+      if (!dayData.length) { byDayOfWeek[d] = { avg_rate: 85, sample_size: 0 }; continue; }
+      const rates = dayData.map(h => h.scheduled > 0 ? Math.round(h.attended / h.scheduled * 1000) / 10 : 85);
+      const avgRate = Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 10) / 10;
+      const avgSched = Math.round(dayData.reduce((a, b) => a + b.scheduled, 0) / dayData.length);
+      byDayOfWeek[d] = { avg_rate: avgRate, sample_size: dayData.length, avg_scheduled: avgSched, avg_attended: Math.round(avgSched * avgRate / 100), avg_no_shows: avgSched - Math.round(avgSched * avgRate / 100) };
+    }
+
+    // Next 7 weekdays forecast
+    const enrolled = db.prepare('SELECT COUNT(*) as n FROM children WHERE tenant_id=? AND active=1' + (req.query.room_id ? ' AND room_id=?' : '')).get(...roomParams)?.n || 0;
+    const forecastDays = [];
+    for (let i = 1; i <= 10 && forecastDays.length < 5; i++) {
+      const fd = daysAhead(i);
+      const dow = new Date(fd + 'T12:00:00').getDay();
+      if (dow === 0 || dow === 6) continue;
+      const rate = byDayOfWeek[dow] || { avg_rate: 85, sample_size: 0 };
+      const expected = Math.round(enrolled * rate.avg_rate / 100);
+      const noShows = enrolled - expected;
+      // Std dev from historical
+      const dayHist = historical.filter(h => parseInt(h.dow) === dow);
+      let stdDev = 5;
+      if (dayHist.length > 1) {
+        const r2 = dayHist.map(h => h.scheduled > 0 ? h.attended / h.scheduled * 100 : 85);
+        const mean = r2.reduce((a, b) => a + b, 0) / r2.length;
+        stdDev = Math.round(Math.sqrt(r2.reduce((a, b) => a + (b - mean) ** 2, 0) / r2.length) * 10) / 10;
+      }
+      forecastDays.push({
+        date: fd, day_of_week: dow, day_name: ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'][dow],
+        scheduled: enrolled, expected_attended: expected, expected_no_shows: noShows,
+        attendance_rate_pct: rate.avg_rate, std_dev_pct: stdDev,
+        casual_opportunity: noShows,
+        confidence: dayHist.length >= 10 ? 'high' : dayHist.length >= 5 ? 'medium' : 'low',
+        historical_samples: dayHist.length,
+      });
+    }
+
+    // ── KNOWN ABSENCES: query attendance_sessions for future absent=1 ──
+    const knownAbsences = {};
+    try {
+      const futureAbsent = db.prepare(
+        'SELECT a.date, COUNT(*) as count FROM attendance_sessions a WHERE a.tenant_id=? AND a.absent=1 AND a.date>=date(\'now\') AND a.date<=date(\'now\',\'+10 days\') GROUP BY a.date'
+      ).all(req.tenantId);
+      futureAbsent.forEach(row => { knownAbsences[row.date] = row.count; });
+    } catch(e) {}
+
+    // Adjust each forecast day with confirmed absences
+    forecastDays.forEach(day => {
+      const confirmed = knownAbsences[day.date] || 0;
+      const remaining = day.scheduled - confirmed;
+      const predicted = Math.max(0, Math.round(remaining * (1 - day.attendance_rate_pct / 100)));
+      day.confirmed_absences = confirmed;
+      day.predicted_absences = predicted;
+      day.total_expected_absent = confirmed + predicted;
+      day.expected_attended = day.scheduled - day.total_expected_absent;
+      day.expected_no_shows = day.total_expected_absent;
+      day.casual_opportunity = day.total_expected_absent;
+      day.casual_confirmed = confirmed;
+      day.casual_predicted = predicted;
+      if (confirmed > 0) { day.has_confirmed_absences = true; if (day.confidence === 'low') day.confidence = 'medium'; }
+    });
+
+    const avgRate = historical.length > 0 ? Math.round(historical.reduce((a, b) => a + (b.scheduled > 0 ? b.attended / b.scheduled * 100 : 85), 0) / historical.length * 10) / 10 : 85;
+    res.json({
+      summary: {
+        avg_attendance_rate_pct: avgRate, historical_weeks_analysed: weeks, total_days_analysed: historical.length,
+        next_week_scheduled: forecastDays.reduce((a, b) => a + b.scheduled, 0),
+        next_week_expected: forecastDays.reduce((a, b) => a + b.expected_attended, 0),
+        casual_opportunity_next_week: forecastDays.reduce((a, b) => a + b.casual_opportunity, 0),
+        confirmed_absences_next_week: forecastDays.reduce((a, b) => a + (b.confirmed_absences || 0), 0),
+        predicted_absences_next_week: forecastDays.reduce((a, b) => a + (b.predicted_absences || 0), 0),
+      },
+      by_day_of_week: byDayOfWeek,
+      forecast_days: forecastDays,
+      historical_daily: historical.slice(-30),
+    });
+  } catch (e) { console.error('[analytics/attendance-forecast]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// ── Room-level roster capacity with casual spots ─────────────────────────────
+r.get('/roster-capacity', (req, res) => {
+  try {
+    const db = D();
+    const targetDate = req.query.date || today();
+    const dow = new Date(targetDate + 'T12:00:00').getDay();
+
+    const rooms = db.prepare('SELECT r.id, r.name, r.age_group, r.capacity, COUNT(DISTINCT c.id) as enrolled FROM rooms r LEFT JOIN children c ON c.room_id=r.id AND c.tenant_id=r.tenant_id AND c.active=1 WHERE r.tenant_id=? GROUP BY r.id').all(req.tenantId);
+
+    const result = rooms.map(room => {
+      const hist = db.prepare('SELECT COUNT(DISTINCT a.child_id) as scheduled, COUNT(DISTINCT CASE WHEN a.sign_in IS NOT NULL THEN a.child_id END) as attended FROM attendance_sessions a JOIN children c ON c.id=a.child_id WHERE a.tenant_id=? AND c.room_id=? AND strftime(\'%w\',a.date)=? AND a.date>=? AND a.date<?').get(req.tenantId, room.id, String(dow), daysAgo(84), today());
+      const histRate = hist?.scheduled > 0 ? Math.round(hist.attended / hist.scheduled * 100) : 85;
+
+      // Confirmed absences for this room on target date
+      let confirmedAbsent = 0;
+      try { confirmedAbsent = db.prepare('SELECT COUNT(*) as n FROM attendance_sessions a JOIN children c ON c.id=a.child_id WHERE a.tenant_id=? AND c.room_id=? AND a.date=? AND a.absent=1').get(req.tenantId, room.id, targetDate)?.n || 0; } catch(e) {}
+
+      const remaining = room.enrolled - confirmedAbsent;
+      const predictedAbsent = Math.max(0, Math.round(remaining * (1 - histRate / 100)));
+      const totalAbsent = confirmedAbsent + predictedAbsent;
+      const expected = room.enrolled - totalAbsent;
+
+      let rostered = 0;
+      try { rostered = db.prepare('SELECT COUNT(DISTINCT member_id) as n FROM roster_entries WHERE tenant_id=? AND room_id=? AND date=? AND shift_type!=\'off\'').get(req.tenantId, room.id, targetDate)?.n || 0; } catch (e) {}
+      const ratio = room.age_group === 'babies' ? 4 : room.age_group === 'toddlers' ? 5 : 11;
+      const requiredForExpected = Math.max(1, Math.ceil(expected / ratio));
+      return {
+        room_id: room.id, room_name: room.name, age_group: room.age_group, capacity: room.capacity,
+        enrolled: room.enrolled, historical_attendance_rate: histRate,
+        confirmed_absences: confirmedAbsent, predicted_absences: predictedAbsent,
+        expected_attended: expected, expected_no_shows: totalAbsent, casual_opportunity: totalAbsent,
+        casual_confirmed: confirmedAbsent, casual_predicted: predictedAbsent,
+        rostered_educators: rostered, required_for_expected: requiredForExpected,
+        educator_surplus_if_forecast_correct: rostered - requiredForExpected,
+        can_offer_casual: totalAbsent > 0,
+      };
+    });
+
+    res.json({
+      date: targetDate, rooms: result,
+      total_enrolled: result.reduce((a, b) => a + b.enrolled, 0),
+      total_expected: result.reduce((a, b) => a + b.expected_attended, 0),
+      total_casual_opportunity: result.reduce((a, b) => a + b.casual_opportunity, 0),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 export default r;

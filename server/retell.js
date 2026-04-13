@@ -64,42 +64,82 @@ async function retellFetch(path, method, body, apiKey) {
   return data;
 }
 
-// ── Claude response (same as voice.js) ───────────────────────────────────────
+// ── Claude response — supports both streaming and non-streaming ─────────────
 
-async function askClaude(messages, systemPrompt) {
-  let key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    try { const p = D().prepare("SELECT api_key FROM ai_provider_config WHERE provider='anthropic' LIMIT 1").get(); if (p?.api_key) key = p.api_key; } catch(e) {}
-  }
-  if (!key) {
-    try { const p = D().prepare("SELECT key_value FROM tenant_credentials WHERE provider='anthropic' AND key_name='api_key' LIMIT 1").get(); if (p?.key_value) key = p.key_value; } catch(e) {}
-  }
-  if (!key) return "I'm sorry, the AI system is temporarily unavailable.";
-
-  // Ensure first message is user role
+function prepareMessages(messages) {
   let msgs = messages.filter(m => m.content?.trim());
   while (msgs.length && msgs[0].role === 'assistant') msgs.shift();
-  // Merge consecutive same-role
   const merged = [];
   for (const m of msgs) {
     if (merged.length && merged[merged.length-1].role === m.role) {
       merged[merged.length-1].content += ' ' + m.content;
     } else merged.push({ ...m });
   }
+  return merged;
+}
+
+async function askClaude(messages, systemPrompt, cachedKey) {
+  const key = cachedKey || process.env.ANTHROPIC_API_KEY;
+  if (!key) return "I'm sorry, the AI system is temporarily unavailable.";
+  const merged = prepareMessages(messages);
+  if (!merged.length) return null;
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: getModel(null, 'fast'), max_tokens: 120, system: systemPrompt, messages: merged })
+  });
+  const d = await r.json();
+  if (!r.ok) { console.error('[Retell:Claude] error:', JSON.stringify(d).slice(0, 200)); return null; }
+  return d.content?.[0]?.text || null;
+}
+
+// Stream Claude response — sends partial text to Retell WebSocket as tokens arrive
+async function streamClaudeToRetell(ws, responseId, messages, systemPrompt, cachedKey) {
+  const key = cachedKey || process.env.ANTHROPIC_API_KEY;
+  if (!key) { ws.send(JSON.stringify({ response_id: responseId, content: "I'm sorry, the AI system is temporarily unavailable.", content_complete: true, end_call: false })); return null; }
+  const merged = prepareMessages(messages);
   if (!merged.length) return null;
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: getModel(null, 'fast'), max_tokens: 200,
-      system: systemPrompt,
-      messages: merged,
-    })
+    body: JSON.stringify({ model: getModel(null, 'fast'), max_tokens: 120, stream: true, system: systemPrompt, messages: merged })
   });
-  const d = await r.json();
-  if (!r.ok) { console.error('[Retell:Claude] error:', JSON.stringify(d).slice(0, 200)); return null; }
-  return d.content?.[0]?.text || null;
+
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '');
+    console.error('[Retell:Claude:stream] error:', r.status, errText.slice(0, 200));
+    return null;
+  }
+
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6);
+      if (data === '[DONE]') continue;
+      try {
+        const evt = JSON.parse(data);
+        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
+          fullText += evt.delta.text;
+          ws.send(JSON.stringify({ response_id: responseId, content: evt.delta.text, content_complete: false, end_call: false }));
+        }
+        if (evt.type === 'message_stop') {
+          ws.send(JSON.stringify({ response_id: responseId, content: '', content_complete: true, end_call: false }));
+        }
+      } catch(e) {}
+    }
+  }
+  return fullText || null;
 }
 
 // ── Shift helpers (shared logic) ─────────────────────────────────────────────
@@ -375,26 +415,43 @@ export async function setupRetellWebSocket(httpServer) {
 
   wss.on('connection', (ws, req, tenantId) => {
     console.log(`[Retell:WS] Connection tenantId=${tenantId}`);
-    const settings  = getSettings(tenantId);
+
+    // ── Cache everything at connection time (not per-turn) ──
+    const settings   = getSettings(tenantId);
     const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(tenantId)?.name || 'the centre';
+    let centreHours = '7am to 6pm';
+    try { const ts = D().prepare('SELECT open_time, close_time FROM tenant_settings WHERE tenant_id=?').get(tenantId); if (ts) centreHours = (ts.open_time || '7:00') + ' to ' + (ts.close_time || '18:00'); } catch(e) {}
+
+    // Cache API key once
+    const cachedApiKey = (() => {
+      if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
+      try { const p = D().prepare("SELECT api_key FROM ai_provider_config WHERE provider='anthropic' LIMIT 1").get(); if (p?.api_key) return p.api_key; } catch(e) {}
+      try { const p = D().prepare("SELECT key_value FROM tenant_credentials WHERE provider='anthropic' AND key_name='api_key' LIMIT 1").get(); if (p?.key_value) return p.key_value; } catch(e) {}
+      return null;
+    })();
+
+    // Pre-build system prompt once
+    const cachedSystemPrompt = `You are Charlotte, AI phone assistant for ${tenantName} childcare centre in Australia.
+Be warm, friendly and brief — this is a phone call. 1-2 sentences max.
+Say "centre" not "daycare", "kinder" not "kindergarten".
+Hours: ${centreHours}. Help with: hours, enrolments, waitlist, sick days, general queries.
+Emergency → "Please hang up and call 000." Never give medical/legal advice.
+${settings.ai_persona && settings.ai_persona !== 'You are a friendly assistant for a childcare centre.' ? settings.ai_persona : ''}`.trim();
+
     let meta = {};
 
     ws.on('message', async (raw) => {
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch(e) { return; }
-
-      // Retell sends: { interaction_type, transcript, call, response_id }
       const { interaction_type, transcript, call, response_id } = msg;
 
       if (interaction_type === 'call_details') {
-        // First message — identify caller
         const from = call?.from_number || 'unknown';
         const educator = identifyCaller(from, tenantId);
         meta.educatorId   = educator?.id   || null;
         meta.educatorName = educator?.first_name || null;
         meta.tenantName   = tenantName;
         console.log(`[Retell:WS] call_details from=${from} educator=${educator?.first_name || 'unknown'}`);
-        // Acknowledge — Retell will play begin_message from agent config
         ws.send(JSON.stringify({ response_id, content: 'Hi, thanks for calling ' + tenantName + '. This is Charlotte, how can I help you today?', content_complete: true, end_call: false }));
         return;
       }
@@ -406,7 +463,6 @@ export async function setupRetellWebSocket(httpServer) {
 
       if (interaction_type !== 'response_required') return;
 
-      // Build conversation for Claude/logic
       const lastUserMsg = [...(transcript || [])].reverse().find(t => t.role === 'user')?.content?.toLowerCase() || '';
       const messages = (transcript || []).map(t => ({
         role: t.role === 'agent' ? 'assistant' : 'user',
@@ -414,14 +470,22 @@ export async function setupRetellWebSocket(httpServer) {
       })).filter(m => m.content.trim());
 
       try {
+        // Try structured response first (sick calls, shifts, farewells)
         const reply = await buildResponse(lastUserMsg, messages, meta, tenantId, settings, tenantName);
-        // Send response — if end_call, Retell hangs up after TTS finishes
-        ws.send(JSON.stringify({
-          response_id,
-          content: reply.content,
-          content_complete: true,
-          end_call: reply.end_call || false,
-        }));
+
+        if (reply._useStreaming) {
+          // General AI — stream Claude response token by token for lowest latency
+          const t0 = Date.now();
+          const text = await streamClaudeToRetell(ws, response_id, messages, cachedSystemPrompt, cachedApiKey);
+          console.log(`[Retell:WS] streamed response in ${Date.now()-t0}ms: "${(text||'').slice(0,60)}"`);
+          if (!text) {
+            ws.send(JSON.stringify({ response_id, content: "I'm not sure I understood that. Could you say that again?", content_complete: true, end_call: false }));
+          }
+        } else {
+          // Structured response (sick call flow, shift confirmation, farewell) — send immediately
+          ws.send(JSON.stringify({ response_id, content: reply.content, content_complete: true, end_call: reply.end_call || false }));
+        }
+
         if (reply.backgroundTask) {
           setImmediate(() => reply.backgroundTask().catch(e => console.error('[Retell:WS] bg task error:', e.message)));
         }
@@ -548,33 +612,6 @@ async function buildResponse(lastUserMsg, messages, meta, tenantId, settings, te
     return { content: `I'm sorry, I couldn't find anyone by that name. Could you spell your last name for me?` };
   }
 
-  // General AI conversation — use enriched system prompt
-  let centreHours = '7:00am to 6:00pm';
-  try {
-    const ts = D().prepare('SELECT open_time, close_time FROM tenant_settings WHERE tenant_id=?').get(tenantId);
-    if (ts) centreHours = `${ts.open_time || '7:00'} to ${ts.close_time || '18:00'}`;
-  } catch(e) {}
-
-  const systemPrompt = `You are Charlotte, a warm and professional AI phone assistant for ${tenantName}, an Australian childcare centre.
-
-PERSONALITY: Warm, friendly, reassuring. Professional but approachable — like a helpful centre director. Australian English ("centre" not "daycare", "kinder" not "kindergarten"). Keep responses to 1-2 short sentences — this is a phone call. Never say "As an AI" or mention being a language model.
-
-YOU CAN HELP WITH:
-- Centre hours (${centreHours}), location, and general info
-- Enrolment enquiries and waitlist — take name and callback number
-- Program info for age groups (babies, toddlers, kinder)
-- Recording sick day absences for children
-- Messages for specific staff members — take name and message
-- Educator shift enquiries
-
-RULES:
-- Medical emergency → "Please hang up and call 000 immediately"
-- If you cannot help, offer to have someone call them back
-- Always end calls warmly
-- Never give medical or legal advice
-
-${settings.ai_persona ? 'ADDITIONAL CONTEXT:\n' + settings.ai_persona : ''}`;
-
-  const response = await askClaude(messages, systemPrompt);
-  return { content: response || `I'm not sure I understood that. Could you say that again?` };
+  // General AI conversation — defer to streaming handler for lowest latency
+  return { _useStreaming: true, content: '' };
 }

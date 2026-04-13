@@ -37,6 +37,7 @@ const TABS = [
   { id: "permissions",icon: "✅", label: "Permissions" },
   { id: "notes",      icon: "📝", label: "Educator Notes" },
   { id: "messaging",  icon: "💬", label: "Messages" },
+  { id: "leave",      icon: "🏖", label: "Leave" },
   { id: "payments",   icon: "💳", label: "Payments" },
   { id: "log",        icon: "📋", label: "Event Log" },
 ];
@@ -179,6 +180,7 @@ export default function ChildrenModule() {
             {tab === "permissions"&& <PermissionsTab key={selected.id} child={selected} />}
             {tab === "notes"      && <EducatorNotesTab key={selected.id} child={selected} />}
             {tab === "messaging"  && <ParentMessagingTab key={selected.id} child={selected} />}
+            {tab === "leave"      && <LeaveTab key={selected.id} child={selected} />}
             {tab === "payments"   && <PaymentsTab key={selected.id} child={selected} />}
             {tab === "log"        && <EventLogTab key={selected.id} child={selected} />}
           </div>
@@ -309,6 +311,7 @@ function ProfileTab({ child, rooms, onSaved }) {
                 style={{ ...inp, height: 60, resize: "vertical" }} />
             </div>
           </div>
+        </div>
         </div>
 
         <div style={{ gridColumn: "span 2" }}>
@@ -1567,6 +1570,82 @@ function CustomPermissionForm({ childId, onSaved, onClose }) {
           <button onClick={onClose} style={btnS}>✕</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── LEAVE TAB ──────────────────────────────────────────────────────────────
+function LeaveTab({ child }) {
+  const [leave,setLeave]=useState([]);
+  const [showAdd,setShowAdd]=useState(false);
+  const [form,setForm]=useState({start_date:'',end_date:'',reason:'holiday',notes:''});
+  const [saving,setSaving]=useState(false);
+
+  const load=()=>{API(`/api/children/${child.id}/leave`).then(d=>setLeave(d.leave||[])).catch(()=>{});};
+  useEffect(()=>{if(child?.id)load();},[child?.id]);
+
+  const save=async()=>{
+    if(!form.start_date||!form.end_date){window.showToast?.('Start and end date required','error');return;}
+    setSaving(true);
+    try{const r=await API(`/api/children/${child.id}/leave`,{method:'POST',body:form});if(r.error)throw new Error(r.error);
+      window.showToast?.('Leave logged ✓','success');setShowAdd(false);setForm({start_date:'',end_date:'',reason:'holiday',notes:''});load();
+    }catch(e){window.showToast?.('Failed: '+e.message,'error');}finally{setSaving(false);}
+  };
+  const cancel=async(leaveId)=>{
+    await API(`/api/children/${child.id}/leave/${leaveId}`,{method:'DELETE'});load();window.showToast?.('Leave cancelled','success');
+  };
+  const reasonLabel={sick:'🤒 Sick',holiday:'🏖 Holiday',family:'👨‍👩‍👧 Family',medical:'🏥 Medical',other:'📝 Other'};
+  const reasonColor={sick:'#E24B4A',holiday:'#0891B2',family:'#7C3AED',medical:'#D97706',other:'#6B7280'};
+  const fmtRange=(s,e)=>{if(s===e)return new Date(s+'T12:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});return new Date(s+'T12:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+new Date(e+'T12:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});};
+  const daysCt=(s,e)=>Math.round((new Date(e+'T12:00')-new Date(s+'T12:00'))/86400000)+1;
+  const today2=new Date().toISOString().split('T')[0];
+
+  return(
+    <div style={{padding:'16px 20px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <div><div style={{fontSize:14,fontWeight:600,color:'#3D3248'}}>Planned Leave</div>
+          <div style={{fontSize:12,color:'#8A7F96',marginTop:2}}>Pre-notified absences that affect attendance forecasts</div></div>
+        <button onClick={()=>setShowAdd(!showAdd)} style={{padding:'7px 14px',borderRadius:8,border:'none',background:purple,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Log leave</button>
+      </div>
+      {showAdd&&(<div style={{padding:16,borderRadius:10,marginBottom:16,border:'1px solid #EDE8F4',background:'#F8F5FC'}}>
+        <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'#3D3248'}}>Log planned leave</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+          <div><label style={{fontSize:12,fontWeight:600,color:'#8A7F96',display:'block',marginBottom:4}}>From</label>
+            <input type="date" value={form.start_date} onChange={e=>setForm(p=>({...p,start_date:e.target.value}))} min={today2} style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1px solid #DDD6EE',fontSize:13}}/></div>
+          <div><label style={{fontSize:12,fontWeight:600,color:'#8A7F96',display:'block',marginBottom:4}}>To</label>
+            <input type="date" value={form.end_date} onChange={e=>setForm(p=>({...p,end_date:e.target.value}))} min={form.start_date||today2} style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1px solid #DDD6EE',fontSize:13}}/></div>
+        </div>
+        <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:600,color:'#8A7F96',display:'block',marginBottom:4}}>Reason</label>
+          <select value={form.reason} onChange={e=>setForm(p=>({...p,reason:e.target.value}))} style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1px solid #DDD6EE',fontSize:13}}>
+            <option value="holiday">Holiday</option><option value="sick">Sick / unwell</option><option value="medical">Medical appointment</option><option value="family">Family commitment</option><option value="other">Other</option>
+          </select></div>
+        <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:600,color:'#8A7F96',display:'block',marginBottom:4}}>Notes (optional)</label>
+          <input type="text" value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Family holiday" style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'1px solid #DDD6EE',fontSize:13}}/></div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={save} disabled={saving} style={{padding:'7px 18px',borderRadius:7,border:'none',background:purple,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving...':'Save leave'}</button>
+          <button onClick={()=>setShowAdd(false)} style={{padding:'7px 14px',borderRadius:7,cursor:'pointer',border:'1px solid #DDD6EE',background:'transparent',fontSize:13}}>Cancel</button>
+        </div>
+      </div>)}
+      {leave.length===0?(<div style={{padding:'32px 0',textAlign:'center',color:'#8A7F96',fontSize:13}}>No planned leave recorded for {child.first_name}</div>):(
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {leave.map(l=>{const isPast=l.end_date<today2;const isCurrent=l.start_date<=today2&&l.end_date>=today2;return(
+            <div key={l.id} style={{padding:'12px 14px',borderRadius:10,border:'1px solid #EDE8F4',background:isCurrent?lp:isPast?'#F8F5F1':'#fff',opacity:isPast?0.7:1}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                <div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                    <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:20,background:(reasonColor[l.reason]||'#888')+'20',color:reasonColor[l.reason]||'#888'}}>{reasonLabel[l.reason]||l.reason}</span>
+                    {isCurrent&&<span style={{fontSize:11,fontWeight:600,color:purple}}>Currently on leave</span>}
+                  </div>
+                  <div style={{fontSize:13,fontWeight:600,color:'#3D3248'}}>{fmtRange(l.start_date,l.end_date)} <span style={{fontSize:12,fontWeight:400,color:'#8A7F96',marginLeft:4}}>({daysCt(l.start_date,l.end_date)} day{daysCt(l.start_date,l.end_date)>1?'s':''})</span></div>
+                  {l.notes&&<div style={{fontSize:12,color:'#8A7F96',marginTop:2}}>{l.notes}</div>}
+                  <div style={{fontSize:11,color:'#A89DB5',marginTop:4}}>Logged by {l.logged_by_name||l.logged_by||'staff'}</div>
+                </div>
+                {!isPast&&<button onClick={()=>cancel(l.id)} style={{fontSize:11,padding:'3px 10px',borderRadius:6,border:'1px solid #DDD6EE',background:'transparent',cursor:'pointer',color:'#8A7F96'}}>Cancel</button>}
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
     </div>
   );
 }

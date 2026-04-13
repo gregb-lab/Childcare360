@@ -933,4 +933,79 @@ router.delete('/:id', requireAuth, requireTenant, (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Child Leave / Planned Absences ──────────────────────────────────────────
+let _leaveTableReady = false;
+function ensureLeaveTable() {
+  if (_leaveTableReady) return;
+  try { D().exec(`CREATE TABLE IF NOT EXISTS child_leave (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, child_id TEXT NOT NULL,
+    start_date TEXT NOT NULL, end_date TEXT NOT NULL,
+    reason TEXT DEFAULT 'other', notes TEXT,
+    logged_by TEXT, logged_by_user_id TEXT,
+    status TEXT DEFAULT 'active',
+    created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+  )`); } catch(e) {}
+  try { D().exec('CREATE INDEX IF NOT EXISTS idx_child_leave_lookup ON child_leave(tenant_id, child_id, start_date)'); } catch(e) {}
+  _leaveTableReady = true;
+}
+
+// GET upcoming leave across all children (must be before /:id routes)
+router.get('/leave/upcoming', (req, res) => {
+  try {
+    ensureLeaveTable();
+    const days = parseInt(req.query.days) || 14;
+    const sql = "SELECT cl.*, c.first_name || ' ' || c.last_name as child_name, c.room_id, r.name as room_name FROM child_leave cl JOIN children c ON c.id=cl.child_id LEFT JOIN rooms r ON r.id=c.room_id WHERE cl.tenant_id=? AND cl.status='active' AND cl.end_date>=date('now') AND cl.start_date<=date('now','+" + days + " days') ORDER BY cl.start_date ASC";
+    const leave = D().prepare(sql).all(req.tenantId);
+    res.json({ leave });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET leave for a specific child
+router.get('/:id/leave', (req, res) => {
+  try {
+    ensureLeaveTable();
+    const leave = D().prepare(
+      "SELECT cl.*, u.name as logged_by_name FROM child_leave cl LEFT JOIN users u ON u.id=cl.logged_by_user_id WHERE cl.tenant_id=? AND cl.child_id=? AND cl.status='active' ORDER BY cl.start_date DESC"
+    ).all(req.tenantId, req.params.id);
+    res.json({ leave });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST log leave for a child
+router.post('/:id/leave', (req, res) => {
+  try {
+    ensureLeaveTable();
+    const { start_date, end_date, reason, notes } = req.body;
+    if (!start_date || !end_date) return res.status(400).json({ error: 'start_date and end_date required' });
+    if (end_date < start_date) return res.status(400).json({ error: 'end_date must be >= start_date' });
+    const id = uuid();
+    D().prepare("INSERT INTO child_leave (id,tenant_id,child_id,start_date,end_date,reason,notes,logged_by,logged_by_user_id,status) VALUES(?,?,?,?,?,?,?,'staff',?,'active')")
+      .run(id, req.tenantId, req.params.id, start_date, end_date, reason || 'other', notes || null, req.userId);
+    // Mark attendance_sessions as absent for each weekday in range
+    try {
+      for (let d = new Date(start_date + 'T12:00:00'); d <= new Date(end_date + 'T12:00:00'); d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === 0 || d.getDay() === 6) continue;
+        const ds = d.toISOString().split('T')[0];
+        const existing = D().prepare('SELECT id FROM attendance_sessions WHERE child_id=? AND date=? AND tenant_id=?').get(req.params.id, ds, req.tenantId);
+        if (existing) {
+          D().prepare('UPDATE attendance_sessions SET absent=1, absent_reason=? WHERE id=?').run(reason || 'planned leave', existing.id);
+        } else {
+          D().prepare('INSERT INTO attendance_sessions (id,tenant_id,child_id,date,absent,absent_reason) VALUES(?,?,?,?,1,?)').run(uuid(), req.tenantId, req.params.id, ds, reason || 'planned leave');
+        }
+      }
+    } catch(e2) { /* non-blocking */ }
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE (cancel) leave
+router.delete('/:id/leave/:leaveId', (req, res) => {
+  try {
+    ensureLeaveTable();
+    D().prepare("UPDATE child_leave SET status='cancelled', updated_at=datetime('now') WHERE id=? AND tenant_id=? AND child_id=?")
+      .run(req.params.leaveId, req.tenantId, req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
