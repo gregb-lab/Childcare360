@@ -19,7 +19,7 @@ const bs={padding:"9px 18px",borderRadius:9,border:`1px solid ${P}`,background:"
 const inp={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:13,width:"100%",boxSizing:"border-box",fontFamily:"inherit"};
 const lbl={fontSize:11,color:MU,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase"};
 const fmt$=n=>`$${(n||0).toFixed(2)}`;
-const fmtD=d=>d?new Date(d+"T12:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}):"—";
+const fmtD=d=>{if(!d)return"—";const p=new Date(d.length===10?d+"T12:00":d);return isNaN(p.getTime())?"—":p.toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"});};
 
 const TABS=[{id:"payments",icon:"💳",label:"Online Payments"},{id:"waitlist",icon:"📋",label:"Waitlist Pipeline"}];
 
@@ -70,6 +70,7 @@ function PaymentsTab() {
       API("/api/children/simple"),
     ]).then(([s,r,sum,c])=>{
       setSetup(s);
+      if(s?.publishable_key) setKeys(k=>({...k,publishable_key:s.publishable_key}));
       setRequests(r.requests||[]);
       setSummary(r.summary);
       setMonthly(sum.monthly||[]);
@@ -96,7 +97,7 @@ function PaymentsTab() {
 
   const sendLink=async(id)=>{
     const r=await API(`/api/payments/requests/${id}/send`,{method:"POST"}).catch(e=>console.error('API error:',e));
-    if(r?.ok){window.showToast(`✓ Payment link generated:\n${r?.payment_url}`, 'error');load();}
+    if(r?.ok){window.showToast(`✓ Payment link generated`, 'success');load();}
   };
 
   const markPaid=async(id)=>{
@@ -106,7 +107,7 @@ function PaymentsTab() {
 
   const bulkCreate=async()=>{
     const r=await API("/api/payments/requests/bulk-from-invoices",{method:"POST"}).catch(e=>console.error('API error:',e));
-    window.showToast(r?.message||"Done", 'error');load();
+    window.showToast(r?.message||"Done", 'success');load();
   };
 
   const STATUS_C={pending:WA,sent:IN,paid:OK,cancelled:MU};

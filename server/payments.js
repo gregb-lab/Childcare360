@@ -132,12 +132,12 @@ r.post('/requests', (req, res) => {
 r.post('/requests/bulk-from-invoices', (req, res) => {
   try {
     const outstanding = D().prepare(`
-      SELECT i.id, i.child_id, i.total_cents, i.description,
+      SELECT i.id, i.child_id, CAST(i.total_fee * 100 AS INTEGER) as total_cents, i.description,
              c.first_name, c.last_name
       FROM invoices i
       JOIN children c ON c.id=i.child_id
       WHERE i.tenant_id=? AND i.status='overdue'
-        AND i.id NOT IN (SELECT invoice_id FROM payment_requests WHERE tenant_id=? AND status='pending')
+        AND i.id NOT IN (SELECT COALESCE(invoice_id,'') FROM payment_requests WHERE tenant_id=? AND status='pending')
     `).all(req.tenantId, req.tenantId);
 
     let created = 0;
@@ -146,7 +146,7 @@ r.post('/requests/bulk-from-invoices', (req, res) => {
         D().prepare(`
           INSERT INTO payment_requests (id,tenant_id,child_id,invoice_id,amount_cents,description)
           VALUES (?,?,?,?,?,'Outstanding invoice - click link to pay')
-        `).run(uuid(), req.tenantId, inv.child_id, inv.id, inv.total_cents);
+        `).run(uuid(), req.tenantId, inv.child_id, inv.id, inv.total_cents || 0);
         created++;
       }
     })();
@@ -173,7 +173,7 @@ r.post('/requests/:id/send', (req, res) => {
       : `#payment-link-${pr.id}-configure-stripe-first`;
 
     D().prepare("UPDATE payment_requests SET status='sent', stripe_checkout_url=? WHERE id=? AND tenant_id=?")
-      .run(paymentUrl, req.params.id);
+      .run(paymentUrl, req.params.id, req.tenantId);
 
     // Log the send action
     D().prepare(`

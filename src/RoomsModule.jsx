@@ -582,7 +582,7 @@ function RoomDetailPanel({ room, group, children, ageGroups, onBack, onEdit, onD
                   {educators.length<requiredEducators&&<span style={{color:"#B71C1C",fontWeight:700}}> · ⚠ Understaffed</span>}
                 </p>
               </div>
-              {canManage&&<button onClick={loadAllEducators} style={{background:purple,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:12}}>+ Assign Educator</button>}
+              {canManage&&<button onClick={loadAllEducators} style={{background:purple,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:12,flexShrink:0,whiteSpace:"nowrap"}}>+ Assign Educator</button>}
             </div>
             {showAssign&&(
               <div style={{background:lightPurple,borderRadius:12,padding:16,marginBottom:16,border:`1px solid ${purple}30`}}>
@@ -831,7 +831,13 @@ export default function RoomsModule() {
     const child=children.find(c=>c.id===childId);
     const toRoom=rooms.find(r=>r.id===toRoomId);
     const toGroup=toRoom?findGroup(ageGroups,toRoom.ageGroup||toRoom.age_group):null;
-    if(!toRoomId){doMove(childId,null);return;}
+    if(!toRoomId){
+      const child=children.find(c=>c.id===childId);
+      const name=child?`${child.first_name} ${child.last_name}`:"this child";
+      if(window.showConfirm){window.showConfirm(`Remove ${name} from this room?`).then(ok=>{if(ok)doMove(childId,null);});}
+      else doMove(childId,null);
+      return;
+    }
     const roomKids=(childrenByRoom[toRoomId]||[]).filter(c=>c.id!==childId);
     if(roomKids.length>=(toRoom?.capacity||99)){if(window.showToast)window.showToast(`${toRoom?.name} is at capacity (${toRoom?.capacity})`,"error");return;}
     if(toGroup&&child?.dob&&!childFitsGroup(child,toGroup)){

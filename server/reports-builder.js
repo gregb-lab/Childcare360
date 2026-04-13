@@ -95,8 +95,8 @@ const REPORT_TYPES = {
                date(c.dob) as dob,
                CAST((julianday('now') - julianday(c.dob)) / 365.25 AS INTEGER) as age_years,
                r.name as room, r.age_group,
-               c.start_date, c.medical_conditions, c.allergies,
-               c.crn_number
+               c.enrolled_date as start_date, c.medical_notes as medical_conditions, c.allergies,
+               c.crn
         FROM children c
         LEFT JOIN rooms r ON r.id=c.room_id
         WHERE c.tenant_id=? AND c.active=1

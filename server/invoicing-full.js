@@ -134,7 +134,7 @@ r.get('/invoices', (req, res) => {
 r.get('/invoices/:id', (req, res) => {
   try {
     const invoice = D().prepare(`
-      SELECT i.*, c.first_name, c.last_name, c.dob, c.crn_number,
+      SELECT i.*, c.first_name, c.last_name, c.dob, c.crn,
              r.name as room_name, r.age_group,
              cd.ccs_percentage, cd.ccs_hours_fortnight
       FROM invoices i

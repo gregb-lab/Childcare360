@@ -4675,7 +4675,7 @@ function SettingsView() {
 
       {/* ── CREDENTIALS TAB ── */}
       {stab==="credentials" && (
-        <CredentialsTab tenantId={auth?.currentTenant?.id} API2={API2} />
+        <CredentialsTab tenantId={localStorage.getItem("c360_tenant")} API2={API2} />
       )}
 
       {/* ── REGULATORY TAB ── */}
