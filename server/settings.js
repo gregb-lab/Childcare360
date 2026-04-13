@@ -6,8 +6,11 @@ const r = Router();
 
 // Ensure tenant_settings table exists
 function initSettings() {
-  // Add SMTP columns if missing
-  ['smtp_host TEXT','smtp_port INTEGER DEFAULT 587','smtp_user TEXT','smtp_password TEXT','smtp_from TEXT','smtp_secure TEXT DEFAULT \'false\''].forEach(col => {
+  // Add columns if missing
+  [
+    'smtp_host TEXT','smtp_port INTEGER DEFAULT 587','smtp_user TEXT','smtp_password TEXT','smtp_from TEXT','smtp_secure TEXT DEFAULT \'false\'',
+    "brand_primary TEXT DEFAULT '#3C3489'", "brand_accent TEXT DEFAULT '#534AB7'", "brand_light TEXT DEFAULT '#EEEDFE'",
+  ].forEach(col => {
     try{const _sSql='ALTER TABLE tenant_settings ADD COLUMN '+col;D().prepare(_sSql).run();}catch(e){}
   });
   D().prepare(`CREATE TABLE IF NOT EXISTS tenant_settings (
@@ -149,26 +152,100 @@ r.delete('/users/:userId', requireAuth, requireTenant, requireRole('owner', 'adm
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/settings/logo — upload logo
+// GET /api/settings/branding
+r.get('/branding', requireAuth, requireTenant, (req, res) => {
+  try {
+    initSettings();
+    const row = D().prepare(
+      'SELECT logo_url, brand_primary, brand_accent, brand_light FROM tenant_settings WHERE tenant_id=?'
+    ).get(req.tenantId);
+    res.json(row || { logo_url: null, brand_primary: '#3C3489', brand_accent: '#534AB7', brand_light: '#EEEDFE' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/settings/branding
+r.put('/branding', requireAuth, requireTenant, requireRole('owner', 'admin', 'director'), (req, res) => {
+  try {
+    const { brand_primary, brand_accent, brand_light } = req.body;
+    initSettings();
+    D().prepare(`INSERT INTO tenant_settings (id, tenant_id, brand_primary, brand_accent, brand_light)
+      VALUES (?,?,?,?,?)
+      ON CONFLICT(tenant_id) DO UPDATE SET
+        brand_primary=COALESCE(?,brand_primary),
+        brand_accent=COALESCE(?,brand_accent),
+        brand_light=COALESCE(?,brand_light),
+        updated_at=datetime('now')`)
+      .run(uuid(), req.tenantId, brand_primary, brand_accent, brand_light,
+        brand_primary, brand_accent, brand_light);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/settings/logo — upload logo + AI colour suggestion
 r.post('/logo', requireAuth, requireTenant, requireRole('owner', 'admin', 'director'), async (req, res) => {
   try {
     const multer = (await import('multer')).default;
     const path = await import('path');
-    const { existsSync, mkdirSync } = await import('fs');
+    const fs = await import('fs');
     const logoDir = path.join(process.cwd(), 'uploads', 'logos');
-    if (!existsSync(logoDir)) mkdirSync(logoDir, { recursive: true });
+    if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir, { recursive: true });
     const storage = multer.diskStorage({
       destination: (r, f, cb) => cb(null, logoDir),
-      filename: (r, f, cb) => cb(null, uuid() + path.extname(f.originalname).toLowerCase()),
+      filename: (r, f, cb) => cb(null, req.tenantId + '_logo' + path.extname(f.originalname).toLowerCase()),
     });
-    const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
-    upload.single('logo')(req, res, (err) => {
+    const upload = multer({
+      storage, limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (r, f, cb) => cb(null, f.mimetype.startsWith('image/')),
+    });
+    upload.single('logo')(req, res, async (err) => {
       if (err) return res.status(400).json({ error: err.message });
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-      const url = '/uploads/logos/' + req.file.filename;
+      const logoUrl = '/uploads/logos/' + req.file.filename;
       initSettings();
-      D().prepare('UPDATE tenant_settings SET logo_url=?, updated_at=datetime(\'now\') WHERE tenant_id=?').run(url, req.tenantId);
-      res.json({ ok: true, url });
+      D().prepare(`INSERT INTO tenant_settings (id, tenant_id, logo_url)
+        VALUES (?,?,?) ON CONFLICT(tenant_id) DO UPDATE SET logo_url=?, updated_at=datetime('now')`)
+        .run(uuid(), req.tenantId, logoUrl, logoUrl);
+
+      // AI colour suggestion (non-fatal)
+      let suggested_colors = null;
+      try {
+        // Check if any AI provider is configured
+        const providers = D().prepare('SELECT * FROM ai_providers WHERE tenant_id=?').all(req.tenantId);
+        const anthropicProv = providers.find(p => p.provider === 'anthropic');
+        const apiKey = anthropicProv?.api_key || process.env.ANTHROPIC_API_KEY;
+        if (apiKey) {
+          const imageData = fs.readFileSync(req.file.path);
+          const base64 = imageData.toString('base64');
+          const mimeType = req.file.mimetype;
+          const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-5-20241022',
+              max_tokens: 500,
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+                  { type: 'text', text: `Analyse this logo and suggest 2 complementary colour schemes for a childcare centre management platform UI.\n\nFor each option provide exactly:\n- brand_primary: a dark rich colour for the sidebar/headers (hex)\n- brand_accent: a medium colour for buttons and active states (hex)\n- brand_light: a very light tint for backgrounds and highlights (hex)\n- name: a short friendly name for this palette\n\nReturn ONLY valid JSON:\n{"schemes":[{"name":"...","brand_primary":"#...","brand_accent":"#...","brand_light":"#..."},{"name":"...","brand_primary":"#...","brand_accent":"#...","brand_light":"#..."}]}` }
+                ]
+              }]
+            })
+          });
+          const data = await response.json();
+          const text = data.content?.[0]?.text || '';
+          const clean = text.replace(/```json|```/g, '').trim();
+          suggested_colors = JSON.parse(clean);
+        }
+      } catch (aiErr) {
+        console.error('[branding:ai]', aiErr.message);
+      }
+
+      res.json({ ok: true, logo_url: logoUrl, suggested_colors });
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
