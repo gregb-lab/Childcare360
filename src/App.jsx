@@ -4646,6 +4646,81 @@ function BrandingPanel({ API2, branding: topBranding, setBranding: setTopBrandin
   </div>);
 }
 
+function CheckinAlertSettings({ API2 }) {
+  const [config, setConfig] = useState({ enabled: true, grace_minutes: 15, expected_arrival_time: '09:00', alert_method: 'sms_then_call', sms_wait_minutes: 10, escalate_to_director: true, director_escalation_minutes: 15, alert_message: 'Hi {parent_name}, {child_name} has not arrived at {centre_name} yet. Reply YES if on the way or NO if not attending today.' });
+  const [alerts, setAlerts] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    API2('/api/checkin-alerts/config').then(d => { if (d && !d.error) setConfig(c => ({ ...c, ...d, enabled: !!d.enabled, escalate_to_director: !!d.escalate_to_director })); }).catch(() => {});
+    API2('/api/checkin-alerts/today').then(d => { if (d?.alerts) setAlerts(d.alerts); }).catch(() => {});
+  }, [API2]);
+  const save = async () => { setSaving(true); try { await API2('/api/checkin-alerts/config', { method: 'PUT', body: config }); setSaved(true); setTimeout(() => setSaved(false), 2000); window.showToast && window.showToast('Check-in alert settings saved', 'success'); } catch (e) { window.showToast && window.showToast('Save failed', 'error'); } setSaving(false); };
+  const resolve = async (id) => { await API2(`/api/checkin-alerts/resolve/${id}`, { method: 'POST', body: { resolution: 'manual' } }); API2('/api/checkin-alerts/today').then(d => { if (d?.alerts) setAlerts(d.alerts); }); window.showToast && window.showToast('Alert resolved', 'success'); };
+  const statusColors = { pending: '#888', sms_sent: '#BA7517', call_initiated: '#534AB7', resolved: '#1D9E75', escalated: '#DC2626', child_arrived: '#1D9E75' };
+  const statusLabels = { pending: 'Pending', sms_sent: 'SMS sent \u2014 awaiting reply', call_initiated: 'Call in progress', resolved: 'Resolved', escalated: 'Escalated to director', child_arrived: 'Child arrived' };
+  const purple2 = "#8B6DAF", lbl2 = { fontSize: 11, color: "#7A6E8A", fontWeight: 700, display: "block", marginBottom: 4 }, inp2 = { padding: "8px 12px", borderRadius: 8, border: "1px solid #DDD6EE", fontSize: 12, width: "100%", boxSizing: "border-box" };
+  return (
+    <div>
+      <div style={{ ...cardStyle, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Child Check-in Safety Alerts</h3>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#A89DB5" }}>Automatically contact parents when a child hasn't arrived by expected time</p>
+          </div>
+          <div onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))} style={{ width: 44, height: 24, borderRadius: 12, cursor: "pointer", padding: 2, background: config.enabled ? purple2 : "#D9D0C7", transition: "background 0.2s", display: "flex", alignItems: "center", justifyContent: config.enabled ? "flex-end" : "flex-start" }}>
+            <div style={{ width: 20, height: 20, borderRadius: 10, background: "#fff" }} />
+          </div>
+        </div>
+        {config.enabled && (<div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            <div><label style={lbl2}>Expected arrival time</label><input type="time" style={inp2} value={config.expected_arrival_time} onChange={e => setConfig(c => ({ ...c, expected_arrival_time: e.target.value }))} /><div style={{ fontSize: 10, color: "#A89DB5", marginTop: 3 }}>Default for all children</div></div>
+            <div><label style={lbl2}>Grace period (minutes)</label><input type="number" min="5" max="120" style={inp2} value={config.grace_minutes} onChange={e => setConfig(c => ({ ...c, grace_minutes: parseInt(e.target.value) || 15 }))} /><div style={{ fontSize: 10, color: "#A89DB5", marginTop: 3 }}>Alert fires {config.grace_minutes} mins after expected time</div></div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={lbl2}>Alert method</label>
+            {[["sms_then_call", "SMS first, then call if no reply", "Sends SMS, waits, then calls if no response"], ["sms_only", "SMS only", "Sends SMS and waits for reply"], ["call_only", "Phone call only", "Calls parent directly"]].map(([v, l, d]) => (
+              <label key={v} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 6, border: config.alert_method === v ? "1.5px solid " + purple2 : "1px solid #EDE8F4", background: config.alert_method === v ? "#F0EBF8" : "transparent" }}>
+                <input type="radio" name="alert_method" value={v} checked={config.alert_method === v} onChange={e => setConfig(c => ({ ...c, alert_method: e.target.value }))} style={{ marginTop: 2 }} />
+                <div><div style={{ fontSize: 13, fontWeight: 600, color: "#3D3248" }}>{l}</div><div style={{ fontSize: 11, color: "#A89DB5", marginTop: 2 }}>{d}</div></div>
+              </label>
+            ))}
+          </div>
+          {config.alert_method === "sms_then_call" && (
+            <div style={{ marginBottom: 16 }}><label style={lbl2}>Wait for SMS reply before calling (minutes)</label><input type="number" min="5" max="60" style={{ ...inp2, width: 120 }} value={config.sms_wait_minutes} onChange={e => setConfig(c => ({ ...c, sms_wait_minutes: parseInt(e.target.value) || 10 }))} /></div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8, background: "#F8F5F1", marginBottom: 16 }}>
+            <input type="checkbox" checked={config.escalate_to_director} onChange={e => setConfig(c => ({ ...c, escalate_to_director: e.target.checked }))} />
+            <div><div style={{ fontSize: 13, fontWeight: 600 }}>Escalate to director if no response</div><div style={{ fontSize: 11, color: "#A89DB5", marginTop: 2 }}>Alert director after <input type="number" min="5" max="60" value={config.director_escalation_minutes} onChange={e => setConfig(c => ({ ...c, director_escalation_minutes: parseInt(e.target.value) || 15 }))} style={{ width: 50, padding: "1px 4px", border: "1px solid #DDD6EE", borderRadius: 4, fontSize: 11 }} /> minutes of no response</div></div>
+          </div>
+          <div style={{ marginBottom: 16 }}><label style={lbl2}>SMS message template</label><textarea value={config.alert_message} onChange={e => setConfig(c => ({ ...c, alert_message: e.target.value }))} rows={3} style={{ ...inp2, resize: "vertical", fontFamily: "inherit" }} /><div style={{ fontSize: 10, color: "#A89DB5", marginTop: 3 }}>Use {"{parent_name}"}, {"{child_name}"}, {"{centre_name}"} as placeholders</div></div>
+          <button onClick={save} disabled={saving} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: saved ? "#2E7D32" : purple2, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{saved ? "Saved" : saving ? "Saving..." : "Save Settings"}</button>
+        </div>)}
+      </div>
+      {alerts.length > 0 && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700 }}>Today's Check-in Alerts ({alerts.length})</h3>
+          {alerts.map(a => (
+            <div key={a.id} style={{ padding: "10px 14px", borderRadius: 10, marginBottom: 8, border: "1px solid #EDE8F4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{a.child_name}</span>
+                <span style={{ fontSize: 11, color: "#A89DB5", marginLeft: 8 }}>{a.room_name} \u00b7 Expected {a.expected_arrival}</span>
+                {a.sms_response && <span style={{ fontSize: 11, marginLeft: 8 }}>Parent replied: {a.sms_response.toUpperCase()}</span>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: statusColors[a.status] || "#888", padding: "2px 8px", borderRadius: 20, background: (statusColors[a.status] || "#888") + "18" }}>{statusLabels[a.status] || a.status}</span>
+                {a.status !== "resolved" && a.status !== "child_arrived" && (
+                  <button onClick={() => resolve(a.id)} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer" }}>Resolve</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsView({ branding, setBranding }) {
   const [stab, setStab] = useState("service");
   const [svc, setSvc]   = useState(null);
@@ -4720,7 +4795,7 @@ function SettingsView({ branding, setBranding }) {
     setTesting(null);
   };
 
-    const STABS = [{id:"service",l:"⚙️ Service"},{id:"branding",l:"🎨 Branding"},{id:"users",l:"👥 Users"},{id:"notifications",l:"🔔 Notifications"},{id:"regulatory",l:"📜 Regulatory"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
+    const STABS = [{id:"service",l:"⚙️ Service"},{id:"branding",l:"🎨 Branding"},{id:"users",l:"👥 Users"},{id:"notifications",l:"🔔 Notifications"},{id:"checkin_alerts",l:"🛡️ Check-in Alerts"},{id:"regulatory",l:"📜 Regulatory"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
   const purple2="#8B6DAF", lp2="#F0EBF8";
   const inp2={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:12,width:"100%",boxSizing:"border-box"};
   const lbl2={fontSize:11,color:"#7A6E8A",fontWeight:700,display:"block",marginBottom:4};
@@ -4984,6 +5059,10 @@ function SettingsView({ branding, setBranding }) {
             <MfaSettingsPanel />
           </div>
         </div>
+      )}
+
+      {stab==="checkin_alerts" && (
+        <CheckinAlertSettings API2={API2} />
       )}
 
       {stab==="data" && (

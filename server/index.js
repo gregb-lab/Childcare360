@@ -42,6 +42,7 @@ import auditRoutes from './audit.js';
 import voiceRoutes, { webhookRouter, audioRouter } from './voice.js';
 import shiftVoiceRoutes, { shiftWebhooks } from './shift-voice.js';
 import retellRoutes, { retellWebhooks, setupRetellWebSocket } from './retell.js';
+import checkinAlertRoutes, { processCheckinAlerts } from './checkin-alerts.js';
 import rosterEnhancedRoutes from './roster-enhancements.js';
 import operationsRoutes from './operations.js';
 import crmRoutes from './crm.js';
@@ -340,6 +341,7 @@ app.use('/api/voice/webhook', webhookRouter);
 app.use('/api/voice/audio', audioRouter);
 app.use('/api/shift-voice/webhook', shiftWebhooks);
 app.use('/api/retell/webhook', retellWebhooks); // no auth — called by Retell
+app.use('/api/checkin-alerts', checkinAlertRoutes); // has own auth — webhooks are unauthenticated
 
 // ── One-shot CN seed endpoint ─────────────────────────────────────────────
 // Hit: GET /admin-seed-cn?token=childcare360seed
@@ -1424,6 +1426,11 @@ setTimeout(() => {
     tenants.forEach(t => runDailyComplianceScan(t.id));
   } catch(e) {}
 }, 10000);
+
+// Check-in alert processor — runs every 60 seconds on weekday mornings
+setInterval(() => {
+  try { processCheckinAlerts(); } catch (e) { console.error('[checkin-alert] scheduler error:', e.message); }
+}, 60 * 1000);
 
 // ── Start ──
 const httpServer = createServer(app);
