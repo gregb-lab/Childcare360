@@ -38,6 +38,7 @@ const TABS = [
   { id: "notes",      icon: "📝", label: "Educator Notes" },
   { id: "messaging",  icon: "💬", label: "Messages" },
   { id: "leave",      icon: "🏖", label: "Leave" },
+  { id: "ccsabs",     icon: "📊", label: "CCS Absences" },
   { id: "payments",   icon: "💳", label: "Payments" },
   { id: "log",        icon: "📋", label: "Event Log" },
 ];
@@ -181,6 +182,7 @@ export default function ChildrenModule() {
             {tab === "notes"      && <EducatorNotesTab key={selected.id} child={selected} />}
             {tab === "messaging"  && <ParentMessagingTab key={selected.id} child={selected} />}
             {tab === "leave"      && <LeaveTab key={selected.id} child={selected} />}
+            {tab === "ccsabs"    && <CCSAbsencesTab key={selected.id} child={selected} />}
             {tab === "payments"   && <PaymentsTab key={selected.id} child={selected} />}
             {tab === "log"        && <EventLogTab key={selected.id} child={selected} />}
           </div>
@@ -1570,6 +1572,54 @@ function CustomPermissionForm({ childId, onSaved, onClose }) {
           <button onClick={onClose} style={btnS}>✕</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── CCS ABSENCES TAB ────────────────────────────────────────────────────────
+function CCSAbsencesTab({ child }) {
+  const [data,setData]=useState(null);
+  useEffect(()=>{if(child?.id)API('/api/ccs-absences/'+child.id).then(setData).catch(()=>{});},[child?.id]);
+  if(!data)return <div style={{padding:32,textAlign:'center',color:'#8A7F96',fontSize:13}}>Loading...</div>;
+  const s=data.summary||{};
+  const pct=s.pct_used||0;
+  const barColor=pct>=100?'#B91C1C':pct>=80?'#D97706':pct>=60?'#CA8A04':'#16A34A';
+  return(
+    <div style={{padding:'16px 20px'}}>
+      <div style={{fontSize:14,fontWeight:600,color:'#3D3248',marginBottom:4}}>CCS Absence Allowance — {data.financial_year}</div>
+      <div style={{fontSize:12,color:'#8A7F96',marginBottom:16}}>Max {s.max_allowed} absences per financial year (1 Jul – 30 Jun). Medical certificate absences are exempt.</div>
+      {/* Progress bar */}
+      <div style={{marginBottom:20}}>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+          <span style={{fontWeight:600,color:barColor}}>{s.counted_absences} of {s.max_allowed} used ({pct}%)</span>
+          <span style={{color:'#8A7F96'}}>{s.remaining} remaining</span>
+        </div>
+        <div style={{height:10,background:'#EDE8F4',borderRadius:5,overflow:'hidden'}}>
+          <div style={{height:'100%',width:Math.min(100,pct)+'%',background:barColor,borderRadius:5,transition:'width 0.3s'}}/>
+        </div>
+        {s.exempt_absences>0&&<div style={{fontSize:11,color:'#16A34A',marginTop:4}}>+ {s.exempt_absences} exempt (medical certificate provided)</div>}
+        {s.is_breached&&<div style={{fontSize:12,color:'#B91C1C',marginTop:8,padding:'8px 10px',background:'#FEF2F2',borderRadius:6}}>Further absences may not attract Child Care Subsidy. Contact the centre for details.</div>}
+        {s.is_approaching&&!s.is_breached&&<div style={{fontSize:12,color:'#92400E',marginTop:8,padding:'8px 10px',background:'#FFFBEB',borderRadius:6}}>Approaching CCS absence limit. A medical certificate will exempt absences from this count.</div>}
+      </div>
+      {/* Absence list */}
+      {(data.absences||[]).length===0?<div style={{color:'#8A7F96',fontSize:13,padding:'20px 0',textAlign:'center'}}>No absences recorded this financial year</div>:(
+        <div>
+          <div style={{fontSize:12,fontWeight:600,color:'#3D3248',marginBottom:8}}>Absence History ({data.absences.length})</div>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead><tr style={{borderBottom:'2px solid #EDE8F4'}}>
+              {['Date','Reason','Counts toward CCS','Certificate'].map(h=><th key={h} style={{textAlign:'left',padding:'6px 8px',fontWeight:600,color:'#8A7F96',fontSize:11}}>{h}</th>)}
+            </tr></thead>
+            <tbody>{(data.absences||[]).map((a,i)=>(
+              <tr key={i} style={{borderBottom:'1px solid #F0EBF8'}}>
+                <td style={{padding:'8px 8px',fontWeight:500}}>{new Date(a.date+'T12:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</td>
+                <td style={{padding:'8px 8px',color:'#6B5F7A'}}>{a.absent_reason||'—'}</td>
+                <td style={{padding:'8px 8px'}}>{a.ccs_exempt?<span style={{color:'#16A34A',fontWeight:600}}>Exempt</span>:<span style={{color:'#D97706'}}>Yes — counts</span>}</td>
+                <td style={{padding:'8px 8px'}}>{a.medical_cert_url?<a href={a.medical_cert_url} target="_blank" rel="noopener" style={{color:purple,fontSize:11}}>View cert</a>:<span style={{color:'#A89DB5',fontSize:11}}>None</span>}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
