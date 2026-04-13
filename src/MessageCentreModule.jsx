@@ -45,15 +45,15 @@ export default function MessageCentreModule() {
   useEffect(()=>{ refreshUnread(); },[refreshUnread]);
 
   return (
-    <div style={{padding:"24px 28px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
+    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 140px)",overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16,flexShrink:0}}>
         <span style={{fontSize:28}}>💬</span>
         <div>
           <h1 style={{margin:0,fontSize:22,fontWeight:900,color:DARK}}>Message Centre</h1>
           <p style={{margin:"3px 0 0",fontSize:13,color:MU}}>Parent messaging · Broadcast · Health · Immunisation · Timelines</p>
         </div>
       </div>
-      <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid #EDE8F4",paddingBottom:10,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:4,marginBottom:16,borderBottom:"1px solid #EDE8F4",paddingBottom:10,flexWrap:"wrap",flexShrink:0}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontSize:13,
@@ -67,12 +67,14 @@ export default function MessageCentreModule() {
           </button>
         ))}
       </div>
-      {tab==="inbox"        && <InboxTab onUnreadChange={setUnread}/>}
-      {tab==="broadcast"    && <BroadcastTab />}
-      {tab==="health"       && <HealthTab />}
-      {tab==="immunisation" && <ImmunisationTab />}
-      {tab==="timeline"     && <TimelineTab />}
-      {tab==="activity"     && <ActivityTab />}
+      <div style={{flex:1,minHeight:0,overflow:"hidden"}}>
+        {tab==="inbox"        && <InboxTab onUnreadChange={setUnread}/>}
+        {tab==="broadcast"    && <BroadcastTab />}
+        {tab==="health"       && <HealthTab />}
+        {tab==="immunisation" && <ImmunisationTab />}
+        {tab==="timeline"     && <TimelineTab />}
+        {tab==="activity"     && <ActivityTab />}
+      </div>
     </div>
   );
 }
@@ -83,122 +85,142 @@ function InboxTab({onUnreadChange}) {
   const [active,setActive]=useState(null);
   const [messages,setMessages]=useState([]);
   const [reply,setReply]=useState("");
-  const [showNew,setShowNew]=useState(false);
-  const [children,setChildren]=useState([]);
-  const [newForm,setNewForm]=useState({child_id:"",subject:"",body:""});
+  const [showCompose,setShowCompose]=useState(false);
+  const [composeSubject,setComposeSubject]=useState("");
+  const [composeBody,setComposeBody]=useState("");
+  const [composeRecipients,setComposeRecipients]=useState([]);
+  const [recipientMode,setRecipientMode]=useState("groups");
+  const [recipientSearch,setRecipientSearch]=useState("");
+  const [recipientOpts,setRecipientOpts]=useState({staff:[],parents:[],groups:[]});
+  const [composeFiles,setComposeFiles]=useState([]);
+  const [composeAck,setComposeAck]=useState(false);
+  const [composeSending,setComposeSending]=useState(false);
   const bottomRef=useRef(null);
 
   const load=useCallback(()=>{
-    Promise.all([API("/api/comms/threads"),API("/api/children/simple")])
-      .then(([tr,cr])=>{
-        setThreads(tr.threads||[]);
-        onUnreadChange?.(tr.unread_total||0);
-        setChildren(Array.isArray(cr)?cr:[]);
-      });
+    API("/api/comms/threads").then(tr=>{
+      setThreads(tr.threads||[]);
+      onUnreadChange?.(tr.unread_total||0);
+    }).catch(()=>{});
   },[onUnreadChange]);
 
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{if(showCompose)API("/api/comms/recipients").then(d=>setRecipientOpts(d||{})).catch(()=>{});},[showCompose]);
 
   const openThread=async(id)=>{
-    const r=await API(`/api/comms/threads/${id}`).catch(e=>{console.error('API error:',e);return null;});
+    const r=await API(`/api/comms/threads/${id}`).catch(()=>null);
     if(!r)return;
-    setActive(r?.thread);setMessages(r?.messages||[]);
-    load();
+    setActive(r?.thread);setMessages(r?.messages||[]);load();
     setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),100);
   };
 
   const sendReply=async()=>{
     if(!reply.trim()||!active)return;
-    await API(`/api/comms/threads/${active.id}/reply`,{method:"POST",body:{body:reply,sender_type:"admin",sender_name:"Centre"}}).catch(e=>console.error('API error:',e));
+    await API(`/api/comms/threads/${active.id}/reply`,{method:"POST",body:{body:reply,sender_type:"admin"}}).catch(()=>{});
     setReply("");openThread(active.id);
   };
 
-  const createThread=async()=>{
-    if(!newForm.subject||!newForm.body)return;
-    const r=await API("/api/comms/threads",{method:"POST",body:{...newForm,sender_name:"Centre"}}).catch(e=>console.error('API error:',e));
-    setShowNew(false);setNewForm({child_id:"",subject:"",body:""});
-    load();if(r?.id)openThread(r?.id);
+  const resetCompose=()=>{setShowCompose(false);setComposeSubject("");setComposeBody("");setComposeRecipients([]);setComposeFiles([]);setComposeAck(false);setRecipientSearch("");};
+
+  const handleComposeSend=async()=>{
+    if(!composeSubject.trim()){window.showToast?.("Subject required","error");return;}
+    if(!composeBody.trim()){window.showToast?.("Message required","error");return;}
+    setComposeSending(true);
+    try{
+      const token=localStorage.getItem("c360_token"),tenant=localStorage.getItem("c360_tenant");
+      let res;
+      if(composeFiles.length>0){
+        const fd=new FormData();fd.append("subject",composeSubject);fd.append("body",composeBody);
+        fd.append("recipients",JSON.stringify(composeRecipients.map(r2=>r2.id)));
+        fd.append("acknowledge_required",composeAck?"1":"0");
+        composeFiles.forEach(f=>fd.append("attachments",f));
+        res=await fetch("/api/comms/threads",{method:"POST",headers:{Authorization:"Bearer "+token,"x-tenant-id":tenant},body:fd});
+      }else{
+        res=await fetch("/api/comms/threads",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token,"x-tenant-id":tenant},
+          body:JSON.stringify({subject:composeSubject,body:composeBody,recipients:composeRecipients.map(r2=>r2.id),acknowledge_required:composeAck?1:0})});
+      }
+      const data=await res.json();if(!res.ok)throw new Error(data.error||"Send failed");
+      const label=data.group_label||(composeRecipients.length>1?composeRecipients.length+" recipients":composeRecipients[0]?.name||"");
+      window.showToast?.("Sent"+(label?" to "+label:"")+" ✓","success");
+      resetCompose();load();if(data.id)openThread(data.id);
+    }catch(e){window.showToast?.("Send failed: "+e.message,"error");}
+    finally{setComposeSending(false);}
   };
 
   return (
-    <div style={{display:"flex",gap:0,flex:1,minHeight:0,borderRadius:14,overflow:"hidden",border:"1px solid #EDE8F4"}}>
+    <>
+    <div style={{display:"flex",height:"100%",borderRadius:14,overflow:"hidden",border:"1px solid #EDE8F4",minHeight:0}}>
       {/* Thread list */}
-      <div style={{width:300,flexShrink:0,borderRight:"1px solid #EDE8F4",overflowY:"auto",background:"#FDFBFF",display:"flex",flexDirection:"column"}}>
-        <div style={{padding:"12px 14px",borderBottom:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{width:320,flexShrink:0,borderRight:"1px solid #EDE8F4",overflowY:"auto",background:"#FDFBFF",display:"flex",flexDirection:"column",minHeight:0}}>
+        <div style={{padding:"12px 14px",borderBottom:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div style={{fontWeight:700,fontSize:13,color:DARK}}>Conversations</div>
-          <button onClick={()=>setShowNew(v=>!v)} style={{...bp,padding:"5px 12px",fontSize:11}}>+ New</button>
+          <button onClick={()=>setShowCompose(true)} style={{...bp,padding:"5px 12px",fontSize:11}}>+ New</button>
         </div>
-        {showNew&&(
-          <div style={{padding:"12px 14px",borderBottom:"1px solid #EDE8F4",background:"#F8F5FC"}}>
-            <div style={{marginBottom:8}}>
-              <label style={lbl}>Child</label>
-              <select value={newForm.child_id} onChange={e=>setNewForm(p=>({...p,child_id:e.target.value}))} style={inp}>
-                <option value="">General</option>
-                {children.map(c=><option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-              </select>
-            </div>
-            <div style={{marginBottom:8}}>
-              <label style={lbl}>Subject</label>
-              <input value={newForm.subject} onChange={e=>setNewForm(p=>({...p,subject:e.target.value}))} style={inp}/>
-            </div>
-            <textarea value={newForm.body} onChange={e=>setNewForm(p=>({...p,body:e.target.value}))} rows={3} style={{...inp,resize:"none",marginBottom:8}}/>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={createThread} style={{...bp,fontSize:11,padding:"5px 12px"}}>Send</button>
-              <button onClick={()=>setShowNew(false)} style={{...bs,fontSize:11,padding:"5px 12px"}}>Cancel</button>
-            </div>
-          </div>
-        )}
-        <div style={{flex:1,overflowY:"auto"}}>
+        <div style={{flex:1,overflowY:"auto",minHeight:0}}>
           {threads.length===0
             ? <div style={{padding:"30px 14px",color:MU,fontSize:12,textAlign:"center"}}>No conversations yet</div>
             : threads.map(t=>(
               <div key={t.id} onClick={()=>openThread(t.id)}
                 style={{padding:"11px 14px",borderBottom:"1px solid #F0EBF8",cursor:"pointer",
                   background:active?.id===t.id?"#F3E8FF":t.unread_admin>0?"#FAFAFF":"#fff"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:2}}>
-                  <div style={{fontWeight:t.unread_admin>0?700:500,fontSize:13,color:DARK,
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:2}}>
+                  {t.unread_admin>0&&<div style={{width:8,height:8,borderRadius:"50%",background:"#534AB7",marginTop:5,flexShrink:0}}/>}
+                  <div style={{fontWeight:t.unread_admin>0?700:400,fontSize:13,color:DARK,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>
                     {t.subject}
                   </div>
-                  {t.unread_admin>0&&<span style={{background:P,color:"#fff",borderRadius:20,
-                    padding:"1px 6px",fontSize:9,fontWeight:900,flexShrink:0,marginLeft:4}}>{t.unread_admin}</span>}
+                  {t.unread_admin>0&&<span style={{background:P,color:"#fff",borderRadius:20,padding:"1px 6px",fontSize:9,fontWeight:900,flexShrink:0}}>{t.unread_admin}</span>}
                 </div>
-                {t.first_name&&<div style={{fontSize:11,color:MU}}>{t.first_name} {t.last_name}</div>}
-                <div style={{fontSize:11,color:MU,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {t.last_message_preview}
-                </div>
+                {(t.to_group_label||t.first_name)&&<div style={{fontSize:11,color:MU}}>
+                  {t.to_group_label?<span style={{fontWeight:600}}>👥 {t.to_group_label}</span>
+                    :t.first_name?`${t.first_name} ${t.last_name}`:""}
+                </div>}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}><div style={{fontSize:11,color:MU,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{t.last_message_preview}</div><div style={{fontSize:10,color:MU,flexShrink:0,whiteSpace:"nowrap"}}>{t.created_at?new Date(t.created_at).toLocaleDateString("en-AU",{day:"2-digit",month:"short"})+" "+new Date(t.created_at).toLocaleTimeString("en-AU",{hour:"2-digit",minute:"2-digit",hour12:true}):""}</div></div>
               </div>
             ))}
         </div>
       </div>
       {/* Message view */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",background:"#fff"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",background:"#fff",minHeight:0,overflow:"hidden"}}>
         {!active
           ? <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:MU}}>
               <div style={{textAlign:"center"}}><div style={{fontSize:40}}>💬</div><div style={{marginTop:8}}>Select a conversation</div></div>
             </div>
           : <>
-              <div style={{padding:"12px 18px",borderBottom:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{padding:"12px 18px",borderBottom:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
                 <div>
                   <div style={{fontWeight:700,fontSize:14,color:DARK}}>{active.subject}</div>
                   {active.first_name&&<div style={{fontSize:12,color:MU}}>{active.first_name} {active.last_name}</div>}
                 </div>
-                <button onClick={async()=>{await API(`/api/comms/threads/${active.id}/close`,{method:"PUT"});setActive(null);load();}} // error: caught by caller
-                  style={{...bs,fontSize:11,padding:"4px 10px",color:MU,borderColor:"#EDE8F4"}}>Close</button>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{const last=messages[messages.length-1];setComposeSubject("Fwd: "+active.subject);setComposeBody("\n\n--- Forwarded ---\nFrom: "+(last?.sender_name||"")+" \n\n"+(last?.body||""));setComposeRecipients([]);setShowCompose(true);}}
+                    style={{...bs,fontSize:11,padding:"4px 10px"}}>Forward</button>
+                  <button onClick={async()=>{await API(`/api/comms/threads/${active.id}/close`,{method:"PUT"}).catch(()=>{});setActive(null);load();}}
+                    style={{...bs,fontSize:11,padding:"4px 10px",color:MU,borderColor:"#EDE8F4"}}>Close</button>
+                </div>
               </div>
-              <div style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
-                {messages.map(m=>(
+              <div style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
+                {messages.map(m=>{
+                  let atts=[];try{atts=JSON.parse(m.attachments||"[]");}catch{}
+                  return(
                   <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:m.sender_type==="admin"?"flex-end":"flex-start"}}>
                     <div style={{maxWidth:"70%",padding:"9px 13px",borderRadius:12,
                       background:m.sender_type==="admin"?P:"#F0EBF8",color:m.sender_type==="admin"?"#fff":DARK}}>
-                      <div style={{fontSize:13,lineHeight:1.5}}>{m.body}</div>
+                      <div style={{fontSize:13,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{m.body}</div>
+                      {atts.length>0&&<div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:4}}>
+                        {atts.map((a,i)=>a.type?.startsWith("image")?<img key={i} src={a.url} alt={a.name} style={{maxWidth:200,borderRadius:6}}/>:<a key={i} href={a.url} target="_blank" rel="noopener" style={{fontSize:11,color:m.sender_type==="admin"?"#fff":P,textDecoration:"underline"}}>{a.name}</a>)}
+                      </div>}
+                      {m.acknowledge_required&&!m.ack_at&&(
+                        <button onClick={async()=>{await API("/api/comms/messages/"+m.id+"/acknowledge",{method:"POST"}).catch(()=>{});openThread(active.id);}}
+                          style={{marginTop:8,padding:"6px 14px",borderRadius:6,border:"none",background:"#534AB7",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}>Acknowledge</button>
+                      )}
+                      {m.ack_at&&<div style={{fontSize:10,marginTop:4,opacity:0.7}}>Acknowledged {fmtDT(m.ack_at)}</div>}
                     </div>
                     <div style={{fontSize:10,color:MU,marginTop:2}}>{m.sender_name} · {fmtDT(m.created_at)}</div>
                   </div>
-                ))}
+                );})}
                 <div ref={bottomRef}/>
               </div>
-              <div style={{padding:"10px 16px",borderTop:"1px solid #EDE8F4",display:"flex",gap:8}}>
+              <div style={{padding:"10px 16px",borderTop:"1px solid #EDE8F4",display:"flex",gap:8,flexShrink:0}}>
                 <textarea value={reply} onChange={e=>setReply(e.target.value)}
                   onKeyDown={e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))sendReply();}}
                   placeholder="Type a message… (Ctrl+Enter to send)" rows={2}
@@ -209,6 +231,115 @@ function InboxTab({onUnreadChange}) {
         }
       </div>
     </div>
+
+    {/* ── COMPOSE MODAL ── */}
+    {showCompose&&(
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+        <div style={{background:"#fff",borderRadius:14,width:"min(640px,95vw)",maxHeight:"90vh",display:"flex",flexDirection:"column",border:"1px solid #EDE8F4",overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:"1px solid #EDE8F4",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+            <span style={{fontSize:15,fontWeight:600,color:DARK}}>New message</span>
+            <button onClick={resetCompose} style={{border:"none",background:"none",cursor:"pointer",fontSize:20,color:"#888"}}>×</button>
+          </div>
+          <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+            {/* TO */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:MU,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>To</div>
+              {composeRecipients.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+                {composeRecipients.map(r2=>(
+                  <div key={r2.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:20,fontSize:12,background:"#EEEDFE",border:"1px solid #534AB7",color:"#3C3489"}}>
+                    {r2.type==="group"?"👥 ":""}{r2.name}
+                    <button onClick={()=>setComposeRecipients(p=>p.filter(x=>x.id!==r2.id))} style={{border:"none",background:"none",cursor:"pointer",fontSize:14,lineHeight:1,color:"#534AB7"}}>×</button>
+                  </div>
+                ))}
+              </div>}
+              <div style={{display:"flex",marginBottom:10,border:"1px solid #DDD6EE",borderRadius:8,overflow:"hidden",width:"fit-content"}}>
+                {["groups","individual"].map(m=>(
+                  <button key={m} onClick={()=>setRecipientMode(m)} style={{padding:"6px 16px",fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:recipientMode===m?P:"transparent",color:recipientMode===m?"#fff":MU}}>{m==="groups"?"Groups":"Individual"}</button>
+                ))}
+              </div>
+              {recipientMode==="groups"&&(()=>{
+                const top4=(recipientOpts.groups||[]).filter(g=>["group_all_parents","group_all_educators","group_all_staff","group_admin"].includes(g.id));
+                const roomGroups=(recipientOpts.groups||[]).filter(g=>g.id.startsWith("group_room_"));
+                return(<div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                    {top4.map(g=>{const sel=composeRecipients.find(x=>x.id===g.id);return(
+                      <button key={g.id} onClick={()=>sel?setComposeRecipients(p=>p.filter(x=>x.id!==g.id)):setComposeRecipients(p=>[...p,{id:g.id,name:g.name,type:"group"}])}
+                        style={{padding:"10px 12px",borderRadius:8,textAlign:"left",cursor:"pointer",border:sel?"1.5px solid #534AB7":"1px solid #DDD6EE",background:sel?"#EEEDFE":"transparent",color:sel?"#3C3489":"#666"}}>
+                        <div style={{fontSize:13,fontWeight:500}}>{g.name}</div>
+                        {g.description&&<div style={{fontSize:11,marginTop:2,color:"#aaa"}}>{g.description}</div>}
+                      </button>
+                    );})}
+                  </div>
+                  {roomGroups.length>0&&<div>
+                    <div style={{fontSize:11,color:MU,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:6}}>By room</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      {roomGroups.map(g=>{const sel=composeRecipients.find(x=>x.id===g.id);return(
+                        <button key={g.id} onClick={()=>sel?setComposeRecipients(p=>p.filter(x=>x.id!==g.id)):setComposeRecipients(p=>[...p,{id:g.id,name:g.name,type:"group"}])}
+                          style={{padding:"7px 10px",borderRadius:7,textAlign:"left",cursor:"pointer",fontSize:12,border:sel?"1.5px solid #534AB7":"1px solid #DDD6EE",background:sel?"#EEEDFE":"transparent",color:sel?"#3C3489":"#666"}}>{g.name}</button>
+                      );})}
+                    </div>
+                  </div>}
+                </div>);
+              })()}
+              {recipientMode==="individual"&&<div>
+                <input type="text" placeholder="Search staff or parents..." value={recipientSearch} onChange={e=>setRecipientSearch(e.target.value)} style={{...inp,marginBottom:6}} autoFocus/>
+                <div style={{maxHeight:200,overflowY:"auto",border:"1px solid #EDE8F4",borderRadius:8}}>
+                  {[...(recipientOpts.staff||[]).map(s=>({...s,_label:(s.role||"")+(s.room_name?" · "+s.room_name:""),_type:"staff"})),
+                    ...(recipientOpts.parents||[]).map(p=>({...p,_label:"parent of "+(p.child_name||""),_type:"parent"}))]
+                    .filter(r2=>!recipientSearch||r2.name.toLowerCase().includes(recipientSearch.toLowerCase())||(r2.child_name||"").toLowerCase().includes(recipientSearch.toLowerCase()))
+                    .slice(0,20).map(r2=>{const sel=composeRecipients.find(x=>x.id===r2.id);return(
+                      <div key={r2.id} onClick={()=>sel?setComposeRecipients(p=>p.filter(x=>x.id!==r2.id)):setComposeRecipients(p=>[...p,{id:r2.id,name:r2.name,type:r2._type}])}
+                        style={{padding:"8px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #EDE8F4",background:sel?"#EEEDFE":"transparent",fontSize:13}}>
+                        <span>{r2.name} <span style={{fontSize:11,color:MU}}>{r2._label}</span></span>
+                        <span style={{fontSize:11,fontWeight:500,color:sel?"#16A34A":"#534AB7"}}>{sel?"✓ Added":"Add"}</span>
+                      </div>
+                    );})}
+                </div>
+              </div>}
+            </div>
+            {/* Subject */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:600,color:MU,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Subject</div>
+              <input value={composeSubject} onChange={e=>setComposeSubject(e.target.value)} placeholder="What's this about?" style={inp}/>
+            </div>
+            {/* Body */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:600,color:MU,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Message</div>
+              <textarea value={composeBody} onChange={e=>setComposeBody(e.target.value)} placeholder="Write your message..." rows={5} style={{...inp,resize:"vertical"}}/>
+            </div>
+            {/* Attachments */}
+            <div style={{marginBottom:12}}>
+              <input type="file" id="mc-file-input" accept="image/*,video/*,.pdf,.doc,.docx" multiple style={{display:"none"}}
+                onChange={e=>setComposeFiles(p=>[...p,...Array.from(e.target.files)])}/>
+              <button type="button" onClick={()=>document.getElementById("mc-file-input").click()}
+                style={{fontSize:12,padding:"6px 12px",borderRadius:6,cursor:"pointer",border:"1px solid #DDD6EE",background:"transparent",color:MU}}>
+                📎 Attach file
+              </button>
+              {composeFiles.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+                {composeFiles.map((f,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:6,background:"#F8F5FC",border:"1px solid #EDE8F4"}}>
+                    {f.name}
+                    <button onClick={()=>setComposeFiles(p=>p.filter((_,j)=>j!==i))} style={{border:"none",background:"none",cursor:"pointer",fontSize:14,lineHeight:1,color:"#aaa"}}>×</button>
+                  </div>
+                ))}
+              </div>}
+            </div>
+            {/* Acknowledge */}
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:"#666"}}>
+              <input type="checkbox" checked={composeAck} onChange={e=>setComposeAck(e.target.checked)}/> Require acknowledgement
+            </label>
+          </div>
+          <div style={{padding:"12px 20px",borderTop:"1px solid #EDE8F4",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+            <span style={{fontSize:12,color:MU}}>{composeRecipients.length>0?composeRecipients.length+" selected":"No recipients"}</span>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={resetCompose} style={{padding:"8px 16px",borderRadius:8,border:"1px solid #DDD6EE",background:"transparent",cursor:"pointer",fontSize:13}}>Cancel</button>
+              <button onClick={handleComposeSend} disabled={composeSending} style={{padding:"8px 20px",borderRadius:8,border:"none",cursor:"pointer",background:P,color:"#fff",fontSize:13,fontWeight:600,opacity:composeSending?0.6:1}}>{composeSending?"Sending...":"Send"}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

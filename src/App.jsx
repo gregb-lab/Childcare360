@@ -4654,7 +4654,7 @@ function SettingsView() {
     setTesting(null);
   };
 
-    const STABS = [{id:"service",l:"⚙️ Service"},{id:"users",l:"👥 Users"},{id:"notifications",l:"🔔 Notifications"},{id:"regulatory",l:"📜 Regulatory"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
+    const STABS = [{id:"service",l:"⚙️ Service"},{id:"branding",l:"🎨 Branding"},{id:"users",l:"👥 Users"},{id:"notifications",l:"🔔 Notifications"},{id:"regulatory",l:"📜 Regulatory"},{id:"credentials",l:"🔑 Credentials"},{id:"ai",l:"🤖 AI Providers"},{id:"mfa",l:"🔐 Security"},{id:"data",l:"🔧 Data Management"}];
   const purple2="#8B6DAF", lp2="#F0EBF8";
   const inp2={padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:12,width:"100%",boxSizing:"border-box"};
   const lbl2={fontSize:11,color:"#7A6E8A",fontWeight:700,display:"block",marginBottom:4};
@@ -4741,6 +4741,13 @@ function SettingsView() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── BRANDING TAB ── */}
+      {stab==="branding" && (
+        <div style={{maxWidth:700}}>
+          <BrandingPanel API2={API2} purple2={purple2} lbl2={lbl2} inp2={inp2} />
         </div>
       )}
 
