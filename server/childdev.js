@@ -542,18 +542,19 @@ r.put('/transitions/:id', (req, res) => {
                     'family_input','target_school','transition_date','status',
                     'shared_with_family','shared_with_school','reviewed_by','eylf_outcomes'];
 
+    const fieldSet = new Set(fields);
     const updates = ["updated_at=datetime('now')"];
     const vals    = [];
 
     for (const f of fields) {
-      if (req.body[f] !== undefined) {
-        updates.push(`${f}=?`);
+      if (req.body[f] !== undefined && fieldSet.has(f)) {
+        updates.push(f + '=?');
         vals.push(f === 'eylf_outcomes' ? JSON.stringify(req.body[f]) : req.body[f]);
       }
     }
 
-    D().prepare((() => 'UPDATE transition_reports SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?')())
-      .run(...vals, req.params.id, req.tenantId);
+    const sql = 'UPDATE transition_reports SET ' + updates.join(',') + ' WHERE id=? AND tenant_id=?';
+    D().prepare(sql).run(...vals, req.params.id, req.tenantId);
 
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -45,11 +45,12 @@ r.put('/:id', requireAuth, requireTenant, (req, res) => {
         updates[f] = f === 'preferred_days' && Array.isArray(b[f]) ? JSON.stringify(b[f]) : b[f];
       }
     }
-    if (!Object.keys(updates).length) return res.json({ ok: true });
-    const setClause = Object.keys(updates).map(f => `${f} = COALESCE(?, ${f})`).join(', ');
-    const values = Object.values(updates);
+    const validKeys = Object.keys(updates).filter(f => fields.includes(f));
+    if (!validKeys.length) return res.json({ ok: true });
+    const setClause = validKeys.map(f => f + ' = COALESCE(?, ' + f + ')').join(', ');
+    const values = validKeys.map(f => updates[f]);
     D().prepare(
-      `UPDATE waitlist SET ${setClause}, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+      'UPDATE waitlist SET ' + setClause + ", updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
     ).run(...values, req.params.id, req.tenantId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }

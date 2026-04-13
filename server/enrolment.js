@@ -128,11 +128,12 @@ router.put('/applications/:id', requireAuth, requireTenant, requireRole('owner',
       }
 
       // 2. Apply any consent updates
-      if (Object.keys(consentUpdates).length) {
-        const setClause = Object.keys(consentUpdates).map(f => `${f} = ?`).join(', ');
-        const values = Object.values(consentUpdates);
+      const validConsentKeys = Object.keys(consentUpdates).filter(f => consentFields.includes(f));
+      if (validConsentKeys.length) {
+        const setClause = validConsentKeys.map(f => f + ' = ?').join(', ');
+        const values = validConsentKeys.map(f => consentUpdates[f]);
         db.prepare(
-          `UPDATE enrolment_applications SET ${setClause}, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+          'UPDATE enrolment_applications SET ' + setClause + ", updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
         ).run(...values, req.params.id, req.tenantId);
       }
 

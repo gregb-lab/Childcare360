@@ -110,15 +110,16 @@ r.put('/:id/status', (req, res) => {
     const validStatuses = ['open', 'under_review', 'closed'];
     if (!validStatuses.includes(status))
       return res.status(400).json({ error: 'Invalid status' });
-    const updates = status === 'closed'
-      ? 'status=?, closed_at=datetime(\'now\'), updated_at=datetime(\'now\')'
-      : status === 'under_review'
-      ? 'status=?, reviewed_by=?, reviewed_at=datetime(\'now\'), updated_at=datetime(\'now\')'
-      : 'status=?, closed_at=NULL, reviewed_by=NULL, reviewed_at=NULL, updated_at=datetime(\'now\')';
-    const params = status === 'under_review'
-      ? [status, req.userName || null, req.params.id, req.tenantId]
-      : [status, req.params.id, req.tenantId];
-    D().prepare(`UPDATE incidents SET ${updates} WHERE id=? AND tenant_id=?`).run(...params);
+    if (status === 'closed') {
+      D().prepare("UPDATE incidents SET status=?, closed_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+        .run(status, req.params.id, req.tenantId);
+    } else if (status === 'under_review') {
+      D().prepare("UPDATE incidents SET status=?, reviewed_by=?, reviewed_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+        .run(status, req.userName || null, req.params.id, req.tenantId);
+    } else {
+      D().prepare("UPDATE incidents SET status=?, closed_at=NULL, reviewed_by=NULL, reviewed_at=NULL, updated_at=datetime('now') WHERE id=? AND tenant_id=?")
+        .run(status, req.params.id, req.tenantId);
+    }
     res.json({ ok: true, status });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

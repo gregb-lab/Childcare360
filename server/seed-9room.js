@@ -45,8 +45,10 @@ const clearTables = [
   'leave_requests', 'shift_fill_requests', 'shift_fill_attempts', 'clock_records',
   'children', 'educators', 'rooms',
 ];
+const VALID_TABLES = new Set(clearTables);
 for (const table of clearTables) {
-  try { db.prepare(`DELETE FROM ${table} WHERE tenant_id=?`).run(T); } catch (e) {}
+  if (!VALID_TABLES.has(table) || !/^[a-z_]+$/.test(table)) continue;
+  try { const sql = 'DELETE FROM ' + table + ' WHERE tenant_id=?'; db.prepare(sql).run(T); } catch (e) {}
 }
 console.log('  ✓ Cleared', clearTables.length, 'tables');
 

@@ -42,9 +42,11 @@ r.put('/me', (req, res) => {
     const updates = {};
     allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     if (!Object.keys(updates).length) return res.json({ ok: true });
-    const sets = Object.keys(updates).map(k => `${k}=?`).join(',');
-    D().prepare((() => 'UPDATE educators SET ' + sets + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?")())
-      .run(...Object.values(updates), e.id, req.tenantId);
+    const validKeys = Object.keys(updates).filter(k => allowed.includes(k));
+    if (!validKeys.length) return res.json({ ok: true });
+    const sets = validKeys.map(k => k + '=?').join(',');
+    const sql = 'UPDATE educators SET ' + sets + ", updated_at=datetime('now') WHERE id=? AND tenant_id=?";
+    D().prepare(sql).run(...validKeys.map(k => updates[k]), e.id, req.tenantId);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
