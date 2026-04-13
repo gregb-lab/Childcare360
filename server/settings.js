@@ -1,8 +1,44 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant, requireRole } from './middleware.js';
+import { readFileSync, mkdirSync } from 'fs';
+import { extname } from 'path';
+import multer from 'multer';
 
 const r = Router();
+
+// ── Logo upload multer (module-level, not inside handler) ──
+const logoDir = './uploads/logos';
+try { mkdirSync(logoDir, { recursive: true }); } catch(e) {}
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, logoDir),
+    filename: (req2, file, cb) => cb(null, (req2.tenantId || 'unknown') + '_logo' + extname(file.originalname).toLowerCase()),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, file.mimetype.startsWith('image/')),
+});
+
+// ── AI model tier helper ──
+function getModelForTier(tenantId, tier = 'fast') {
+  const defaults = { fast: 'claude-haiku-4-5-20251001', balanced: 'claude-sonnet-4-6', powerful: 'claude-opus-4-6' };
+  const validTiers = new Set(['fast', 'balanced', 'powerful']);
+  if (!validTiers.has(tier)) return defaults.fast;
+  try {
+    const col = 'tier_' + tier;
+    const sql = 'SELECT ' + col + ' FROM ai_model_tiers WHERE tenant_id=?';
+    const row = D().prepare(sql).get(tenantId);
+    return row?.[col] || defaults[tier] || defaults.fast;
+  } catch(e) { return defaults[tier] || defaults.fast; }
+}
+
+// ── AI API key helper ──
+function getAnthropicKey(tenantId) {
+  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
+  try { const p = D().prepare("SELECT api_key FROM ai_provider_config WHERE tenant_id=? AND provider='anthropic'").get(tenantId); if (p?.api_key) return p.api_key; } catch(e) {}
+  try { const p = D().prepare("SELECT key_value FROM tenant_credentials WHERE tenant_id=? AND provider='anthropic' AND key_name='api_key'").get(tenantId); if (p?.key_value) return p.key_value; } catch(e) {}
+  return null;
+}
 
 // Ensure tenant_settings table exists
 function initSettings() {
@@ -182,76 +218,50 @@ r.put('/branding', requireAuth, requireTenant, requireRole('owner', 'admin', 'di
 });
 
 // POST /api/settings/logo — upload logo + AI colour suggestion
-r.post('/logo', requireAuth, requireTenant, requireRole('owner', 'admin', 'director'), async (req, res) => {
+r.post('/logo', requireAuth, requireTenant, logoUpload.single('logo'), async (req, res) => {
   try {
-    const multer = (await import('multer')).default;
-    const path = await import('path');
-    const fs = await import('fs');
-    const logoDir = path.join(process.cwd(), 'uploads', 'logos');
-    if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir, { recursive: true });
-    const storage = multer.diskStorage({
-      destination: (r, f, cb) => cb(null, logoDir),
-      filename: (r, f, cb) => cb(null, req.tenantId + '_logo' + path.extname(f.originalname).toLowerCase()),
-    });
-    const upload = multer({
-      storage, limits: { fileSize: 5 * 1024 * 1024 },
-      fileFilter: (r, f, cb) => cb(null, f.mimetype.startsWith('image/')),
-    });
-    upload.single('logo')(req, res, async (err) => {
-      if (err) return res.status(400).json({ error: err.message });
-      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-      const logoUrl = '/uploads/logos/' + req.file.filename;
-      initSettings();
-      D().prepare(`INSERT INTO tenant_settings (id, tenant_id, logo_url)
-        VALUES (?,?,?) ON CONFLICT(tenant_id) DO UPDATE SET logo_url=?, updated_at=datetime('now')`)
-        .run(uuid(), req.tenantId, logoUrl, logoUrl);
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const logoUrl = '/uploads/logos/' + req.file.filename;
+    initSettings();
+    D().prepare("INSERT INTO tenant_settings (id, tenant_id, logo_url) VALUES (?,?,?) ON CONFLICT(tenant_id) DO UPDATE SET logo_url=excluded.logo_url, updated_at=datetime('now')")
+      .run(uuid(), req.tenantId, logoUrl);
 
-      // AI colour suggestion (non-fatal)
-      let suggested_colors = null;
-      try {
-        // Check if any AI provider is configured (try multiple tables)
-        let apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) {
-          try { const p = D().prepare("SELECT api_key FROM ai_provider_config WHERE tenant_id=? AND provider='anthropic'").get(req.tenantId); if (p?.api_key) apiKey = p.api_key; } catch(e) {}
+    // AI colour suggestion (non-fatal)
+    let suggested_colors = null;
+    try {
+      const apiKey = getAnthropicKey(req.tenantId);
+      if (apiKey) {
+        const imageData = readFileSync(req.file.path);
+        const base64 = imageData.toString('base64');
+        const model = getModelForTier(req.tenantId, 'fast');
+        console.log('[branding] Calling', model, 'for colour suggestions, image:', imageData.length, 'bytes');
+        const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model, max_tokens: 300,
+            messages: [{ role: 'user', content: [
+              { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } },
+              { type: 'text', text: 'Analyse this childcare centre logo and suggest 2 complementary colour schemes for their management software UI.\n\nColour roles:\n- brand_primary: sidebar background and page headers — must be dark enough for white text (contrast 4.5:1+, lightness < 40%)\n- brand_accent: buttons, active nav items, interactive elements — medium tone that works on white backgrounds\n- brand_light: selected item backgrounds, highlight tints, hover states — very light (lightness > 85%) so dark text is readable\n\nRules:\n- Draw inspiration from the logo but ensure UI usability\n- Colours should feel warm and friendly for a childcare environment\n- Each scheme needs a short friendly name\n\nReturn ONLY this JSON:\n{"schemes":[{"name":"...","brand_primary":"#hexcolor","brand_accent":"#hexcolor","brand_light":"#hexcolor"},{"name":"...","brand_primary":"#hexcolor","brand_accent":"#hexcolor","brand_light":"#hexcolor"}]}' }
+            ]}]
+          }),
+        });
+        console.log('[branding] Anthropic status:', aiRes.status);
+        const aiData = await aiRes.json();
+        if (aiRes.ok && aiData.content?.[0]?.text) {
+          const jsonMatch = aiData.content[0].text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) suggested_colors = JSON.parse(jsonMatch[0]);
+          console.log('[branding] Parsed', suggested_colors?.schemes?.length, 'schemes');
+        } else {
+          console.error('[branding] AI error:', JSON.stringify(aiData).slice(0, 200));
         }
-        if (!apiKey) {
-          try { const p = D().prepare("SELECT key_value FROM tenant_credentials WHERE tenant_id=? AND provider='anthropic' AND key_name='api_key'").get(req.tenantId); if (p?.key_value) apiKey = p.key_value; } catch(e) {}
-        }
-        if (apiKey) {
-          const imageData = fs.readFileSync(req.file.path);
-          const base64 = imageData.toString('base64');
-          const mimeType = req.file.mimetype;
-          const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-5-20241022',
-              max_tokens: 500,
-              messages: [{
-                role: 'user',
-                content: [
-                  { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-                  { type: 'text', text: `Analyse this logo and suggest 2 complementary colour schemes for a childcare centre management platform UI.\n\nFor each option provide exactly:\n- brand_primary: a dark rich colour for the sidebar/headers (hex)\n- brand_accent: a medium colour for buttons and active states (hex)\n- brand_light: a very light tint for backgrounds and highlights (hex)\n- name: a short friendly name for this palette\n\nReturn ONLY valid JSON:\n{"schemes":[{"name":"...","brand_primary":"#...","brand_accent":"#...","brand_light":"#..."},{"name":"...","brand_primary":"#...","brand_accent":"#...","brand_light":"#..."}]}` }
-                ]
-              }]
-            })
-          });
-          const data = await response.json();
-          const text = data.content?.[0]?.text || '';
-          const clean = text.replace(/```json|```/g, '').trim();
-          suggested_colors = JSON.parse(clean);
-        }
-      } catch (aiErr) {
-        console.error('[branding:ai]', aiErr.message);
+      } else {
+        console.log('[branding] No API key — skipping colour suggestions');
       }
+    } catch(aiErr) { console.error('[branding:ai]', aiErr.message); }
 
-      res.json({ ok: true, logo_url: logoUrl, suggested_colors });
-    });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    res.json({ ok: true, logo_url: logoUrl, suggested_colors });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // GET /api/settings/integrations
@@ -299,4 +309,68 @@ r.post('/reseed', requireAuth, requireTenant, requireRole('owner', 'admin'), asy
   }
 });
 
+// ── AI Model Tiers ──────────────────────────────────────────────────────────
+function ensureTiersTable() {
+  try { D().exec(`CREATE TABLE IF NOT EXISTS ai_model_tiers (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL UNIQUE,
+    tier_fast TEXT DEFAULT 'claude-haiku-4-5-20251001',
+    tier_balanced TEXT DEFAULT 'claude-sonnet-4-6',
+    tier_powerful TEXT DEFAULT 'claude-opus-4-6',
+    auto_update INTEGER DEFAULT 1, last_checked TEXT,
+    created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+  )`); } catch(e) {}
+}
+
+r.get('/ai-tiers', requireAuth, requireTenant, (req, res) => {
+  try {
+    ensureTiersTable();
+    let row = D().prepare('SELECT * FROM ai_model_tiers WHERE tenant_id=?').get(req.tenantId);
+    if (!row) {
+      D().prepare('INSERT INTO ai_model_tiers (id, tenant_id) VALUES (?,?)').run(uuid(), req.tenantId);
+      row = D().prepare('SELECT * FROM ai_model_tiers WHERE tenant_id=?').get(req.tenantId);
+    }
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.put('/ai-tiers', requireAuth, requireTenant, (req, res) => {
+  try {
+    ensureTiersTable();
+    const { tier_fast, tier_balanced, tier_powerful, auto_update } = req.body;
+    D().prepare("INSERT INTO ai_model_tiers (id, tenant_id, tier_fast, tier_balanced, tier_powerful, auto_update) VALUES (?,?,?,?,?,?) ON CONFLICT(tenant_id) DO UPDATE SET tier_fast=excluded.tier_fast, tier_balanced=excluded.tier_balanced, tier_powerful=excluded.tier_powerful, auto_update=excluded.auto_update, updated_at=datetime('now')")
+      .run(uuid(), req.tenantId, tier_fast || 'claude-haiku-4-5-20251001', tier_balanced || 'claude-sonnet-4-6', tier_powerful || 'claude-opus-4-6', auto_update != null ? (auto_update ? 1 : 0) : 1);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+r.post('/ai-tiers/check-updates', requireAuth, requireTenant, async (req, res) => {
+  try {
+    ensureTiersTable();
+    const apiKey = getAnthropicKey(req.tenantId);
+    if (!apiKey) return res.json({ updated: false, reason: 'No API key' });
+    const modelsRes = await fetch('https://api.anthropic.com/v1/models', {
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+    });
+    if (!modelsRes.ok) return res.json({ updated: false, reason: 'API error: ' + modelsRes.status });
+    const { data: models } = await modelsRes.json();
+    const pick = (kw) => (models || []).filter(m => m.id.includes(kw)).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
+    const recommended = {
+      tier_fast: pick('haiku') || 'claude-haiku-4-5-20251001',
+      tier_balanced: pick('sonnet') || 'claude-sonnet-4-6',
+      tier_powerful: pick('opus') || 'claude-opus-4-6',
+    };
+    const current = D().prepare('SELECT * FROM ai_model_tiers WHERE tenant_id=?').get(req.tenantId);
+    if (current?.auto_update) {
+      D().prepare("UPDATE ai_model_tiers SET tier_fast=?, tier_balanced=?, tier_powerful=?, last_checked=datetime('now'), updated_at=datetime('now') WHERE tenant_id=?")
+        .run(recommended.tier_fast, recommended.tier_balanced, recommended.tier_powerful, req.tenantId);
+    } else {
+      D().prepare("INSERT INTO ai_model_tiers (id, tenant_id, last_checked) VALUES (?,?,datetime('now')) ON CONFLICT(tenant_id) DO UPDATE SET last_checked=datetime('now')")
+        .run(uuid(), req.tenantId);
+    }
+    res.json({ updated: !!current?.auto_update, recommended, current });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Export getModelForTier and getAnthropicKey for use by other modules
+export { getModelForTier, getAnthropicKey };
 export default r;

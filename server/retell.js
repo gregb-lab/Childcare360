@@ -16,6 +16,7 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
+import { getModel } from './ai-tier.js';
 
 const router   = Router(); // authenticated routes (agent management)
 const webhooks = Router(); // Retell webhook (no auth — called by Retell)
@@ -91,7 +92,7 @@ async function askClaude(messages, systemPrompt) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+      model: getModel(null, 'fast'), max_tokens: 200,
       system: systemPrompt,
       messages: merged,
     })

@@ -1129,7 +1129,7 @@ export default function ChildcareRosterApp() {
           {activeTab === "messaging" && <MessagingModule />}
           {activeTab === "reports" && <ReportsView educators={educators} rooms={rooms} clockRecords={clockRecords} complianceStatus={complianceStatus} rosterEntries={rosterEntries} />}
           {activeTab === "staff" && <Suspense fallback={null}><PortalEmulator mode="staff" onClose={() => navigate("dashboard")} ParentModule={ParentPortalModule} StaffModule={StaffPortalModule} /></Suspense>}
-          {activeTab === "settings" && <SettingsView />}
+          {activeTab === "settings" && <SettingsView branding={branding} setBranding={setBranding} />}
           {activeTab === "soc2" && <SOC2Module tenantId={auth.currentTenant?.id} />}
           {activeTab === "voice" && <VoiceAgentModule />}
           {activeTab === "message_centre" && <Suspense fallback={null}><MessageCentreModule /></Suspense>}
@@ -4565,28 +4565,88 @@ function MfaSettingsPanel() {
   );
 }
 
-function BrandingPanel({ API2, purple2, lbl2, inp2 }) {
-  const [logoUrl, setLogoUrl] = useState(null);
+function BrandingPanel({ API2, branding: topBranding, setBranding: setTopBranding }) {
   const [uploading, setUploading] = useState(false);
-  const [suggestedSchemes, setSuggestedSchemes] = useState([]);
-  const [brandColors, setBrandColors] = useState({ brand_primary: '#3C3489', brand_accent: '#534AB7', brand_light: '#EEEDFE' });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  useEffect(() => { API2("/api/settings/branding").then(b => { if (b && !b.error) { if (b.logo_url) setLogoUrl(b.logo_url); setBrandColors({ brand_primary: b.brand_primary || '#3C3489', brand_accent: b.brand_accent || '#534AB7', brand_light: b.brand_light || '#EEEDFE' }); } }).catch(() => {}); }, [API2]);
-  const applyPreview = (colors) => { const root = document.documentElement; if (colors.brand_primary) root.style.setProperty('--c360-brand-primary', colors.brand_primary); if (colors.brand_accent) root.style.setProperty('--c360-brand-accent', colors.brand_accent); if (colors.brand_light) root.style.setProperty('--c360-brand-light', colors.brand_light); };
-  const handleLogoUpload = async (e) => { const file = e.target.files?.[0]; if (!file) return; setUploading(true); try { const fd = new FormData(); fd.append('logo', file); const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant"); const r = await fetch("/api/settings/logo", { method: "POST", headers: { ...(t ? { Authorization: "Bearer " + t } : {}), ...(tid ? { "x-tenant-id": tid } : {}) }, body: fd }); const d = await r.json(); if (d.ok) { setLogoUrl(d.logo_url); window.showToast && window.showToast("Logo uploaded", "success"); if (d.suggested_colors?.schemes) { setSuggestedSchemes(d.suggested_colors.schemes); window.showToast && window.showToast("AI colour suggestions ready", "info"); } } else { window.showToast && window.showToast(d.error || "Upload failed", "error"); } } catch (err) { window.showToast && window.showToast("Upload failed", "error"); } finally { setUploading(false); } };
-  const applyScheme = (scheme) => { const c = { brand_primary: scheme.brand_primary, brand_accent: scheme.brand_accent, brand_light: scheme.brand_light }; setBrandColors(c); applyPreview(c); };
-  const saveBranding = async () => { setSaving(true); try { await API2("/api/settings/branding", { method: "PUT", body: brandColors }); applyPreview(brandColors); setSaved(true); setTimeout(() => setSaved(false), 2000); window.showToast && window.showToast("Brand colours saved", "success"); } catch (e) { window.showToast && window.showToast("Save failed", "error"); } finally { setSaving(false); } };
-  const colorInput = (label, key) => (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="color" value={brandColors[key]} onChange={e => { const v = e.target.value; setBrandColors(p => ({ ...p, [key]: v })); applyPreview({ ...brandColors, [key]: v }); }} style={{ width: 36, height: 36, borderRadius: 6, border: "none", cursor: "pointer", padding: 2 }} /><div><div style={{ fontSize: 11, fontWeight: 600, color: "#3D3248" }}>{label}</div><input style={{ ...inp2, width: 80, fontSize: 10, fontFamily: "monospace", padding: "4px 6px" }} value={brandColors[key]} onChange={e => { const v = e.target.value; setBrandColors(p => ({ ...p, [key]: v })); if (/^#[0-9a-fA-F]{6}$/.test(v)) applyPreview({ ...brandColors, [key]: v }); }} /></div></div>);
-  return (<div>
-    <h4 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700, color: "#3D3248" }}>Branding</h4>
-    <div style={{ marginBottom: 20 }}><label style={lbl2}>Centre Logo</label><div style={{ display: "flex", alignItems: "center", gap: 16, padding: 16, background: "#F8F5F1", borderRadius: 10, border: "1px dashed #D9D0C7" }}>{logoUrl ? <img src={logoUrl} alt="Logo" style={{ height: 56, borderRadius: 8, background: "#fff", padding: 4 }} /> : <div style={{ width: 56, height: 56, borderRadius: 8, background: "#E8E0D8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, color: "#A89DB5" }}>?</div>}<div><label style={{ padding: "8px 16px", borderRadius: 8, background: purple2, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-block" }}>{uploading ? "Uploading..." : "Upload Logo"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} disabled={uploading} /></label><p style={{ margin: "6px 0 0", fontSize: 11, color: "#A89DB5" }}>Max 5MB. PNG, JPG, or SVG recommended.</p></div></div></div>
-    <div style={{ marginBottom: 16 }}><label style={lbl2}>Navigation Colour Scheme</label><div style={{ display: "flex", gap: 20, alignItems: "flex-start", marginBottom: 12, flexWrap: "wrap" }}>{colorInput("Primary", "brand_primary")}{colorInput("Accent", "brand_accent")}{colorInput("Light", "brand_light")}<div style={{ display: "flex", flexDirection: "column", gap: 4, marginLeft: 8 }}><div style={{ fontSize: 10, color: "#A89DB5", fontWeight: 600 }}>Preview</div><div style={{ display: "flex", gap: 3 }}>{["brand_primary","brand_accent","brand_light"].map(k => <div key={k} style={{ width: 28, height: 28, borderRadius: 6, background: brandColors[k], border: "1px solid #D9D0C7" }} />)}</div></div></div><button onClick={saveBranding} disabled={saving} style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: saved ? "#2E7D32" : purple2, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{saved ? "Saved" : saving ? "Saving..." : "Save Colour Scheme"}</button></div>
-    {suggestedSchemes.length > 0 && (<div style={{ marginTop: 16 }}><label style={lbl2}>AI-Suggested Colour Schemes</label><p style={{ fontSize: 11, color: "#A89DB5", margin: "0 0 10px" }}>Based on your uploaded logo. Click to preview, then save.</p><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{suggestedSchemes.map((scheme, i) => (<div key={i} onClick={() => applyScheme(scheme)} style={{ padding: 14, borderRadius: 10, border: "1px solid #EDE8F4", background: "#FDFBFF", cursor: "pointer" }}><div style={{ fontSize: 13, fontWeight: 600, color: "#3D3248", marginBottom: 8 }}>{scheme.name}</div><div style={{ display: "flex", gap: 6, marginBottom: 10 }}>{[scheme.brand_primary, scheme.brand_accent, scheme.brand_light].map((c, j) => <div key={j} style={{ width: 28, height: 28, borderRadius: 6, background: c, border: "1px solid #D9D0C7" }} title={c} />)}</div><button onClick={ev => { ev.stopPropagation(); applyScheme(scheme); }} style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer", fontWeight: 600, color: "#5C4E6A" }}>Apply</button></div>))}</div></div>)}
+  const [schemes, setSchemes] = useState([]);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [savedColors, setSavedColors] = useState({ brand_primary:'#3C3489', brand_accent:'#534AB7', brand_light:'#EEEDFE' });
+
+  const logoUrl = topBranding?.logo_url || null;
+  useEffect(()=>{API2("/api/settings/branding").then(b=>{if(b&&!b.error){if(setTopBranding)setTopBranding(prev=>({...prev,...b}));setSavedColors({brand_primary:b.brand_primary||'#3C3489',brand_accent:b.brand_accent||'#534AB7',brand_light:b.brand_light||'#EEEDFE'});}}).catch(()=>{});},[API2]);
+
+  const defaultScheme={name:'Childcare360 Default',brand_primary:savedColors.brand_primary,brand_accent:savedColors.brand_accent,brand_light:savedColors.brand_light,isDefault:true};
+  const allSchemes=[defaultScheme,...schemes];
+  const selected=allSchemes[selectedIdx]||defaultScheme;
+
+  const handleLogoUpload=async(e)=>{const file=e.target.files?.[0];if(!file)return;setUploading(true);try{const fd=new FormData();fd.append('logo',file);const t=localStorage.getItem('c360_token'),tid=localStorage.getItem('c360_tenant');const r=await fetch('/api/settings/logo',{method:'POST',headers:{...(t?{Authorization:'Bearer '+t}:{}),...(tid?{'x-tenant-id':tid}:{})},body:fd});const d=await r.json();if(d.ok){if(setTopBranding)setTopBranding(prev=>({...prev,logo_url:d.logo_url}));window.showToast?.('Logo uploaded ✓','success');if(d.suggested_colors?.schemes?.length>0){setSchemes(d.suggested_colors.schemes);setSelectedIdx(1);window.showToast?.('AI colour schemes ready — select one below','success');}}else{window.showToast?.(d.error||'Upload failed','error');}}catch{window.showToast?.('Upload failed','error');}finally{setUploading(false);}};
+
+  const handleSave=async()=>{try{const t=localStorage.getItem('c360_token'),tid=localStorage.getItem('c360_tenant');await fetch('/api/settings/branding',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t,'x-tenant-id':tid},body:JSON.stringify({brand_primary:selected.brand_primary,brand_accent:selected.brand_accent,brand_light:selected.brand_light})});const root=document.documentElement;root.style.setProperty('--c360-brand-primary',selected.brand_primary);root.style.setProperty('--c360-brand-accent',selected.brand_accent);root.style.setProperty('--c360-brand-light',selected.brand_light);const newColors={brand_primary:selected.brand_primary,brand_accent:selected.brand_accent,brand_light:selected.brand_light};setSavedColors(newColors);if(setTopBranding)setTopBranding(prev=>({...prev,...newColors}));window.showToast?.('Colour scheme saved ✓','success');}catch{window.showToast?.('Save failed','error');}};
+
+  const SchemePreview=({s})=>(<div style={{width:'100%',height:72,borderRadius:8,overflow:'hidden',display:'flex',marginBottom:12,border:'1px solid #EDE8F4'}}>
+    <div style={{width:28,background:s.brand_primary,display:'flex',flexDirection:'column',alignItems:'center',paddingTop:8,gap:5}}>
+      {[1,2,3,4].map(i=><div key={i} style={{width:14,height:4,borderRadius:2,background:i===2?s.brand_accent:'rgba(255,255,255,0.3)'}}/>)}
+    </div>
+    <div style={{flex:1,background:'#F9F9F9',padding:6}}>
+      <div style={{height:8,background:s.brand_light,borderRadius:3,marginBottom:4,border:'1px solid '+s.brand_accent+'30'}}/>
+      <div style={{display:'inline-block',height:7,width:30,background:s.brand_accent,borderRadius:3,marginBottom:4}}/>
+      {[1,2].map(i=><div key={i} style={{height:5,background:'#E8E8E8',borderRadius:2,marginBottom:3,width:i===1?'80%':'60%'}}/>)}
+    </div>
+  </div>);
+
+  const SchemeCard=({s,idx})=>{const isSel=selectedIdx===idx;return(
+    <div onClick={()=>setSelectedIdx(idx)} style={{flex:1,minWidth:0,padding:16,borderRadius:12,cursor:'pointer',border:isSel?'2px solid #534AB7':'1px solid #EDE8F4',background:isSel?'#EEEDFE':'#fff',position:'relative',transition:'border 0.15s, background 0.15s'}}>
+      {isSel&&<div style={{position:'absolute',top:10,right:10,width:20,height:20,borderRadius:'50%',background:'#534AB7',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+      </div>}
+      <div style={{fontSize:12,fontWeight:isSel?600:500,color:isSel?'#3C3489':'#3D3248',marginBottom:10,paddingRight:24}}>
+        {s.isDefault?'⭐ ':''}{s.name}
+      </div>
+      <SchemePreview s={s}/>
+      <div style={{display:'flex',flexDirection:'column',gap:5}}>
+        {[{c:s.brand_primary,l:'Sidebar & headers'},{c:s.brand_accent,l:'Buttons & active'},{c:s.brand_light,l:'Highlights & tints'}].map(({c,l})=>(
+          <div key={l} style={{display:'flex',alignItems:'center',gap:7}}>
+            <div style={{width:20,height:20,borderRadius:5,background:c,border:'1px solid #D9D0C7',flexShrink:0}}/>
+            <div><div style={{fontSize:10,color:'#8A7F96'}}>{l}</div><div style={{fontSize:10,fontFamily:'monospace',color:'#A89DB5'}}>{c}</div></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );};
+
+  return (<div style={{maxWidth:700}}>
+    {/* Logo */}
+    <div style={{marginBottom:24}}>
+      <div style={{fontSize:12,fontWeight:600,color:'#8A7F96',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:12}}>Centre Logo</div>
+      <div style={{display:'flex',alignItems:'center',gap:16}}>
+        <div style={{width:80,height:80,borderRadius:12,background:'#F8F5F1',border:'1px solid #EDE8F4',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0}}>
+          {logoUrl?<img src={logoUrl} alt="Logo" style={{maxWidth:72,maxHeight:72,objectFit:'contain'}}/>:<span style={{fontSize:11,color:'#A89DB5',textAlign:'center',padding:8}}>No logo</span>}
+        </div>
+        <div>
+          <input type="file" id="branding-logo-input" accept="image/*" style={{display:'none'}} onChange={handleLogoUpload}/>
+          <button onClick={()=>document.getElementById('branding-logo-input').click()} disabled={uploading}
+            style={{padding:'8px 16px',borderRadius:8,cursor:'pointer',border:'1px solid #DDD6EE',background:'#fff',fontSize:13,marginBottom:6,display:'block',opacity:uploading?0.6:1}}>
+            {uploading?'⏳ Analysing logo...':'📁 Upload logo'}
+          </button>
+          <div style={{fontSize:11,color:'#A89DB5'}}>PNG, JPG or SVG · Max 5MB{!logoUrl?' · Upload to get AI colour suggestions':''}</div>
+        </div>
+      </div>
+    </div>
+    {/* Schemes */}
+    <div style={{marginBottom:20}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:600,color:'#8A7F96',textTransform:'uppercase',letterSpacing:'0.05em'}}>Colour Scheme</div>
+        {schemes.length>0&&<div style={{fontSize:11,color:'#534AB7',fontWeight:500}}>✨ AI schemes generated from your logo</div>}
+        {schemes.length===0&&<div style={{fontSize:11,color:'#A89DB5'}}>Upload a logo for AI colour suggestions</div>}
+      </div>
+      <div style={{display:'flex',gap:12,alignItems:'stretch'}}>
+        {allSchemes.map((s,i)=><SchemeCard key={i} s={s} idx={i}/>)}
+      </div>
+    </div>
+    <button onClick={handleSave} style={{padding:'10px 28px',borderRadius:9,border:'none',background:'#534AB7',color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Save colour scheme</button>
   </div>);
 }
 
-function SettingsView() {
+function SettingsView({ branding, setBranding }) {
   const [stab, setStab] = useState("service");
   const [svc, setSvc]   = useState(null);
   const [saving, setSaving] = useState(false);
@@ -4598,9 +4658,14 @@ function SettingsView() {
   const [catalogue, setCatalogue] = useState({});
   const [providers,  setProviders]  = useState([]);
   const [usage, setUsage]           = useState(null);
-  const [editProv, setEditProv]     = useState(null); // provider being edited
-  const [testing, setTesting]       = useState(null);  // provider key being tested
-  const [testResult, setTestResult] = useState({});    // {provKey: {ok,msg}}
+  const [editProv, setEditProv]     = useState(null);
+  const [testing, setTesting]       = useState(null);
+  const [testResult, setTestResult] = useState({});
+
+  // Model tier state
+  const [modelTiers, setModelTiers] = useState({ fast:'claude-haiku-4-5-20251001', balanced:'claude-sonnet-4-6', powerful:'claude-opus-4-6' });
+  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [lastChecked, setLastChecked] = useState(null);
 
   const API2 = (path, opts={}) => {
     const t=localStorage.getItem("c360_token"), tid=localStorage.getItem("c360_tenant");
@@ -4615,6 +4680,7 @@ function SettingsView() {
       API2("/api/ai/catalogue").then(d=>{ if(d&&!d.error) setCatalogue(d); }).catch(()=>{});
       API2("/api/ai/providers").then(d=>{ if(Array.isArray(d)) setProviders(d); }).catch(()=>{});
       API2("/api/ai/usage").then(d=>{ if(d) setUsage(d); }).catch(()=>{});
+      API2("/api/settings/ai-tiers").then(d=>{ if(d&&!d.error){setModelTiers({fast:d.tier_fast||'claude-haiku-4-5-20251001',balanced:d.tier_balanced||'claude-sonnet-4-6',powerful:d.tier_powerful||'claude-opus-4-6'});if(d.auto_update!==undefined)setAutoUpdate(!!d.auto_update);if(d.last_checked)setLastChecked(d.last_checked);}}).catch(()=>{});
     }
   },[stab]);
 
@@ -4736,7 +4802,7 @@ function SettingsView() {
                   </select>
                 </div>
                 <div style={{gridColumn:"span 2",marginTop:12,paddingTop:16,borderTop:"1px solid #EDE8F4"}}>
-                  <BrandingPanel API2={API2} purple2={purple2} lbl2={lbl2} inp2={inp2} />
+                  <BrandingPanel API2={API2} branding={branding} setBranding={setBranding} />
                 </div>
               </div>
             )}
@@ -4746,9 +4812,7 @@ function SettingsView() {
 
       {/* ── BRANDING TAB ── */}
       {stab==="branding" && (
-        <div style={{maxWidth:700}}>
-          <BrandingPanel API2={API2} purple2={purple2} lbl2={lbl2} inp2={inp2} />
-        </div>
+        <BrandingPanel API2={API2} branding={branding} setBranding={setBranding} />
       )}
 
       {/* ── USERS TAB ── */}
@@ -4863,6 +4927,43 @@ function SettingsView() {
               </table>
             </div>
           )}
+
+          {/* Model selection */}
+          <div style={{...cardStyle,marginTop:14}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#3D3248",marginBottom:4}}>Model selection</div>
+            <div style={{fontSize:12,color:"#8A7F96",marginBottom:16}}>Choose which Claude model is used for different types of tasks. Models are updated automatically each week.</div>
+            {[
+              {tier:'fast',label:'Quick tasks',desc:'Colour suggestions, simple lookups, voice responses',icon:'⚡',filter:'haiku'},
+              {tier:'balanced',label:'Standard tasks',desc:'Learning stories, observations, AI writing',icon:'⚖️',filter:'sonnet'},
+              {tier:'powerful',label:'Complex tasks',desc:'Compliance analysis, detailed reports',icon:'🧠',filter:'opus'},
+            ].map(({tier,label,desc,icon,filter})=>(
+              <div key={tier} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid #F0EBF8'}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:500,color:'#3D3248'}}>{icon} {label}</div>
+                  <div style={{fontSize:11,color:'#8A7F96',marginTop:2}}>{desc}</div>
+                </div>
+                <select value={modelTiers[tier]||''} onChange={e=>setModelTiers(p=>({...p,[tier]:e.target.value}))}
+                  style={{marginLeft:16,fontSize:12,padding:'6px 10px',borderRadius:6,border:'1px solid #DDD6EE',minWidth:200}}>
+                  <option value={modelTiers[tier]}>{modelTiers[tier]}</option>
+                  {(catalogue.anthropic?.models||[]).filter(m=>m.id.includes(filter)&&m.id!==modelTiers[tier]).map(m=><option key={m.id} value={m.id}>{m.label||m.id}</option>)}
+                </select>
+              </div>
+            ))}
+            <div style={{display:'flex',alignItems:'center',gap:12,marginTop:16,flexWrap:'wrap'}}>
+              <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#8A7F96',cursor:'pointer'}}>
+                <input type="checkbox" checked={autoUpdate} onChange={e=>setAutoUpdate(e.target.checked)}/> Auto-update weekly
+              </label>
+              <button onClick={async()=>{try{const d=await API2('/api/settings/ai-tiers/check-updates',{method:'POST'});if(d.recommended){setModelTiers({fast:d.recommended.tier_fast,balanced:d.recommended.tier_balanced,powerful:d.recommended.tier_powerful});setLastChecked(new Date().toISOString());window.showToast?.('Models updated ✓','success');}}catch{window.showToast?.('Update check failed','error');}}}
+                style={{fontSize:12,padding:'5px 12px',borderRadius:6,cursor:'pointer',border:'1px solid #DDD6EE',background:'transparent',color:'#6B5F7A'}}>
+                🔄 Check now
+              </button>
+              {lastChecked&&<span style={{fontSize:11,color:'#A89DB5'}}>Last: {new Date(lastChecked).toLocaleDateString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
+            </div>
+            <button onClick={async()=>{try{await API2('/api/settings/ai-tiers',{method:'PUT',body:{tier_fast:modelTiers.fast,tier_balanced:modelTiers.balanced,tier_powerful:modelTiers.powerful,auto_update:autoUpdate?1:0}});window.showToast?.('Model selection saved ✓','success');}catch{window.showToast?.('Save failed','error');}}}
+              style={{marginTop:12,padding:'8px 20px',borderRadius:8,border:'none',background:purple2,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+              Save model selection
+            </button>
+          </div>
         </div>
       )}
 

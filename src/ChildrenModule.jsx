@@ -302,7 +302,7 @@ function ProfileTab({ child, rooms, onSaved }) {
         <div style={{ ...card, minWidth: 0, overflow: "hidden" }}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>🏥 Medical Summary</h4>
           <div style={{ display: "grid", gap: 8 }}>
-            <FRow label="Known Allergies" k="allergies" f={f} u={u} ed={ed} inp={inp} lbl={lbl} />
+          <div>
             <div>
               <label style={lbl}>Notes</label>
               <textarea value={f.medical_notes || ""} onChange={e => u("medical_notes", e.target.value)} disabled={!ed}

@@ -19,6 +19,7 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
+import { getModel } from './ai-tier.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -148,7 +149,7 @@ async function optionalAISentence(childName, eylfPhrases, observations) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: getModel(null, 'fast'), max_tokens: 60, messages: [{ role: 'user', content: prompt }] }),
     });
     const d = await r.json();
     return d.content?.[0]?.text?.trim() || null;

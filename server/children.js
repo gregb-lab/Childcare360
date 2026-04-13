@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
+import { getModel } from './ai-tier.js';
 
 const router = Router();
 router.use(requireAuth, requireTenant);
@@ -694,7 +695,7 @@ router.post('/:id/ai-focus', requireAuth, requireTenant, async (req, res) => {
           const Anthropic = (await import('@anthropic-ai/sdk')).default;
           const client = new Anthropic({ apiKey: provider.api_key });
           const msg = await client.messages.create({
-            model: 'claude-haiku-4-5-20251001',
+            model: getModel(req.tenantId, 'balanced'),
             max_tokens: 600,
             system: 'You are an early childhood educator. Return ONLY valid JSON. Keys: strengths (array, max 3), next_steps (array, max 3), eylf_focus (array of integers 1-5), summary (string). No markdown.',
             messages: [{ role: 'user', content: `Learning focus profile for:\n${contextText}` }],

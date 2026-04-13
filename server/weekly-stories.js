@@ -14,6 +14,7 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
+import { getModel } from './ai-tier.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -273,7 +274,7 @@ Return ONLY the narration text. No title. No stage directions.`;
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
             body: JSON.stringify({
-              model: 'claude-haiku-4-5-20251001',
+              model: getModel(null, 'fast'),
               max_tokens: period === 'year' ? 400 : period === 'term' ? 250 : 150,
               messages: [{ role: 'user', content: prompt }],
             }),

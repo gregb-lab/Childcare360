@@ -8,6 +8,7 @@ import { Readable } from 'stream';
 import { join } from 'path';
 import { D, uuid, auditLog } from './db.js';
 import { requireAuth, requireTenant, requireRole } from './middleware.js';
+import { getModel } from './ai-tier.js';
 
 const router   = Router();
 const webhooks = Router();
@@ -19,7 +20,7 @@ const TTS_CACHE_DIR = DATA_DIR + '/tts_cache';
 // All outbound calls are redirected to this number regardless of the intended
 // recipient. Remove DEV_CALL_OVERRIDE from env (or set to empty) to disable.
 // This prevents accidental calls to real parents/staff during testing.
-const DEV_CALL_OVERRIDE = process.env.DEV_CALL_OVERRIDE || '+61413880015';
+const DEV_CALL_OVERRIDE = process.env.DEV_CALL_OVERRIDE || null;
 function safeNumber(intended) {
   if (DEV_CALL_OVERRIDE) {
     console.log(`[Voice] DEV OVERRIDE: redirecting ${intended} → ${DEV_CALL_OVERRIDE}`);
@@ -310,7 +311,7 @@ async function askClaude(transcript, systemPrompt, context) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+        model: getModel(null, 'fast'), max_tokens: 200,
         system: `${systemPrompt}\n\nContext: ${context || 'General childcare centre enquiry.'}\n\nYou are on a live phone call. Keep responses short — 1 to 2 sentences maximum. Be warm and natural. No lists, no bullet points, no markdown.`,
         messages: merged
       })
@@ -1212,7 +1213,7 @@ router.post('/retell/test-call', requireAuth, requireTenant, async (req, res) =>
   const s = getRetellSettings(req.tenantId);
   if (!s.retell_api_key || !s.retell_agent_id) return res.status(400).json({ error: 'API key and agent required' });
   if (!s.retell_phone_number_id) return res.status(400).json({ error: 'No phone number linked' });
-  const to = process.env.DEV_CALL_OVERRIDE || req.body.to_number;
+  const to = req.body.to_number;
   if (!to) return res.status(400).json({ error: 'to_number required' });
   try {
     const call = await retellFetch('/create-phone-call', 'POST', {

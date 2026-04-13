@@ -14,6 +14,7 @@
 import { Router } from 'express';
 import { D, uuid } from './db.js';
 import { requireAuth, requireTenant } from './middleware.js';
+import { getModel } from './ai-tier.js';
 
 const r = Router();
 r.use(requireAuth, requireTenant);
@@ -177,7 +178,7 @@ r.post('/generate', async (req, res) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: getModel(req.tenantId, 'balanced'),
         max_tokens: 600,
         messages: [{ role: 'user', content: prompt }],
       }),
