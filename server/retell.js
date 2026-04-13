@@ -365,7 +365,7 @@ export async function setupRetellWebSocket(httpServer) {
 
   // Upgrade only /api/retell/ws/* paths
   httpServer.on('upgrade', (req, socket, head) => {
-    const match = req.url?.match(/^\/api\/retell\/ws\/([^/?]+)/);
+    const match = req.url?.match(/^\/api\/retell\/ws\/([^/?]+)/) || req.url?.match(/^\/retell-llm-websocket\/([^/?]+)/);
     if (!match) return; // not our path — let other handlers deal with it
     const tenantId = match[1];
     wss.handleUpgrade(req, socket, head, (ws) => {
