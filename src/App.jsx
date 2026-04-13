@@ -485,10 +485,23 @@ export default function ChildcareRosterApp() {
   };
   const toggleSidebar = () => setSidebarCollapsed(v => { const n = !v; localStorage.setItem("c360_sidebar_collapsed", n); return n; });
 
+  // ── Rail + flyout sidebar state ──
+  const [flyoutOpen, setFlyoutOpen] = useState(null);
+  const [labelsVisible, setLabelsVisible] = useState(() => localStorage.getItem('c360_nav_labels') !== 'false');
+  const toggleFlyout = (catId) => setFlyoutOpen(prev => prev === catId ? null : catId);
+  const closeFlyout = () => setFlyoutOpen(null);
+  const toggleLabels = () => setLabelsVisible(prev => { localStorage.setItem('c360_nav_labels', String(!prev)); return !prev; });
+  useEffect(() => {
+    const h = (e) => { if (!e.target.closest('.c360-rail') && !e.target.closest('.c360-flyout')) closeFlyout(); };
+    const esc = (e) => { if (e.key === 'Escape') closeFlyout(); };
+    document.addEventListener('mousedown', h); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', esc); };
+  }, []);
+
   // ── Unified navigation — always syncs state + localStorage ──
   const navigate = useCallback((tab) => {
     setActiveTab(tab);
-    localStorage.setItem("c360_active_tab", tab);
+    sessionStorage.setItem("c360_active_tab", tab);
   }, []);
 
   // Expose navigate globally so child modules can cross-navigate
@@ -498,7 +511,7 @@ export default function ChildcareRosterApp() {
   }, [navigate]);
 
   const [activeTab, setActiveTab] = useState(() => {
-    const saved = localStorage.getItem("c360_active_tab");
+    const saved = sessionStorage.getItem("c360_active_tab");
     const validTabs = [
       "dashboard","children","clockinout","kiosk","rooms","daily_updates","child_dev",
       "medication_register","incidents","excursions","operations",
@@ -535,6 +548,27 @@ export default function ChildcareRosterApp() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [liveEducatorCount, setLiveEducatorCount] = useState(null);
+  const [branding, setBranding] = useState(null);
+
+  // Apply branding CSS variables to :root
+  const applyBranding = useCallback((b) => {
+    if (!b) return;
+    const root = document.documentElement;
+    if (b.brand_primary) root.style.setProperty('--c360-brand-primary', b.brand_primary);
+    if (b.brand_accent) root.style.setProperty('--c360-brand-accent', b.brand_accent);
+    if (b.brand_light) root.style.setProperty('--c360-brand-light', b.brand_light);
+  }, []);
+
+  // Load branding on boot
+  useEffect(() => {
+    const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant");
+    if (!t || !tid) return;
+    fetch("/api/settings/branding", { headers: { Authorization: "Bearer " + t, "x-tenant-id": tid } })
+      .then(r => r.json())
+      .then(b => { if (b && !b.error) { setBranding(b); applyBranding(b); } })
+      .catch(() => {});
+  }, [applyBranding]);
+
   // Auto-collapse sidebar on mobile
   useEffect(() => {
     const handler = () => { if (window.innerWidth < 768) setSidebarCollapsed(true); };
@@ -712,7 +746,42 @@ export default function ChildcareRosterApp() {
     setEditItem(null);
   };
 
-  // ── Nav items ──
+  // ── SVG icon helper for rail/flyout ──
+  const NI = ({ d, size = 18, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{fill:color,flexShrink:0,display:'block'}}><path d={d}/></svg>
+  );
+
+  // ── Rail categories (icon rail + flyout structure) ──
+  const RAIL_CATS = [
+    { id:'cat_today', label:'Today', icon:'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
+      tabs:['dashboard','operations'] },
+    { id:'cat_children', label:'Children', icon:'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+      tabs:['children','enrolment','waitlist','kiosk','crm','medication_register'] },
+    { id:'cat_educators', label:'Educators', icon:'M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z',
+      tabs:['educators','roster','clockinout','wellbeing','leave_requests','staff_wellbeing','payroll'] },
+    { id:'cat_learning', label:'Learning', icon:'M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z',
+      tabs:['learning_journey','observations','stories','run_sheet','ai_assistant','child_dev','daily_updates'] },
+    { id:'cat_finance', label:'Finance', icon:'M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z',
+      tabs:['invoicing_full','ccs','payments'] },
+    { id:'cat_reports', label:'Reports', icon:'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z',
+      tabs:['analytics','reports_builder','reports','ratio_report'] },
+    { id:'cat_comms', label:'Comms', icon:'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z',
+      tabs:['message_centre','engagement','bulk_comms','notifications'] },
+    { id:'cat_safety', label:'Safety', icon:'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z',
+      tabs:['incidents','excursions','checklists','quality','documents','ratio_check','compliance','soc2'] },
+  ];
+  const RAIL_SETTINGS = { id:'cat_settings', label:'Settings',
+    tabs:['settings','rooms','voice','ai_config','developer_api'] };
+  const RAIL_PLATFORM = { id:'cat_platform', label:'Platform',
+    tabs:['owner_portal','admin_power',...(auth?.isPlatformAdmin ? ['hq_dashboard'] : [])] };
+  const showPlatform = auth?.isPlatformAdmin || ['admin','owner','director'].includes(auth?.currentTenant?.role);
+
+  // Map a tab ID to the rail category it belongs to
+  const activeCatId = RAIL_CATS.find(c => c.tabs.includes(activeTab))?.id
+    || (RAIL_SETTINGS.tabs.includes(activeTab) ? RAIL_SETTINGS.id : null)
+    || (RAIL_PLATFORM.tabs.includes(activeTab) ? RAIL_PLATFORM.id : null);
+
+  // ── Nav items (kept for legacy label lookups + tab content mapping) ──
   // Nav groups: each group has a label and items
   const navGroups = [
     { label: "Overview", items: [
@@ -724,6 +793,8 @@ export default function ChildcareRosterApp() {
         { id: "enrolment", label: "Enrolments", icon: "people" },
         { id: "waitlist", label: "Waitlist", icon: "people" },
         { id: "kiosk", label: "Kiosk Sign-In", icon: "clock" },
+        { id: "crm", label: "CRM & Enquiries", icon: "people" },
+        { id: "medication_register", label: "Medication Register", icon: "warning" },
     ]},
     { label: "Educators", items: [
         { id: "educators", label: "Educators", icon: "people" },
@@ -731,6 +802,8 @@ export default function ChildcareRosterApp() {
         { id: "clockinout", label: "Clock In/Out", icon: "clock" },
         { id: "wellbeing", label: "Staff Wellbeing", icon: "people" },
         { id: "leave_requests", label: "Leave Requests", icon: "calendar" },
+        { id: "staff_wellbeing", label: "Wellbeing Check-ins", icon: "people" },
+        { id: "payroll", label: "Payroll", icon: "invoicing" },
     ]},
     { label: "Learning", items: [
         { id: "learning_journey", label: "Learning Journeys", icon: "learning" },
@@ -738,18 +811,25 @@ export default function ChildcareRosterApp() {
         { id: "stories", label: "Weekly Stories", icon: "learning" },
         { id: "run_sheet", label: "Run Sheets", icon: "assignment" },
         { id: "ai_assistant", label: "AI Writing", icon: "smart_toy" },
+        { id: "child_dev", label: "Child Development", icon: "learning" },
+        { id: "daily_updates", label: "Daily Updates", icon: "assignment" },
     ]},
     { label: "Finance", items: [
         { id: "invoicing_full", label: "Invoicing & Payments", icon: "invoicing" },
         { id: "ccs", label: "CCS & Subsidy", icon: "invoicing" },
+        { id: "payments", label: "Payment Links", icon: "invoicing" },
     ]},
     { label: "Reports & Analytics", items: [
         { id: "analytics", label: "Analytics", icon: "chart" },
         { id: "reports_builder", label: "Report Builder", icon: "chart" },
+        { id: "reports", label: "Reports", icon: "chart" },
+        { id: "ratio_report", label: "Ratio Report", icon: "chart" },
     ]},
     { label: "Communications", items: [
         { id: "message_centre", label: "Message Centre", icon: "observation" },
         { id: "engagement", label: "Engagement", icon: "people" },
+        { id: "bulk_comms", label: "Bulk Communications", icon: "observation" },
+        { id: "notifications", label: "Notifications", icon: "observation" },
     ]},
     { label: "Compliance & Safety", items: [
         { id: "incidents", label: "Incidents", icon: "warning" },
@@ -757,19 +837,20 @@ export default function ChildcareRosterApp() {
         { id: "checklists", label: "Checklists", icon: "shield" },
         { id: "quality", label: "Quality (QIP)", icon: "shield" },
         { id: "documents", label: "Documents", icon: "documents" },
-        { id: "child_dev", label: "Development", icon: "learning" },
         { id: "ratio_check", label: "Ratio Check", icon: "chart" },
+        { id: "compliance", label: "Compliance", icon: "shield" },
+        { id: "soc2", label: "SOC2 Compliance", icon: "shield" },
     ]},
     { label: "Settings", items: [
         { id: "settings", label: "Centre Settings", icon: "settings" },
         { id: "rooms", label: "Rooms", icon: "room" },
-        { id: "payments", label: "Payment Links", icon: "invoicing" },
         { id: "voice", label: "Voice Agent", icon: "smart_toy" },
         { id: "ai_config", label: "AI Providers", icon: "smart_toy" },
         { id: "developer_api", label: "API & Integrations", icon: "settings" },
     ]},
     ...((auth?.isPlatformAdmin || ['admin','owner','director'].includes(auth?.currentTenant?.role)) ? [{ label: "Platform", items: [
         { id: "owner_portal", label: "Owner Portal", icon: "platform" },
+        { id: "admin_power", label: "Admin Tools", icon: "settings" },
         ...(auth?.isPlatformAdmin ? [{ id: "hq_dashboard", label: "HQ Dashboard", icon: "dashboard" }] : []),
     ]}] : []),
   ];
@@ -833,170 +914,94 @@ export default function ChildcareRosterApp() {
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "'Nunito', 'DM Sans', -apple-system, sans-serif", background: "#FAF7F4", color: "#3D3248", overflow: "hidden" }}>
 
-      {/* ── SIDEBAR ── */}
-      <nav style={{ width: sidebarCollapsed ? 64 : 240, background: "#FDFBF9", borderRight: "1px solid #E8E0D8", display: "flex", flexDirection: "column", flexShrink: 0, transition: "width 0.2s ease", overflow: "hidden" }}>
-        <div style={{ padding: sidebarCollapsed ? "16px 0" : "16px 16px 16px 20px", borderBottom: "1px solid #E8E0D8", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between" }}>
-          {!sidebarCollapsed && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <svg width="32" height="32" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-                <defs><linearGradient id="g1" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stopColor="#8B6DAF"/><stop offset="100%" stopColor="#B5A0CC"/></linearGradient></defs>
-                <rect width="36" height="36" rx="10" fill="url(#g1)"/>
-                <circle cx="18" cy="18" r="11" stroke="white" strokeWidth="2" fill="none" strokeDasharray="4 2"/>
-                <circle cx="18" cy="18" r="6.5" fill="white" fillOpacity="0.95"/>
-                <text x="18" y="21.5" textAnchor="middle" fontSize="6" fontWeight="800" fontFamily="Nunito,sans-serif" fill="#8B6DAF">360</text>
-              </svg>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>Childcare360</div>
-                <div style={{ fontSize: 10, color: "#A89DB5" }}>v2.9.0</div>
-              </div>
-            </div>
-          )}
-          {sidebarCollapsed && (
-            <svg width="32" height="32" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-              <defs><linearGradient id="g1c" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stopColor="#8B6DAF"/><stop offset="100%" stopColor="#B5A0CC"/></linearGradient></defs>
-              <rect width="36" height="36" rx="10" fill="url(#g1c)"/>
-              <circle cx="18" cy="18" r="11" stroke="white" strokeWidth="2" fill="none" strokeDasharray="4 2"/>
-              <circle cx="18" cy="18" r="6.5" fill="white" fillOpacity="0.95"/>
-              <text x="18" y="21.5" textAnchor="middle" fontSize="6" fontWeight="800" fontFamily="Nunito,sans-serif" fill="#8B6DAF">360</text>
-            </svg>
-          )}
-          <button onClick={toggleSidebar} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#A89DB5", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              {sidebarCollapsed
-                ? <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z"/>
-                : <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>}
-            </svg>
-          </button>
-        </div>
-
-        <div style={{ flex: 1, padding: "12px 10px", overflowY: "auto" }}>
-          {/* Favourites */}
-          {pinnedTabs.length > 0 && (
-            <div>
-              {!sidebarCollapsed && (
-                <div style={{fontSize:9,fontWeight:800,color:"#C4A8E8",letterSpacing:"0.08em",
-                  textTransform:"uppercase",padding:"10px 14px 4px",display:"flex",
-                  justifyContent:"space-between",alignItems:"center"}}>
-                  <span>⭐ Favourites</span>
-                  <span style={{fontSize:8,color:"#7A6B8A",cursor:"pointer"}}
-                    onClick={()=>{setPinnedTabs([]);localStorage.removeItem("c360_pinned_tabs");}}>clear</span>
-                </div>
-              )}
-              {pinnedTabs.map(p => (
-                <button key={p.id}
-                  title={sidebarCollapsed ? p.label : undefined}
-                  onClick={() => navigate(p.id)}
-                  style={{display:"flex",alignItems:"center",gap:sidebarCollapsed?0:10,
-                    width:"100%",padding:sidebarCollapsed?"9px 0":"7px 14px",
-                    justifyContent:sidebarCollapsed?"center":"flex-start",
-                    border:"none",borderRadius:8,cursor:"pointer",fontSize:13,marginBottom:1,
-                    fontWeight:activeTab===p.id?700:400,fontFamily:"inherit",
-                    background:activeTab===p.id?"rgba(139,109,175,0.12)":"transparent",
-                    color:activeTab===p.id?"#C4A8E8":"#8A7F9A"}}>
-                  <span style={{fontSize:sidebarCollapsed?16:11}}>⭐</span>
-                  {!sidebarCollapsed && <span style={{flex:1,textAlign:"left"}}>{p.label}</span>}
-                </button>
-              ))}
-              <div style={{height:1,background:"rgba(255,255,255,0.08)",margin:"4px 8px 2px"}}/>
-            </div>
-          )}
-          {navGroups.map((group, gi) => {
-            const visibleItems = group.items.filter(item => {
-              if (auth.currentTenant?.role === "educator") {
-                return ["dashboard","clockinout"].includes(item.id);
-              }
-              return true;
-            });
-            if (!visibleItems.length) return null;
-            return (
-              <div key={gi}>
-                {group.label && !sidebarCollapsed && (
-                  <div onClick={() => toggleGroup(group.label)}
-                    style={{fontSize:9,fontWeight:800,color:"#A89DB5",letterSpacing:"0.08em",
-                    textTransform:"uppercase",padding:"10px 14px 4px",marginTop:gi>0?4:0,
-                    display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",
-                    userSelect:"none"}}
-                    onMouseEnter={e=>e.currentTarget.style.color="#C4A8E8"}
-                    onMouseLeave={e=>e.currentTarget.style.color="#A89DB5"}>
-                    <span>{group.label}</span>
-                    <span style={{fontSize:8,transition:"transform 0.2s",
-                      transform:collapsedGroups[group.label]?"rotate(-90deg)":"rotate(0deg)"}}>▾</span>
-                  </div>
-                )}
-                {gi > 0 && sidebarCollapsed && (
-                  <div style={{height:1,background:"rgba(255,255,255,0.08)",margin:"6px 8px"}}/>
-                )}
-
-                {(sidebarCollapsed || !collapsedGroups[group.label]) && visibleItems.map((item) => (
-                  <button
-                    key={item.id}
-                    title={sidebarCollapsed ? item.label : undefined}
-                    onClick={() => { navigate(item.id); setShowFavMenu(null); }}
-                    onContextMenu={(e) => { e.preventDefault(); setShowFavMenu(showFavMenu===item.id?null:item.id); }}
-                    onMouseEnter={e => { if (activeTab !== item.id) { e.currentTarget.style.background = "rgba(139,109,175,0.06)"; e.currentTarget.style.color = "#5C4E6A"; }}}
-                    onMouseLeave={e => { if (activeTab !== item.id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6B5F7A"; }}}
-                    style={{
-                      display: "flex", alignItems: "center", gap: sidebarCollapsed ? 0 : 10,
-                      justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                      width: "100%", padding: sidebarCollapsed ? "9px 0" : "8px 14px",
-                      border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13,
-                      fontWeight: activeTab === item.id ? 700 : 500,
-                      fontFamily: "inherit", marginBottom: 1, transition: "all 0.15s ease",
-                      position: "relative",
-                      background: activeTab === item.id ? "rgba(139,109,175,0.12)" : "transparent",
-                      color: activeTab === item.id ? "#C4A8E8" : "#8A7F9A",
-                    }}
-                  >
-                    <Icon name={item.icon} size={17} color={activeTab === item.id ? "#C4A8E8" : "#7A7090"} />
-                    {!sidebarCollapsed && <span style={{flex:1,textAlign:"left"}}>{item.label}</span>}
-                    {!sidebarCollapsed && showFavMenu===item.id && (
-                      <span onClick={(e)=>{e.stopPropagation();togglePin(item.id,item.label);setShowFavMenu(null);}}
-                        style={{fontSize:11,padding:"1px 6px",borderRadius:6,
-                          background:pinnedTabs.find(p=>p.id===item.id)?"#C4A8E822":"#A89DB522",
-                          color:"#C4A8E8",cursor:"pointer",fontWeight:700}}>
-                        {pinnedTabs.find(p=>p.id===item.id)?"★ Unpin":"☆ Pin"}
-                      </span>
-                    )}
-                    {!sidebarCollapsed && item.badge && (
-                      <span style={{background:"#E65100",color:"#fff",borderRadius:10,
-                        fontSize:9,fontWeight:800,padding:"1px 5px",minWidth:16,textAlign:"center"}}>
-                        {item.badge}
-                      </span>
-                    )}
-                    {!sidebarCollapsed && item.id === "compliance" && criticalAlertCount > 0 && (
-                      <span style={{background:"#C9828A",color:"#fff",borderRadius:10,
-                        fontSize:9,fontWeight:800,padding:"1px 5px",minWidth:16,textAlign:"center"}}>
-                        {criticalAlertCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* User account / settings / logout */}
-        <SidebarUserBlock
-          collapsed={sidebarCollapsed}
-          auth={auth}
-          onSettings={() => navigate("settings")}
-        />
-
-        {!sidebarCollapsed && !complianceStatus.allCompliant && complianceStatus.totalChildren > 0 && (
-          <div style={{ padding: "4px 14px 10px" }}>
-            <div onClick={() => navigate("compliance")} style={{
-              padding: "7px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-              background: "rgba(201,130,138,0.08)",
-              border: "1px solid rgba(201,130,138,0.15)",
-              color: "#C06B73", textAlign: "center", cursor: "pointer",
-            }}>
-              ⚠ Non-Compliant
-            </div>
+      {/* ── ICON RAIL ── */}
+      <nav className="c360-rail" style={{width:64,minWidth:64,background:'var(--c360-brand-primary, #3C3489)',display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 0',gap:2,zIndex:300,flexShrink:0}}>
+        {/* Logo */}
+        {branding?.logo_url ? (
+          <div style={{width:44,height:44,borderRadius:10,background:'rgba(255,255,255,0.12)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:12,overflow:'hidden',flexShrink:0}}>
+            <img src={branding.logo_url} alt="Logo" style={{maxWidth:40,maxHeight:40,objectFit:'contain',borderRadius:6}} />
+          </div>
+        ) : (
+          <div style={{width:36,height:36,borderRadius:10,background:'var(--c360-brand-accent, #534AB7)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:14}}>
+            <svg width="20" height="20" viewBox="0 0 36 36"><defs><linearGradient id="rl" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stopColor="#fff"/><stop offset="100%" stopColor="var(--c360-brand-light, #EEEDFE)"/></linearGradient></defs><circle cx="18" cy="18" r="11" stroke="url(#rl)" strokeWidth="2" fill="none" strokeDasharray="4 2"/><circle cx="18" cy="18" r="6.5" fill="white" fillOpacity="0.95"/><text x="18" y="21.5" textAnchor="middle" fontSize="6" fontWeight="800" fontFamily="Nunito,sans-serif" fill="var(--c360-brand-accent, #534AB7)">360</text></svg>
           </div>
         )}
+        {/* Main categories */}
+        {RAIL_CATS.map(cat => { const isAct=activeCatId===cat.id,isOp=flyoutOpen===cat.id; return (
+          <button key={cat.id} onClick={()=>toggleFlyout(cat.id)} title={cat.label}
+            style={{width:48,minHeight:labelsVisible?48:44,borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:labelsVisible?3:0,cursor:'pointer',border:'none',background:isAct||isOp?'var(--c360-brand-accent, #534AB7)':'transparent',padding:'6px 4px',transition:'background 0.15s'}}
+            onMouseEnter={e=>{if(!isAct&&!isOp)e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+            onMouseLeave={e=>{if(!isAct&&!isOp)e.currentTarget.style.background='transparent';}}>
+            <NI d={cat.icon} size={18} color={isAct||isOp?'#fff':'rgba(255,255,255,0.6)'} />
+            {labelsVisible && <span style={{fontSize:9,lineHeight:1,color:isAct||isOp?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.5)',fontWeight:500,textAlign:'center',maxWidth:44}}>{cat.label}</span>}
+          </button>
+        );})}
+        <div style={{flex:1}} />
+        {/* Settings */}
+        {(()=>{const isAct=activeCatId===RAIL_SETTINGS.id,isOp=flyoutOpen===RAIL_SETTINGS.id;return(
+          <button onClick={()=>toggleFlyout(RAIL_SETTINGS.id)} title="Settings"
+            style={{width:48,minHeight:44,borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:labelsVisible?3:0,cursor:'pointer',border:'none',background:isAct||isOp?'var(--c360-brand-accent, #534AB7)':'transparent',marginBottom:4,transition:'background 0.15s'}}
+            onMouseEnter={e=>{if(!isAct&&!isOp)e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+            onMouseLeave={e=>{if(!isAct&&!isOp)e.currentTarget.style.background='transparent';}}>
+            <NI d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" size={18} color={isAct||isOp?'#fff':'rgba(255,255,255,0.6)'} />
+            {labelsVisible && <span style={{fontSize:9,color:isAct||isOp?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.5)',fontWeight:500}}>Settings</span>}
+          </button>
+        );})()}
+        {/* Platform (admin only) */}
+        {showPlatform && (()=>{const isAct=activeCatId===RAIL_PLATFORM.id,isOp=flyoutOpen===RAIL_PLATFORM.id;return(
+          <button onClick={()=>toggleFlyout(RAIL_PLATFORM.id)} title="Platform"
+            style={{width:48,minHeight:44,borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:labelsVisible?3:0,cursor:'pointer',border:'none',background:isAct||isOp?'var(--c360-brand-accent, #534AB7)':'transparent',marginBottom:4,transition:'background 0.15s'}}
+            onMouseEnter={e=>{if(!isAct&&!isOp)e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+            onMouseLeave={e=>{if(!isAct&&!isOp)e.currentTarget.style.background='transparent';}}>
+            <NI d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" size={18} color={isAct||isOp?'#fff':'rgba(255,255,255,0.6)'} />
+            {labelsVisible && <span style={{fontSize:9,color:isAct||isOp?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.5)',fontWeight:500}}>Platform</span>}
+          </button>
+        );})()}
+        {/* Labels toggle */}
+        <button onClick={toggleLabels} title={labelsVisible?'Hide labels':'Show labels'}
+          style={{width:32,height:24,borderRadius:6,border:'none',background:'rgba(255,255,255,0.08)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:8}}>
+          <svg width="12" height="12" viewBox="0 0 24 24" style={{fill:'rgba(255,255,255,0.4)',transform:labelsVisible?'none':'rotate(180deg)',transition:'transform 0.2s'}}><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+        </button>
+        {/* User avatar */}
+        <div onClick={()=>{ if(typeof auth?.logout==='function') auth.logout(); else { ['c360_token','c360_refresh','c360_tenant'].forEach(k=>localStorage.removeItem(k)); window.location.reload(); }}}
+          title={auth?.user?.email||'Sign out'} style={{width:32,height:32,borderRadius:'50%',background:'#7F77DD',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:500,color:'#fff',cursor:'pointer',marginBottom:4}}>
+          {(auth?.user?.name||auth?.user?.email||'U').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
+        </div>
       </nav>
+
+      {/* ── FLYOUT PANEL ── */}
+      {flyoutOpen && (()=>{
+        const openCat=[...RAIL_CATS,RAIL_SETTINGS,RAIL_PLATFORM].find(c=>c.id===flyoutOpen);
+        if(!openCat)return null;
+        // Get the flyout items from the matching navGroup
+        const groupMap={'cat_today':'Overview','cat_children':'Children','cat_educators':'Educators','cat_learning':'Learning','cat_finance':'Finance','cat_reports':'Reports & Analytics','cat_comms':'Communications','cat_safety':'Compliance & Safety','cat_settings':'Settings','cat_platform':'Platform'};
+        const group=navGroups.find(g=>g.label===groupMap[openCat.id]);
+        const items=group?group.items:[];
+        return(
+          <div className="c360-flyout" style={{position:'absolute',left:64,top:0,height:'100%',width:220,background:'#FDFBF9',borderRight:'1px solid #E8E0D8',display:'flex',flexDirection:'column',zIndex:200,animation:'flyIn 0.15s ease',boxShadow:'4px 0 24px rgba(0,0,0,0.06)'}}>
+            <style>{`@keyframes flyIn{from{transform:translateX(-16px);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
+            <div style={{padding:'14px 16px 10px',borderBottom:'1px solid #E8E0D8',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontSize:11,fontWeight:600,color:'var(--c360-brand-accent, #534AB7)',letterSpacing:'0.06em',textTransform:'uppercase'}}>{openCat.label}</span>
+              <button onClick={closeFlyout} style={{border:'none',background:'none',cursor:'pointer',color:'#A89DB5',fontSize:16,lineHeight:1,padding:'2px 4px',borderRadius:4}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
+              {items.map(item=>{
+                const isAct=activeTab===item.id;
+                return(
+                  <button key={item.id} onClick={()=>{navigate(item.id);closeFlyout();}}
+                    style={{width:'100%',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:10,padding:'9px 16px',background:isAct?'var(--c360-brand-light, #EEEDFE)':'transparent',color:isAct?'var(--c360-brand-primary, #3C3489)':'#6B5F7A',fontSize:13,fontWeight:isAct?600:400,fontFamily:'inherit',textAlign:'left',transition:'background 0.1s'}}
+                    onMouseEnter={e=>{if(!isAct)e.currentTarget.style.background='#F3F0F8';}}
+                    onMouseLeave={e=>{if(!isAct)e.currentTarget.style.background='transparent';}}>
+                    <Icon name={item.icon} size={15} color={isAct?'var(--c360-brand-accent, #534AB7)':'#8A7F96'} />
+                    <span style={{flex:1}}>{item.label}</span>
+                    {item.badge && <span style={{background:'#E65100',color:'#fff',borderRadius:10,fontSize:9,fontWeight:800,padding:'1px 5px',minWidth:16,textAlign:'center'}}>{item.badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── MAIN CONTENT ── */}
       <main style={{ flex: 1, overflowY: "auto", padding: 0, background: "#FAF7F4", display: "flex", flexDirection: "column", minHeight: 0 }}>
@@ -4560,6 +4565,27 @@ function MfaSettingsPanel() {
   );
 }
 
+function BrandingPanel({ API2, purple2, lbl2, inp2 }) {
+  const [logoUrl, setLogoUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [suggestedSchemes, setSuggestedSchemes] = useState([]);
+  const [brandColors, setBrandColors] = useState({ brand_primary: '#3C3489', brand_accent: '#534AB7', brand_light: '#EEEDFE' });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { API2("/api/settings/branding").then(b => { if (b && !b.error) { if (b.logo_url) setLogoUrl(b.logo_url); setBrandColors({ brand_primary: b.brand_primary || '#3C3489', brand_accent: b.brand_accent || '#534AB7', brand_light: b.brand_light || '#EEEDFE' }); } }).catch(() => {}); }, [API2]);
+  const applyPreview = (colors) => { const root = document.documentElement; if (colors.brand_primary) root.style.setProperty('--c360-brand-primary', colors.brand_primary); if (colors.brand_accent) root.style.setProperty('--c360-brand-accent', colors.brand_accent); if (colors.brand_light) root.style.setProperty('--c360-brand-light', colors.brand_light); };
+  const handleLogoUpload = async (e) => { const file = e.target.files?.[0]; if (!file) return; setUploading(true); try { const fd = new FormData(); fd.append('logo', file); const t = localStorage.getItem("c360_token"), tid = localStorage.getItem("c360_tenant"); const r = await fetch("/api/settings/logo", { method: "POST", headers: { ...(t ? { Authorization: "Bearer " + t } : {}), ...(tid ? { "x-tenant-id": tid } : {}) }, body: fd }); const d = await r.json(); if (d.ok) { setLogoUrl(d.logo_url); window.showToast && window.showToast("Logo uploaded", "success"); if (d.suggested_colors?.schemes) { setSuggestedSchemes(d.suggested_colors.schemes); window.showToast && window.showToast("AI colour suggestions ready", "info"); } } else { window.showToast && window.showToast(d.error || "Upload failed", "error"); } } catch (err) { window.showToast && window.showToast("Upload failed", "error"); } finally { setUploading(false); } };
+  const applyScheme = (scheme) => { const c = { brand_primary: scheme.brand_primary, brand_accent: scheme.brand_accent, brand_light: scheme.brand_light }; setBrandColors(c); applyPreview(c); };
+  const saveBranding = async () => { setSaving(true); try { await API2("/api/settings/branding", { method: "PUT", body: brandColors }); applyPreview(brandColors); setSaved(true); setTimeout(() => setSaved(false), 2000); window.showToast && window.showToast("Brand colours saved", "success"); } catch (e) { window.showToast && window.showToast("Save failed", "error"); } finally { setSaving(false); } };
+  const colorInput = (label, key) => (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="color" value={brandColors[key]} onChange={e => { const v = e.target.value; setBrandColors(p => ({ ...p, [key]: v })); applyPreview({ ...brandColors, [key]: v }); }} style={{ width: 36, height: 36, borderRadius: 6, border: "none", cursor: "pointer", padding: 2 }} /><div><div style={{ fontSize: 11, fontWeight: 600, color: "#3D3248" }}>{label}</div><input style={{ ...inp2, width: 80, fontSize: 10, fontFamily: "monospace", padding: "4px 6px" }} value={brandColors[key]} onChange={e => { const v = e.target.value; setBrandColors(p => ({ ...p, [key]: v })); if (/^#[0-9a-fA-F]{6}$/.test(v)) applyPreview({ ...brandColors, [key]: v }); }} /></div></div>);
+  return (<div>
+    <h4 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700, color: "#3D3248" }}>Branding</h4>
+    <div style={{ marginBottom: 20 }}><label style={lbl2}>Centre Logo</label><div style={{ display: "flex", alignItems: "center", gap: 16, padding: 16, background: "#F8F5F1", borderRadius: 10, border: "1px dashed #D9D0C7" }}>{logoUrl ? <img src={logoUrl} alt="Logo" style={{ height: 56, borderRadius: 8, background: "#fff", padding: 4 }} /> : <div style={{ width: 56, height: 56, borderRadius: 8, background: "#E8E0D8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, color: "#A89DB5" }}>?</div>}<div><label style={{ padding: "8px 16px", borderRadius: 8, background: purple2, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-block" }}>{uploading ? "Uploading..." : "Upload Logo"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} disabled={uploading} /></label><p style={{ margin: "6px 0 0", fontSize: 11, color: "#A89DB5" }}>Max 5MB. PNG, JPG, or SVG recommended.</p></div></div></div>
+    <div style={{ marginBottom: 16 }}><label style={lbl2}>Navigation Colour Scheme</label><div style={{ display: "flex", gap: 20, alignItems: "flex-start", marginBottom: 12, flexWrap: "wrap" }}>{colorInput("Primary", "brand_primary")}{colorInput("Accent", "brand_accent")}{colorInput("Light", "brand_light")}<div style={{ display: "flex", flexDirection: "column", gap: 4, marginLeft: 8 }}><div style={{ fontSize: 10, color: "#A89DB5", fontWeight: 600 }}>Preview</div><div style={{ display: "flex", gap: 3 }}>{["brand_primary","brand_accent","brand_light"].map(k => <div key={k} style={{ width: 28, height: 28, borderRadius: 6, background: brandColors[k], border: "1px solid #D9D0C7" }} />)}</div></div></div><button onClick={saveBranding} disabled={saving} style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: saved ? "#2E7D32" : purple2, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{saved ? "Saved" : saving ? "Saving..." : "Save Colour Scheme"}</button></div>
+    {suggestedSchemes.length > 0 && (<div style={{ marginTop: 16 }}><label style={lbl2}>AI-Suggested Colour Schemes</label><p style={{ fontSize: 11, color: "#A89DB5", margin: "0 0 10px" }}>Based on your uploaded logo. Click to preview, then save.</p><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{suggestedSchemes.map((scheme, i) => (<div key={i} onClick={() => applyScheme(scheme)} style={{ padding: 14, borderRadius: 10, border: "1px solid #EDE8F4", background: "#FDFBFF", cursor: "pointer" }}><div style={{ fontSize: 13, fontWeight: 600, color: "#3D3248", marginBottom: 8 }}>{scheme.name}</div><div style={{ display: "flex", gap: 6, marginBottom: 10 }}>{[scheme.brand_primary, scheme.brand_accent, scheme.brand_light].map((c, j) => <div key={j} style={{ width: 28, height: 28, borderRadius: 6, background: c, border: "1px solid #D9D0C7" }} title={c} />)}</div><button onClick={ev => { ev.stopPropagation(); applyScheme(scheme); }} style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #DDD6EE", background: "#fff", cursor: "pointer", fontWeight: 600, color: "#5C4E6A" }}>Apply</button></div>))}</div></div>)}
+  </div>);
+}
+
 function SettingsView() {
   const [stab, setStab] = useState("service");
   const [svc, setSvc]   = useState(null);
@@ -4710,37 +4736,7 @@ function SettingsView() {
                   </select>
                 </div>
                 <div style={{gridColumn:"span 2",marginTop:12,paddingTop:16,borderTop:"1px solid #EDE8F4"}}>
-                  <h4 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:"#3D3248"}}>Branding</h4>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
-                    <div>
-                      <label style={lbl2}>Centre Logo</label>
-                      <div style={{display:"flex",alignItems:"center",gap:12,padding:12,background:"#F8F5F1",borderRadius:10,border:"1px dashed #D9D0C7"}}>
-                        {svc.logo_url ? <img src={svc.logo_url} alt="Logo" style={{height:48,borderRadius:6}}/> : <span style={{fontSize:13,color:"#A89DB5"}}>No logo uploaded</span>}
-                        <label style={{padding:"6px 14px",borderRadius:8,background:purple2,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                          Upload
-                          <input type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
-                            const file=e.target.files?.[0]; if(!file) return;
-                            const fd=new FormData(); fd.append("logo",file);
-                            const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");
-                            try{
-                              const r=await fetch("/api/settings/logo",{method:"POST",headers:{...(t?{Authorization:"Bearer "+t}:{}),...(tid?{"x-tenant-id":tid}:{})},body:fd});
-                              const d=await r.json();
-                              if(d.url){setSvc(s=>({...s,logo_url:d.url})); window.showToast&&window.showToast("Logo uploaded","success");}
-                              else{window.showToast&&window.showToast(d.error||"Upload failed","error");}
-                            }catch(err){window.showToast&&window.showToast("Upload failed","error");}
-                          }}/>
-                        </label>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={lbl2}>Brand Colour</label>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <input type="color" value={svc.brand_color||"#8B6DAF"} onChange={e=>setSvc(s=>({...s,brand_color:e.target.value}))} style={{width:44,height:36,border:"none",borderRadius:6,cursor:"pointer",padding:0}}/>
-                        <input style={{...inp2,width:100,fontFamily:"monospace"}} value={svc.brand_color||"#8B6DAF"} onChange={e=>setSvc(s=>({...s,brand_color:e.target.value}))}/>
-                        <div style={{width:60,height:28,borderRadius:6,background:svc.brand_color||"#8B6DAF"}}/>
-                      </div>
-                    </div>
-                  </div>
+                  <BrandingPanel API2={API2} purple2={purple2} lbl2={lbl2} inp2={inp2} />
                 </div>
               </div>
             )}
