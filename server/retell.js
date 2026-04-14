@@ -116,6 +116,7 @@ async function streamClaudeToRetell(ws, responseId, messages, systemPrompt, cach
   const decoder = new TextDecoder();
   let buffer = '';
   let fullText = '';
+  let firstToken = true;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -130,11 +131,13 @@ async function streamClaudeToRetell(ws, responseId, messages, systemPrompt, cach
       try {
         const evt = JSON.parse(data);
         if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
+          if (firstToken) { console.log('[Retell:WS] Claude first token received'); firstToken = false; }
           fullText += evt.delta.text;
           ws.send(JSON.stringify({ response_id: responseId, content: evt.delta.text, content_complete: false, end_call: false }));
         }
         if (evt.type === 'message_stop') {
           ws.send(JSON.stringify({ response_id: responseId, content: '', content_complete: true, end_call: false }));
+          console.log('[Retell:WS] Response complete, content length:', fullText.length);
         }
       } catch(e) {}
     }
@@ -414,7 +417,7 @@ export async function setupRetellWebSocket(httpServer) {
   });
 
   wss.on('connection', (ws, req, tenantId) => {
-    console.log(`[Retell:WS] Connection tenantId=${tenantId}`);
+    console.log(`[Retell:WS] Connection tenantId=${tenantId} url=${req.url}`);
 
     // ── Cache everything at connection time (not per-turn) ──
     const settings   = getSettings(tenantId);
@@ -429,6 +432,10 @@ export async function setupRetellWebSocket(httpServer) {
       try { const p = D().prepare("SELECT key_value FROM tenant_credentials WHERE provider='anthropic' AND key_name='api_key' LIMIT 1").get(); if (p?.key_value) return p.key_value; } catch(e) {}
       return null;
     })();
+
+    // Pre-build the greeting so it's never empty
+    const greeting = 'Hi, thanks for calling ' + tenantName + '. This is Charlotte, how can I help you today?';
+    console.log('[Retell:WS] tenantName=' + tenantName + ' anthropic_key_present=' + (cachedApiKey ? 'yes' : 'no') + ' greeting=' + JSON.stringify(greeting));
 
     // Pre-build system prompt once
     const cachedSystemPrompt = `You are Charlotte, AI phone assistant for ${tenantName} childcare centre in Australia.
@@ -452,22 +459,37 @@ ${settings.ai_persona && settings.ai_persona !== 'You are a friendly assistant f
         meta.educatorName = educator?.first_name || null;
         meta.tenantName   = tenantName;
         console.log(`[Retell:WS] call_details from=${from} educator=${educator?.first_name || 'unknown'}`);
-        ws.send(JSON.stringify({ response_id, content: 'Hi, thanks for calling ' + tenantName + '. This is Charlotte, how can I help you today?', content_complete: true, end_call: false }));
+        const payload = { response_id: response_id ?? 0, content: greeting, content_complete: true, end_call: false };
+        ws.send(JSON.stringify(payload));
+        console.log('[Retell:WS] Greeting sent:', JSON.stringify(payload));
         return;
       }
 
       if (interaction_type === 'reminder_required') {
-        ws.send(JSON.stringify({ response_id, content: "I'm here — are you still there?", content_complete: true, end_call: false }));
+        const payload = { response_id: response_id ?? 0, content: "I'm here — are you still there?", content_complete: true, end_call: false };
+        ws.send(JSON.stringify(payload));
+        console.log('[Retell:WS] reminder_required reply sent');
         return;
       }
 
-      if (interaction_type !== 'response_required') return;
+      if (interaction_type !== 'response_required') {
+        console.log('[Retell:WS] Ignoring interaction_type=' + interaction_type);
+        return;
+      }
 
       const lastUserMsg = [...(transcript || [])].reverse().find(t => t.role === 'user')?.content?.toLowerCase() || '';
       const messages = (transcript || []).map(t => ({
         role: t.role === 'agent' ? 'assistant' : 'user',
         content: t.content || '',
       })).filter(m => m.content.trim());
+
+      // Fallback: if transcript is empty or has no user message, send greeting (some Retell configs skip call_details)
+      if (messages.length === 0 || !messages.some(m => m.role === 'user')) {
+        const payload = { response_id: response_id ?? 0, content: greeting, content_complete: true, end_call: false };
+        ws.send(JSON.stringify(payload));
+        console.log('[Retell:WS] Empty-transcript fallback greeting sent');
+        return;
+      }
 
       try {
         // Try structured response first (sick calls, shifts, farewells)
