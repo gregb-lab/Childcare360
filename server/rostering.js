@@ -341,6 +341,8 @@ r.post('/generate', (req, res) => {
       // The legacy preferred_rooms JSON is treated as a soft hint now; the
       // structured preferences table is the source of truth.
       const available = educators.filter(e => {
+        // Only educators (and coordinators) can be rostered to fill NQF ratio slots
+        if (e.counts_in_ratio === 0) return false;
         const avail = availability[e.id]?.find(a => a.day_of_week === dow);
         if (!avail || !avail.available) return false;
         const currentHrs = edHours[e.id] || 0;
@@ -1194,22 +1196,28 @@ r.get('/room-compliance/:periodId/:date', (req, res) => {
     const { periodId, date } = req.params;
     const db = D();
     const entries = db.prepare(`
-      SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents
+      SELECT re.*, e.first_name, e.last_name, e.qualification, e.hourly_rate_cents,
+             COALESCE(e.staff_type, 'educator') as staff_type,
+             COALESCE(e.counts_in_ratio, 1) as counts_in_ratio
       FROM roster_entries re JOIN educators e ON e.id=re.educator_id
       WHERE re.period_id=? AND re.date=? AND re.tenant_id=?
     `).all(periodId, date, req.tenantId);
+    // Only count staff flagged as counting toward NQF ratios (educators, coordinators)
+    const ratioEntries = entries.filter(e => e.counts_in_ratio === 1);
     const rooms = db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM children c WHERE c.room_id=r.id) as child_count FROM rooms r WHERE r.tenant_id=? ORDER BY r.name`).all(req.tenantId);
     const AGE_MAP = {'babies':'babies','0-2':'babies','toddlers':'toddlers','2-3':'toddlers','preschool':'preschool','3-4':'preschool','3-5':'preschool','4-5':'preschool','oshc':'oshc','school_age':'oshc'};
     // Per-room ratios only — ECT is checked at service level below.
     const NQF = {babies:{ratio:4},toddlers:{ratio:5},preschool:{ratio:11},oshc:{ratio:15}};
     const compliance = rooms.map(room => {
+      // Only educators counting toward ratio — exclude cooks, admin, cleaners, etc.
+      const roomRatioEntries = ratioEntries.filter(e => e.room_id === room.id);
       const roomEntries = entries.filter(e => e.room_id === room.id);
       const ageKey = AGE_MAP[room.age_group] || 'preschool';
       const nqf = NQF[ageKey] || {ratio:11};
       const children = room.child_count || 0;
       const required = children > 0 ? Math.max(1, Math.ceil(children / nqf.ratio)) : 0;
-      const ratioOk = roomEntries.length >= required;
-      return { room_id: room.id, room_name: room.name, age_group: room.age_group, children, required, assigned: roomEntries.length, ratio_ok: ratioOk, compliant: ratioOk, entries: roomEntries };
+      const ratioOk = roomRatioEntries.length >= required;
+      return { room_id: room.id, room_name: room.name, age_group: room.age_group, children, required, assigned: roomRatioEntries.length, total_assigned: roomEntries.length, ratio_ok: ratioOk, compliant: ratioOk, entries: roomEntries };
     });
 
     // ── SERVICE-LEVEL ECT CHECK ─────────────────────────────────────────────
@@ -1234,7 +1242,7 @@ r.get('/room-compliance/:periodId/:date', (req, res) => {
             case 'ict_or_visit':        requiredEcts = 0; break;
             default:                    requiredEcts = 1;
           }
-          const ectsOnDuty = entries.filter(e => e.qualification === 'ect').length;
+          const ectsOnDuty = ratioEntries.filter(e => e.qualification === 'ect').length;
           service_ect = {
             country: 'AU', total_children: totalChildren,
             threshold_id: t.id, ect_requirement: t.ect_requirement,

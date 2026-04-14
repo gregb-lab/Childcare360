@@ -5,6 +5,18 @@ import { requireAuth, requireTenant } from './middleware.js';
 const router = Router();
 router.use(requireAuth, requireTenant);
 
+// Lazy migration — ensure staff_type columns exist
+let _staffTypeMigrated = false;
+function ensureStaffTypeColumns() {
+  if (_staffTypeMigrated) return;
+  try { D().prepare("ALTER TABLE educators ADD COLUMN staff_type TEXT DEFAULT 'educator'").run(); } catch(e){}
+  try { D().prepare("ALTER TABLE educators ADD COLUMN counts_in_ratio INTEGER DEFAULT 1").run(); } catch(e){}
+  try { D().prepare("ALTER TABLE educators ADD COLUMN room_assignment_required INTEGER DEFAULT 1").run(); } catch(e){}
+  try { D().prepare("UPDATE educators SET staff_type='educator', counts_in_ratio=1 WHERE staff_type IS NULL").run(); } catch(e){}
+  _staffTypeMigrated = true;
+}
+router.use((req, _res, next) => { ensureStaffTypeColumns(); next(); });
+
 // GET all educators
 router.get('/', (req, res) => {
   try {
@@ -97,7 +109,9 @@ router.put('/:id', (req, res) => {
       'bank_account_name','super_fund_name','super_fund_usi','super_member_number','notes','status',
       'can_start_earlier_mins','can_finish_later_mins','is_lunch_cover','preferred_rooms',
       // Rostering preferences (v2.22)
-      'is_float','preferred_room_id','nc_hours_per_week','is_trainee','study_hours_per_week'];
+      'is_float','preferred_room_id','nc_hours_per_week','is_trainee','study_hours_per_week',
+      // Non-educator staff types (v2.10)
+      'staff_type','counts_in_ratio','room_assignment_required','role_title'];
     const updates = {};
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     const setCols = fields.filter(f => f in updates);
@@ -115,11 +129,17 @@ router.post('/', (req, res) => {
   try {
     const id = uuid();
     const b = req.body;
+    // Determine defaults for staff_type-aware fields
+    const staffType = b.staff_type || 'educator';
+    const isEducatorType = ['educator','coordinator','student'].includes(staffType);
+    const countsInRatio = b.counts_in_ratio != null ? (b.counts_in_ratio?1:0) : (staffType === 'educator' ? 1 : 0);
+    const roomAssignRequired = b.room_assignment_required != null ? (b.room_assignment_required?1:0) : (isEducatorType ? 1 : 0);
     D().prepare(`INSERT INTO educators (id,tenant_id,first_name,last_name,email,phone,qualification,employment_type,
       hourly_rate_cents,start_date,dob,address,suburb,state,postcode,tax_file_number,contracted_hours,super_rate,
       super_fund_name,super_fund_usi,super_member_number,bank_account_name,bank_bsb,bank_account,
-      first_aid,first_aid_expiry,cpr_expiry,anaphylaxis_expiry,asthma_expiry,wwcc_number,wwcc_expiry,photo_url,status)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      first_aid,first_aid_expiry,cpr_expiry,anaphylaxis_expiry,asthma_expiry,wwcc_number,wwcc_expiry,photo_url,status,
+      staff_type,counts_in_ratio,room_assignment_required,role_title)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, req.tenantId, b.first_name, b.last_name, b.email||null, b.phone||null,
         b.qualification||'cert3', b.employment_type||'casual', b.hourly_rate_cents||3200,
         b.start_date||null, b.dob||null, b.address||null, b.suburb||null, b.state||'NSW',
@@ -128,7 +148,8 @@ router.post('/', (req, res) => {
         b.bank_account_name||null, b.bank_bsb||null, b.bank_account||null,
         b.first_aid?1:0, b.first_aid_expiry||null, b.cpr_expiry||null,
         b.anaphylaxis_expiry||null, b.asthma_expiry||null, b.wwcc_number||null,
-        b.wwcc_expiry||null, b.photo_url||null, 'active');
+        b.wwcc_expiry||null, b.photo_url||null, 'active',
+        staffType, countsInRatio, roomAssignRequired, b.role_title||null);
     // Create default availability (Mon-Fri)
     for (let d = 0; d < 7; d++) {
       D().prepare('INSERT OR IGNORE INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,tenant_id) VALUES(?,?,?,?,?,?,?)')

@@ -219,24 +219,64 @@ function DashboardTab({ d }) {
 }
 
 /* ═══ EDUCATORS ═══ */
+const STAFF_TYPE_LABELS = { cook:"Cook", admin:"Admin", cleaner:"Cleaner", maintenance:"Maintenance", student:"Student", volunteer:"Volunteer", coordinator:"Coordinator", other:"Support" };
+const STAFF_TYPE_COLORS = { cook:"#E65100", admin:"#1565C0", cleaner:"#455A64", maintenance:"#6D4C41", student:"#2E7D32", volunteer:"#00838F", coordinator:"#5B21B6", other:"#757575" };
+const isInRatio = (e) => (e.counts_in_ratio != null ? !!e.counts_in_ratio : !e.staff_type || e.staff_type === 'educator');
+
 function EducatorsTab({ educators, loadEd, selEd, setSelEd, reload }) {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("reliability");
   const [editing, setEditing] = useState(null);
 
-  const list = educators.filter(e => {
+  const matches = (e) => {
     if (!q) return true;
     const s = q.toLowerCase();
     return (e.first_name+" "+e.last_name).toLowerCase().includes(s)||(e.suburb||"").toLowerCase().includes(s)||(e.qualification||"").includes(s);
-  }).sort((a,b) => {
+  };
+  const sorter = (a,b) => {
     if (sort==="reliability") return (b.reliability_score||0)-(a.reliability_score||0);
     if (sort==="name") return (a.last_name||"").localeCompare(b.last_name||"");
     if (sort==="distance") return (a.distance_km||99)-(b.distance_km||99);
     if (sort==="cost") return (a.hourly_rate_cents||0)-(b.hourly_rate_cents||0);
     return 0;
-  });
+  };
+  const educatorList = educators.filter(e => matches(e) && isInRatio(e)).sort(sorter);
+  const supportList  = educators.filter(e => matches(e) && !isInRatio(e)).sort(sorter);
 
   if (editing!==null) return <EditorForm ed={editing==="new"?null:editing} onDone={()=>{setEditing(null);reload();}} />;
+
+  const renderRow = (e) => {
+    const rc=(e.reliability_score||0)>=90?"#2E8B57":(e.reliability_score||0)>=75?"#D4A26A":"#C06B73";
+    const qx=Q[e.qualification]||{l:"?",c:"#999",s:"?"};
+    const isSupport = !isInRatio(e);
+    const stColor = STAFF_TYPE_COLORS[e.staff_type] || qx.c;
+    return (
+      <div key={e.id} onClick={()=>loadEd(e.id)} style={{...card,padding:10,marginBottom:4,cursor:"pointer",borderLeft:"3px solid "+stColor,...(selEd?.educator?.id===e.id?{boxShadow:"0 0 0 2px rgba(139,109,175,0.3)"}:{})}}>
+        <div style={{display:"flex",justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:"#3D3248"}}>{e.first_name} {e.last_name}{e.role_title && <span style={{fontSize:10,fontWeight:500,color:"#8A7F96",marginLeft:6}}>· {e.role_title}</span>}</div>
+            <div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>
+              {isSupport ? <Badge text={STAFF_TYPE_LABELS[e.staff_type]||"Support"} color={stColor}/> : <Badge text={qx.l} color={qx.c}/>}
+              <Badge text={EMP[e.employment_type]||""} color="#8A7F96"/>
+              {!isSupport && e.first_aid?<Badge text="FA ✓" color="#2E8B57"/>:null}
+              {!isSupport && e.is_under_18?<Badge text="U18" color="#D4A26A"/>:null}
+            </div>
+          </div>
+          <div style={{textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:rc}}>{Math.round(e.reliability_score||0)}%</div><div style={{fontSize:8,color:"#A89DB5"}}>reliability</div></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,fontSize:9,color:"#5C4E6A",marginTop:4}}>
+          <div>📍 {e.distance_km?e.distance_km+"km":"—"}</div><div>💰 ${((e.hourly_rate_cents||0)/100).toFixed(0)}/hr</div><div>📅 {e.max_hours_per_week||38}h max</div><div>🤒 {e.total_sick_days||0} sick</div>
+        </div>
+      </div>
+    );
+  };
+
+  const SectionHeader = ({ label, count, sub }) => (
+    <div style={{fontSize:10,fontWeight:800,color:"#5C4E6A",textTransform:"uppercase",letterSpacing:"0.08em",padding:"12px 4px 6px",borderBottom:"1px solid #EDE8F4",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <span>{label} ({count})</span>
+      {sub && <span style={{fontSize:9,color:"#8A7F96",fontWeight:500,textTransform:"none",letterSpacing:0}}>{sub}</span>}
+    </div>
+  );
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: selEd?"1fr 380px":"1fr", gap: 14 }}>
@@ -246,24 +286,12 @@ function EducatorsTab({ educators, loadEd, selEd, setSelEd, reload }) {
           <select value={sort} onChange={e=>setSort(e.target.value)} style={{...sel,width:130}}><option value="reliability">Reliability</option><option value="name">Name</option><option value="distance">Distance</option><option value="cost">Cost</option></select>
           <button onClick={()=>setEditing("new")} style={btnP}>+ Add</button>
         </div>
-        {list.map(e => {
-          const rc=(e.reliability_score||0)>=90?"#2E8B57":(e.reliability_score||0)>=75?"#D4A26A":"#C06B73";
-          const qx=Q[e.qualification]||{l:"?",c:"#999",s:"?"};
-          return (
-            <div key={e.id} onClick={()=>loadEd(e.id)} style={{...card,padding:10,marginBottom:4,cursor:"pointer",borderLeft:"3px solid "+qx.c,...(selEd?.educator?.id===e.id?{boxShadow:"0 0 0 2px rgba(139,109,175,0.3)"}:{})}}>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#3D3248"}}>{e.first_name} {e.last_name}</div>
-                  <div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}><Badge text={qx.l} color={qx.c}/><Badge text={EMP[e.employment_type]||""} color="#8A7F96"/>{e.first_aid?<Badge text="FA ✓" color="#2E8B57"/>:null}{e.is_under_18?<Badge text="U18" color="#D4A26A"/>:null}</div>
-                </div>
-                <div style={{textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:rc}}>{Math.round(e.reliability_score||0)}%</div><div style={{fontSize:8,color:"#A89DB5"}}>reliability</div></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,fontSize:9,color:"#5C4E6A",marginTop:4}}>
-                <div>📍 {e.distance_km?e.distance_km+"km":"—"}</div><div>💰 ${((e.hourly_rate_cents||0)/100).toFixed(0)}/hr</div><div>📅 {e.max_hours_per_week||38}h max</div><div>🤒 {e.total_sick_days||0} sick</div>
-              </div>
-            </div>
-          );
-        })}
+        <SectionHeader label="Educators" count={educatorList.length} sub="Count toward NQF ratios" />
+        {educatorList.map(renderRow)}
+        {educatorList.length === 0 && <div style={{padding:"12px 4px",fontSize:12,color:"#8A7F96"}}>No educators match.</div>}
+        <SectionHeader label="Support Staff" count={supportList.length} sub="Not in ratios — cooks, admin, cleaners, maintenance, students" />
+        {supportList.map(renderRow)}
+        {supportList.length === 0 && <div style={{padding:"12px 4px",fontSize:12,color:"#8A7F96"}}>No support staff yet. Add a cook, admin, or cleaner via Add.</div>}
       </div>
       {selEd?.educator && <div style={{...card,padding:14,position:"sticky",top:16,maxHeight:"calc(100vh - 200px)",overflowY:"auto"}}><DetailPanel d={selEd} onEdit={()=>setEditing(selEd.educator)} onClose={()=>setSelEd(null)}/></div>}
     </div>

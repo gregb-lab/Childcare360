@@ -49,6 +49,22 @@ function RPBadge({ educator }) {
   const ok = educator.first_aid && isDateValid(educator.first_aid_expiry) && isDateValid(educator.cpr_expiry) && isDateValid(educator.anaphylaxis_expiry);
   return ok ? <Badge text="✓ RP Eligible" color="#2E7D32" bg="#E8F5E9" /> : <Badge text="Not RP Eligible" color="#B71C1C" bg="#FFEBEE" />;
 }
+const STAFF_TYPE_CONFIG = {
+  educator:     { label: "Educator",     color: "#7C3AED", bg: "#EDE4F0" },
+  coordinator:  { label: "Coordinator",  color: "#5B21B6", bg: "#EDE9FE" },
+  cook:         { label: "Cook",         color: "#E65100", bg: "#FFF3E0" },
+  admin:        { label: "Admin",        color: "#1565C0", bg: "#E3F2FD" },
+  cleaner:      { label: "Cleaner",      color: "#455A64", bg: "#ECEFF1" },
+  maintenance:  { label: "Maintenance",  color: "#6D4C41", bg: "#EFEBE9" },
+  student:      { label: "Student",      color: "#2E7D32", bg: "#E8F5E9" },
+  volunteer:    { label: "Volunteer",    color: "#00838F", bg: "#E0F7FA" },
+  other:        { label: "Support Staff",color: "#757575", bg: "#F5F5F5" },
+};
+function StaffTypeBadge({ type }) {
+  const c = STAFF_TYPE_CONFIG[type] || STAFF_TYPE_CONFIG.educator;
+  return <Badge text={c.label} color={c.color} bg={c.bg} />;
+}
+const isEducatorRole = (st) => !st || st === 'educator' || st === 'coordinator';
 function TabBtn({ label, active, onClick, alert: al }) {
   return (
     <button onClick={onClick} style={{ padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", background: active ? purple : "transparent", color: active ? "#fff" : "#8A7F96", position: "relative" }}>
@@ -1253,7 +1269,7 @@ function AddEducatorWizard({ onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(null);
   const fileRef = useRef();
-  const [form, setForm] = useState({ first_name:"",last_name:"",email:"",phone:"",dob:"",address:"",suburb:"",state:"NSW",postcode:"",qualification:"cert3",employment_type:"casual",start_date:"",hourly_rate_cents:3200,contracted_hours:38,super_rate:11.5,tax_file_number:"",first_aid:0,first_aid_expiry:"",cpr_expiry:"",anaphylaxis_expiry:"",asthma_expiry:"",wwcc_number:"",wwcc_expiry:"",bank_account_name:"",bank_bsb:"",bank_account:"",super_fund_name:"",super_fund_abn:"",super_fund_usi:"",super_member_number:"",photo_url:"" });
+  const [form, setForm] = useState({ first_name:"",last_name:"",email:"",phone:"",dob:"",address:"",suburb:"",state:"NSW",postcode:"",qualification:"cert3",employment_type:"casual",start_date:"",hourly_rate_cents:3200,contracted_hours:38,super_rate:11.5,tax_file_number:"",first_aid:0,first_aid_expiry:"",cpr_expiry:"",anaphylaxis_expiry:"",asthma_expiry:"",wwcc_number:"",wwcc_expiry:"",bank_account_name:"",bank_bsb:"",bank_account:"",super_fund_name:"",super_fund_abn:"",super_fund_usi:"",super_member_number:"",photo_url:"",staff_type:"educator",role_title:"" });
   const [avail, setAvail] = useState(Array.from({length:7},(_,i)=>({ day_of_week:i,available:i>0&&i<6?1:0,start_time:"07:00",end_time:"18:00",can_start_earlier_mins:0,can_finish_later_mins:0 })));
   const u = (k,v) => setForm(f=>({...f,[k]:v}));
   const handlePhoto = file => { if(!file||!file.type.startsWith("image/")) return; const r=new FileReader(); r.onload=ev=>{ setPhotoPreview(ev.target.result); u("photo_url",ev.target.result); }; r.readAsDataURL(file); };
@@ -1326,6 +1342,8 @@ function AddEducatorWizard({ onClose, onSaved }) {
 
           {step===2&&(
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
+              <div style={{ gridColumn:"1/-1",marginBottom:14 }}><label style={lbl}>Staff Type</label><select value={form.staff_type} onChange={e=>u("staff_type",e.target.value)} style={inp}>{[["educator","Educator (counts toward ratio)"],["coordinator","Educational Coordinator"],["cook","Cook / Kitchen Staff"],["admin","Admin / Office Staff"],["cleaner","Cleaner"],["maintenance","Maintenance"],["student","Student on Placement"],["volunteer","Volunteer"],["other","Other Support Staff"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><div style={{fontSize:11,color:"#8A7F96",marginTop:4}}>Non-educator staff don't count toward NQF educator:child ratios.</div></div>
+              {form.staff_type !== "educator" && <div style={{ gridColumn:"1/-1",marginBottom:14 }}><label style={lbl}>Role Title</label><input value={form.role_title||""} onChange={e=>u("role_title",e.target.value)} placeholder="e.g. Head Cook, Maintenance Officer" style={inp} /></div>}
               <div style={{ marginBottom:14 }}><label style={lbl}>Qualification</label><select value={form.qualification} onChange={e=>u("qualification",e.target.value)} style={inp}>{Object.entries(QUAL_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
               <div style={{ marginBottom:14 }}><label style={lbl}>Employment Type</label><select value={form.employment_type} onChange={e=>u("employment_type",e.target.value)} style={inp}>{[["permanent","Permanent"],["casual","Casual"],["part_time","Part Time"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
               <div style={{ marginBottom:14 }}><label style={lbl}>Start Date</label><DatePicker value={form.start_date||""} onChange={v=>u("start_date",v)} /></div>
@@ -1457,6 +1475,7 @@ export default function EducatorsModule() {
   const [filterRooms, setFilterRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState("");
   const [selectedQualification, setSelectedQualification] = useState("");
+  const [staffTypeFilter, setStaffTypeFilter] = useState("all"); // all | educators | support
 
   const loadEducators = useCallback(async () => {
     try { const d = await API("/api/educators"); if (Array.isArray(d)) setEducators(d); } catch(e) {}
@@ -1485,6 +1504,8 @@ export default function EducatorsModule() {
     if (filterStatus !== "all" && e.status !== filterStatus) return false;
     if (selectedRoom && String(e.preferred_room_id || e.room_id || "") !== String(selectedRoom)) return false;
     if (selectedQualification && e.qualification !== selectedQualification) return false;
+    if (staffTypeFilter === "educators" && !isEducatorRole(e.staff_type)) return false;
+    if (staffTypeFilter === "support" && isEducatorRole(e.staff_type)) return false;
     return true;
   });
 
@@ -1639,6 +1660,12 @@ export default function EducatorsModule() {
             {s[0].toUpperCase()+s.slice(1)}
           </button>
         ))}
+        <div style={{width:1,height:24,background:"#EDE8F4",margin:"0 4px"}}/>
+        {[["all","All Staff"],["educators","Educators only"],["support","Support staff"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setStaffTypeFilter(v)} style={{ padding:"8px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,background:staffTypeFilter===v?purple:"#EDE8F4",color:staffTypeFilter===v?"#fff":purple }}>
+            {l}
+          </button>
+        ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 16 }}>
         {filtered.map(edu => {
@@ -1658,7 +1685,8 @@ export default function EducatorsModule() {
                   {alert&&<span title="Cert expiring">⚠️</span>}
                 </div>
                 <div style={{ marginTop:8,display:"flex",flexWrap:"wrap",gap:6 }}>
-                  <QualBadge qual={edu.qualification} />
+                  <StaffTypeBadge type={edu.staff_type||"educator"} />
+                  {isEducatorRole(edu.staff_type) && <QualBadge qual={edu.qualification} />}
                   <span style={{ background:"#F5F5F5",color:rc(edu.reliability_score),borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700 }}>{edu.reliability_score}% reliable</span>
                 </div>
                 <div style={{ marginTop:8,fontSize:11,color:"#8A7F96" }}>{edu.shifts_last_30||0} shifts (30d){edu.distance_km?` · ${edu.distance_km}km`:""}</div>
@@ -1816,7 +1844,7 @@ export default function EducatorsModule() {
         <PhotoUpload educator={edu} onUploaded={()=>loadDetail(selected)} />
         <div style={{ flex:1 }}>
           <h2 style={{ margin:0,color:"#3D3248" }}>{edu.first_name} {edu.last_name}</h2>
-          <div style={{ display:"flex",gap:8,alignItems:"center",marginTop:4,flexWrap:"wrap" }}><QualBadge qual={edu.qualification} /><RPBadge educator={edu} /><Badge text={edu.employment_type||"—"} /></div>
+          <div style={{ display:"flex",gap:8,alignItems:"center",marginTop:4,flexWrap:"wrap" }}><StaffTypeBadge type={edu.staff_type||"educator"} />{isEducatorRole(edu.staff_type) && <QualBadge qual={edu.qualification} />}{isEducatorRole(edu.staff_type) && <RPBadge educator={edu} />}<Badge text={edu.employment_type||"—"} /></div>
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
           {edu.status === "inactive" && edu.termination_date && (
