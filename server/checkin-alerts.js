@@ -146,15 +146,16 @@ async function makeCall(to, alertId, tenantId) {
 // ── CORE PROCESSOR (called every minute) ─────────────────────────────────
 
 export async function processCheckinAlerts() {
-  const now = new Date();
-  const dow = now.getDay();
-  if (dow === 0 || dow === 6) return; // weekdays only
+  try {
+    const now = new Date();
+    const dow = now.getDay();
+    if (dow === 0 || dow === 6) return; // weekdays only
 
-  const todayStr = now.toISOString().split('T')[0];
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+    const todayStr = now.toISOString().split('T')[0];
+    const nowMins = now.getHours() * 60 + now.getMinutes();
 
-  ensureTables();
-  const tenants = D().prepare("SELECT id FROM tenants WHERE status='active'").all();
+    ensureTables();
+    const tenants = D().prepare("SELECT id FROM tenants").all();
 
   for (const { id: tenantId } of tenants) {
     try {
@@ -305,6 +306,9 @@ export async function processCheckinAlerts() {
     } catch (e) {
       console.error(`[checkin-alert] Error for tenant ${tenantId}:`, e.message);
     }
+  }
+  } catch(outerErr) {
+    console.error('[checkin-alert] processor error:', outerErr.message);
   }
 }
 
