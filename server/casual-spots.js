@@ -221,7 +221,7 @@ export async function selectWinner(offerId, responseId, tenantId) {
   if (!offer || !resp) return { error: 'Not found' };
 
   const config = getConfig(tenantId);
-  const room = D().prepare('SELECT * FROM rooms WHERE id=?').get(offer.room_id);
+  const room = D().prepare('SELECT * FROM rooms WHERE id=? AND tenant_id=?').get(offer.room_id, offer.tenant_id);
   const dateFmt = new Date(offer.offer_date + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
 
   const bookingId = uuid();

@@ -217,13 +217,13 @@ export async function processCheckinAlerts() {
         if (config.alert_method === 'call_only') {
           const callSid = await makeCall(phone, alertId, tenantId);
           D().prepare(`UPDATE checkin_alerts SET status='call_initiated',
-            call_initiated_at=datetime('now'), sms_to=?, call_sid=? WHERE id=?`)
-            .run(phone, callSid || 'failed', alertId);
+            call_initiated_at=datetime('now'), sms_to=?, call_sid=? WHERE id=? AND tenant_id=?`)
+            .run(phone, callSid || 'failed', alertId, tenantId);
         } else {
           const smsSid = await sendSMS(phone, smsBody, tenantId);
           D().prepare(`UPDATE checkin_alerts SET status='sms_sent',
-            sms_sent_at=datetime('now'), sms_to=?, sms_sid=? WHERE id=?`)
-            .run(phone, smsSid || 'failed', alertId);
+            sms_sent_at=datetime('now'), sms_to=?, sms_sid=? WHERE id=? AND tenant_id=?`)
+            .run(phone, smsSid || 'failed', alertId, tenantId);
         }
 
         // In-app notification to admins
@@ -265,8 +265,8 @@ export async function processCheckinAlerts() {
           if (!phone) continue;
           const callSid = await makeCall(phone, alert.id, tenantId);
           D().prepare(`UPDATE checkin_alerts SET status='call_initiated',
-            call_initiated_at=datetime('now'), call_sid=? WHERE id=?`)
-            .run(callSid || 'failed', alert.id);
+            call_initiated_at=datetime('now'), call_sid=? WHERE id=? AND tenant_id=?`)
+            .run(callSid || 'failed', alert.id, tenantId);
           console.log(`[checkin-alert] Escalated to call: ${alert.first_name} ${alert.last_name}`);
         }
       }
@@ -286,7 +286,7 @@ export async function processCheckinAlerts() {
 
         for (const alert of toDirector) {
           D().prepare(`UPDATE checkin_alerts SET status='escalated',
-            director_alerted_at=datetime('now') WHERE id=?`).run(alert.id);
+            director_alerted_at=datetime('now') WHERE id=? AND tenant_id=?`).run(alert.id, tenantId);
           try {
             const directors = D().prepare(
               "SELECT user_id FROM tenant_members WHERE tenant_id=? AND role IN ('director','admin')"

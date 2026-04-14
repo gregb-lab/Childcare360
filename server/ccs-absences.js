@@ -89,7 +89,7 @@ export function recalcChildAbsences(childId, tenantId, fy) {
   D().prepare(sql).run(uuid(), tenantId, childId, currentFY, total, exempt, counted, maxAllowed);
 
   // Get child name
-  const child = D().prepare('SELECT first_name, last_name FROM children WHERE id=?').get(childId);
+  const child = D().prepare('SELECT first_name, last_name FROM children WHERE id=? AND tenant_id=?').get(childId, tenantId);
 
   return {
     child_id: childId,
