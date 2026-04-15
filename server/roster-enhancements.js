@@ -1481,6 +1481,8 @@ router.delete('/room-groups/:id', (req, res) => {
 // POST /api/roster-enhanced/room-groups/:id/members — add room to group
 router.post('/room-groups/:id/members', (req, res) => {
   try {
+    const grp = D().prepare('SELECT id FROM room_groups WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    if (!grp) return res.status(404).json({ error: 'Not found' });
     const { room_id } = req.body;
     if (!room_id) return res.status(400).json({ error: 'room_id required' });
     D().prepare('INSERT OR IGNORE INTO room_group_members (id,room_group_id,room_id) VALUES(?,?,?)').run(uuid(), req.params.id, room_id);
@@ -1491,6 +1493,8 @@ router.post('/room-groups/:id/members', (req, res) => {
 // DELETE /api/roster-enhanced/room-groups/:id/members/:roomId
 router.delete('/room-groups/:id/members/:roomId', (req, res) => {
   try {
+    const grp = D().prepare('SELECT id FROM room_groups WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    if (!grp) return res.status(404).json({ error: 'Not found' });
     D().prepare('DELETE FROM room_group_members WHERE room_group_id=? AND room_id=?').run(req.params.id, req.params.roomId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
