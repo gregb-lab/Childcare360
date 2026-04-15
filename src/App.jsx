@@ -4575,7 +4575,7 @@ function BrandingPanel({ API2, branding: topBranding, setBranding: setTopBrandin
   const [savedColors, setSavedColors] = useState({ brand_primary:'#3C3489', brand_accent:'#534AB7', brand_light:'#EEEDFE' });
 
   const logoUrl = topBranding?.logo_url || null;
-  useEffect(()=>{API2("/api/settings/branding").then(b=>{if(b&&!b.error){if(setTopBranding)setTopBranding(prev=>({...prev,...b}));setSavedColors({brand_primary:b.brand_primary||'#3C3489',brand_accent:b.brand_accent||'#534AB7',brand_light:b.brand_light||'#EEEDFE'});}}).catch(()=>{});},[API2]);
+  useEffect(()=>{API2("/api/settings/branding").then(b=>{if(b&&!b.error){if(setTopBranding)setTopBranding(prev=>({...prev,...b}));setSavedColors({brand_primary:b.brand_primary||'#3C3489',brand_accent:b.brand_accent||'#534AB7',brand_light:b.brand_light||'#EEEDFE'});}}).catch(()=>{});/* eslint-disable-next-line react-hooks/exhaustive-deps */},[]);
 
   const defaultScheme={name:'Childcare360 Default',brand_primary:savedColors.brand_primary,brand_accent:savedColors.brand_accent,brand_light:savedColors.brand_light,isDefault:true};
   const allSchemes=[defaultScheme,...schemes];
@@ -4657,7 +4657,8 @@ function CheckinAlertSettings({ API2 }) {
   useEffect(() => {
     API2('/api/checkin-alerts/config').then(d => { if (d && !d.error) setConfig(c => ({ ...c, ...d, enabled: !!d.enabled, escalate_to_director: !!d.escalate_to_director })); }).catch(() => {});
     API2('/api/checkin-alerts/today').then(d => { if (d?.alerts) setAlerts(d.alerts); }).catch(() => {});
-  }, [API2]);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
   const save = async () => { setSaving(true); try { await API2('/api/checkin-alerts/config', { method: 'PUT', body: config }); setSaved(true); setTimeout(() => setSaved(false), 2000); window.showToast && window.showToast('Check-in alert settings saved', 'success'); } catch (e) { window.showToast && window.showToast('Save failed', 'error'); } setSaving(false); };
   const resolve = async (id) => { await API2(`/api/checkin-alerts/resolve/${id}`, { method: 'POST', body: { resolution: 'manual' } }); API2('/api/checkin-alerts/today').then(d => { if (d?.alerts) setAlerts(d.alerts); }); window.showToast && window.showToast('Alert resolved', 'success'); };
   const statusColors = { pending: '#888', sms_sent: '#BA7517', call_initiated: '#534AB7', resolved: '#1D9E75', escalated: '#DC2626', child_arrived: '#1D9E75' };

@@ -414,15 +414,17 @@ router.get('/analytics', requireAuth, requireTenant, (req, res) => {
 router.post('/sms-response', async (req, res) => {
   try {
     ensureTables();
-    const from = (req.body.From || '').replace(/\s/g, '');
+    // Normalise phone: Twilio sends E.164 (+61412222001), DB may store local with spaces (0412 222 001)
+    const raw = (req.body.From || '').replace(/\s/g, '');
+    const norm = raw.startsWith('+61') ? '0' + raw.slice(3) : raw;
     const body = (req.body.Body || '').trim().toUpperCase();
 
     // Check for CONFIRM on pending booking
     if (body === 'CONFIRM' || (body.startsWith('Y') && body.length < 10)) {
       const booking = D().prepare(`SELECT cb.*, so.tenant_id FROM casual_bookings cb
         JOIN spot_offers so ON so.id=cb.spot_offer_id
-        WHERE cb.status='pending_confirm' AND so.winner_waitlist_id IN (SELECT id FROM waitlist WHERE parent_phone LIKE ?)
-        LIMIT 1`).get('%' + from.slice(-8));
+        WHERE cb.status='pending_confirm' AND so.winner_waitlist_id IN (SELECT id FROM waitlist WHERE REPLACE(REPLACE(parent_phone,' ',''),'+61','0') = ?)
+        LIMIT 1`).get(norm);
       if (booking) {
         D().prepare("UPDATE casual_bookings SET status='confirmed', confirmed_at=datetime('now') WHERE id=?").run(booking.id);
         D().prepare("UPDATE spot_offers SET status='filled', winner_confirmed_at=datetime('now'), updated_at=datetime('now') WHERE winner_booking_id=?").run(booking.id);
@@ -434,10 +436,11 @@ router.post('/sms-response', async (req, res) => {
     // Check for ACCEPT/DECLINE on broadcast
     const pending = D().prepare(`SELECT sor.*, so.tenant_id, so.fill_mode, so.id as offer_id, r.name as room_name
       FROM spot_offer_responses sor JOIN spot_offers so ON so.id=sor.offer_id JOIN rooms r ON r.id=so.room_id
-      WHERE sor.parent_phone LIKE ? AND sor.status='pending' AND so.status='broadcasting'
-      ORDER BY sor.created_at DESC LIMIT 1`).get('%' + from.slice(-8));
+      WHERE REPLACE(REPLACE(sor.parent_phone,' ',''),'+61','0') = ?
+        AND sor.status='pending' AND so.status='broadcasting'
+      ORDER BY sor.created_at DESC LIMIT 1`).get(norm);
 
-    if (!pending) { res.type('text/xml').send('<Response></Response>'); return; }
+    if (!pending) { res.type('text/xml').send('<Response><Message>We could not match your reply to an open spot offer. The spot may have been filled.</Message></Response>'); return; }
 
     if (body === 'ACCEPT' || body.startsWith('Y')) {
       D().prepare("UPDATE spot_offer_responses SET response='accept', response_at=datetime('now'), status='accepted' WHERE id=?").run(pending.id);
@@ -463,7 +466,7 @@ router.post('/sms-response', async (req, res) => {
     }
   } catch (e) {
     console.error('[casual-spots] SMS webhook error:', e.message);
-    res.type('text/xml').send('<Response></Response>');
+    res.type('text/xml').send('<Response><Message>Sorry, we hit a technical issue. Please try again or call the centre.</Message></Response>');
   }
 });
 

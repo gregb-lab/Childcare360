@@ -350,6 +350,20 @@ export function resolveOnArrival(childId, tenantId) {
 
 // ── REST ENDPOINTS ───────────────────────────────────────────────────────
 
+// GET /api/checkin-alerts — list of alerts (last 100)
+router.get('/', requireAuth, requireTenant, (req, res) => {
+  try {
+    ensureTables();
+    const alerts = D().prepare(
+      `SELECT ca.*, c.first_name, c.last_name, c.room_id
+       FROM checkin_alerts ca
+       JOIN children c ON c.id=ca.child_id
+       WHERE ca.tenant_id=? ORDER BY ca.alert_date DESC, ca.created_at DESC LIMIT 100`
+    ).all(req.tenantId);
+    res.json({ alerts });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/checkin-alerts/config
 router.get('/config', requireAuth, requireTenant, (req, res) => {
   ensureTables();
@@ -497,18 +511,21 @@ router.post('/call-status/:id', (req, res) => {
 // POST /api/checkin-alerts/sms-reply — Twilio inbound SMS webhook
 router.post('/sms-reply', (req, res) => {
   try {
-    const from = req.body.From;
+    // Normalise phone: Twilio sends E.164 (+61412222001), DB may store local with spaces (0412 222 001)
+    const raw = (req.body.From || '').replace(/\s/g,'');
+    const norm = raw.startsWith('+61') ? '0' + raw.slice(3) : raw;
     const body = (req.body.Body || '').trim().toUpperCase();
     const today = new Date().toISOString().split('T')[0];
 
     const alert = D().prepare(`
       SELECT * FROM checkin_alerts
-      WHERE sms_to = ? AND alert_date = ? AND status = 'sms_sent'
+      WHERE REPLACE(REPLACE(sms_to,' ',''),'+61','0') = ?
+        AND alert_date = ? AND status = 'sms_sent'
       LIMIT 1
-    `).get(from, today);
+    `).get(norm, today);
 
     if (!alert) {
-      res.type('text/xml').send('<Response></Response>');
+      res.type('text/xml').send('<Response><Message>We could not match your reply. Please contact the centre directly.</Message></Response>');
       return;
     }
 
