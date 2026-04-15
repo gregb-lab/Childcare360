@@ -576,6 +576,8 @@ r.post('/fill-requests/:id', (req, res) => {
 });
 
 r.get('/fill-requests/:id/attempts', (req, res) => {
+  const req_check = D().prepare('SELECT id FROM shift_fill_requests WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+  if (!req_check) return res.status(404).json({ error: 'Not found' });
   const attempts = D().prepare(`SELECT sfa.*, e.first_name || ' ' || e.last_name as educator_name,
     e.phone, e.reliability_score, e.distance_km
     FROM shift_fill_attempts sfa JOIN educators e ON e.id = sfa.educator_id
@@ -584,6 +586,8 @@ r.get('/fill-requests/:id/attempts', (req, res) => {
 });
 
 r.post('/fill-requests/:id/accept', (req, res) => {
+  const req_check = D().prepare('SELECT id FROM shift_fill_requests WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+  if (!req_check) return res.status(404).json({ error: 'Not found' });
   const { educator_id } = req.body;
   const db = D();
   db.prepare("UPDATE shift_fill_requests SET status='filled', filled_by=?, filled_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
@@ -1457,7 +1461,7 @@ r.post('/educator-preferences', (req, res) => {
     const { educator_id, room_id } = req.body;
     const existing = D().prepare('SELECT id FROM educator_room_preferences WHERE educator_id=? AND room_id=? AND tenant_id=?').get(educator_id, room_id, req.tenantId);
     if (existing) {
-      D().prepare('DELETE FROM educator_room_preferences WHERE id=?').run(existing.id);
+      D().prepare('DELETE FROM educator_room_preferences WHERE id=? AND tenant_id=?').run(existing.id, req.tenantId);
       res.json({ removed: true });
     } else {
       const id = uuid();
