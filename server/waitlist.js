@@ -29,6 +29,15 @@ r.post('/', requireAuth, requireTenant, (req, res) => {
   res.json({ id, ok: true });
 });
 
+// GET /api/waitlist/:id — fetch single waitlist entry
+r.get('/:id', requireAuth, requireTenant, (req, res) => {
+  try {
+    const row = D().prepare('SELECT * FROM waitlist WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // PUT /api/waitlist/:id — full edit (BUG-WL-04). Used to live-edit a waitlist
 // entry from the new "Edit" modal. Accepts any subset of editable columns.
 r.put('/:id', requireAuth, requireTenant, (req, res) => {

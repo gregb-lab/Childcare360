@@ -50,22 +50,37 @@ export default function CasualSpotsModule() {
   };
 
   const handleBroadcast = async (id) => {
-    const d = await API(`/api/casual-spots/offers/${id}/broadcast`, { method: 'POST' });
-    window.showToast && window.showToast(`Broadcast sent to ${d.broadcast_count || 0} families`, 'success');
-    loadOffers();
+    try {
+      const d = await API(`/api/casual-spots/offers/${id}/broadcast`, { method: 'POST' });
+      window.showToast && window.showToast(`Broadcast sent to ${d.broadcast_count || 0} families`, 'success');
+      loadOffers();
+    } catch (err) {
+      console.error('handleBroadcast failed:', err);
+      window.showToast && window.showToast(err.message || 'Broadcast failed', 'error');
+    }
   };
 
   const handleSelectWinner = async (offerId, responseId) => {
-    const d = await API(`/api/casual-spots/offers/${offerId}/select-winner`, { method: 'POST', body: { response_id: responseId } });
-    if (d.ok) { window.showToast && window.showToast('Winner selected — SMS sent', 'success'); loadOffers(); loadResponses(offerId); }
-    else { window.showToast && window.showToast(d.error || 'Failed', 'error'); }
+    try {
+      const d = await API(`/api/casual-spots/offers/${offerId}/select-winner`, { method: 'POST', body: { response_id: responseId } });
+      if (d.ok) { window.showToast && window.showToast('Winner selected — SMS sent', 'success'); loadOffers(); loadResponses(offerId); }
+      else { window.showToast && window.showToast(d.error || 'Failed', 'error'); }
+    } catch (err) {
+      console.error('handleSelectWinner failed:', err);
+      window.showToast && window.showToast(err.message || 'Failed to select winner', 'error');
+    }
   };
 
   const handleCreate = async () => {
     if (!newRoom || !newDate) return;
-    const d = await API('/api/casual-spots/offers', { method: 'POST', body: { room_id: newRoom, date: newDate, source: 'manual' } });
-    if (d.ok) { window.showToast && window.showToast('Spot offer created', 'success'); setShowCreate(false); loadOffers(); loadCapacity(); }
-    else { window.showToast && window.showToast(d.error || 'Failed', 'error'); }
+    try {
+      const d = await API('/api/casual-spots/offers', { method: 'POST', body: { room_id: newRoom, date: newDate, source: 'manual' } });
+      if (d.ok) { window.showToast && window.showToast('Spot offer created', 'success'); setShowCreate(false); loadOffers(); loadCapacity(); }
+      else { window.showToast && window.showToast(d.error || 'Failed', 'error'); }
+    } catch (err) {
+      console.error('handleCreate failed:', err);
+      window.showToast && window.showToast(err.message || 'Failed to create spot offer', 'error');
+    }
   };
 
   const saveConfig = async () => {

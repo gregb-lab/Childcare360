@@ -96,6 +96,15 @@ router.get('/applications', requireAuth, requireTenant, requireRole('owner','adm
 // Also accepts partial consent updates from the UI: any of the
 // authorised_*/sunscreen_consent/photo_consent/excursion_consent /
 // consent_* keys in the body will be persisted.
+// GET /applications/:id — fetch single application
+router.get('/applications/:id', requireAuth, requireTenant, (req, res) => {
+  try {
+    const row = D().prepare('SELECT * FROM enrolment_applications WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.put('/applications/:id', requireAuth, requireTenant, requireRole('owner','admin','director'), (req, res) => {
   try {
     const db = D();

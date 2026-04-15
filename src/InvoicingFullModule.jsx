@@ -984,12 +984,17 @@ function FeeOverridesTab() {
 
   const save=async()=>{
     if(!form.child_id)return;
-    const body={...form,
-      daily_rate_cents:form.daily_rate_cents?Math.round(parseFloat(form.daily_rate_cents)*100):null,
-      discount_pct:form.discount_pct?parseFloat(form.discount_pct):0,
-    };
-    await API("/api/fee-overrides",{method:"POST",body}).catch(()=>{});
-    setShowNew(false);load();
+    try {
+      const body={...form,
+        daily_rate_cents:form.daily_rate_cents?Math.round(parseFloat(form.daily_rate_cents)*100):null,
+        discount_pct:form.discount_pct?parseFloat(form.discount_pct):0,
+      };
+      await API("/api/fee-overrides",{method:"POST",body});
+      setShowNew(false);load();
+    } catch (err) {
+      console.error('save failed:', err);
+      window.showToast && window.showToast(err.message || 'Failed to save fee override', 'error');
+    }
   };
 
   const remove=async(id)=>{ await API(`/api/fee-overrides/${id}`,{method:"DELETE"}).catch(()=>{}); load(); };

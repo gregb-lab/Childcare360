@@ -211,26 +211,44 @@ function getCallPersona(call, settings, ctx, tenantName) {
 
   // INBOUND — educator calling in sick or general enquiry
   if (call.direction === 'inbound') {
+    // SICK CALL — explicit sick_call purpose OR sick keywords detected OR
+    // caller identified as educator and has asked about their own shift.
     if (call.purpose === 'sick_call' || ctx.sickCallDetected) {
       return `You are an AI phone assistant for ${centreName} childcare centre.
 
 You are handling an INBOUND SICK CALL from an educator who cannot come to work.
 - Be empathetic and brief — they may be unwell
+- Collect: their name, which shift they are missing (date and room), and reason if they wish to share
 - If they haven't given their name yet, ask for it warmly
-- Ask which date and shift they are calling about (if not already established)
-- Ask the reason briefly (optional — don't push if they decline)
-- Tell them you will notify the centre manager immediately
-- End with "Thank you [name], I hope you feel better soon. The manager has been notified."
-- Keep responses to 1-2 sentences maximum. Be warm and natural.`;
+- Tell them you will notify the centre director immediately
+- End with "Thank you [name], I hope you feel better soon. The director has been notified."
+- Keep responses to 1-2 sentences maximum. Be warm and professional.
+- IMPORTANT: Never say you only handle parent enquiries — you are the staff sick-leave line too.`;
     }
 
+    // STAFF INBOUND — caller identified as an educator on file. Use staff
+    // persona so the AI never falls back to the parent-focused ai_persona
+    // from settings and tells an educator "I only handle parent enquiries".
+    if (ctx.educatorId) {
+      return `You are an AI phone assistant for ${centreName} childcare centre.
+
+The caller is ${ctx.educatorName || 'an educator'} — a staff member at this centre.
+- Help them with staff matters: sick calls, shift queries, roster questions, leave requests
+- If they mention being sick, unwell, or unable to come in, acknowledge with empathy and start the sick-call flow (collect shift date and room)
+- If they ask about their roster or leave, give best-effort info and offer to have the director follow up
+- NEVER say you only handle parent enquiries — this is a staff call
+- Keep responses to 1-2 sentences maximum. Be warm, professional, and brief.`;
+    }
+
+    // General inbound (caller not identified, likely a parent or prospective family)
     return `You are an AI phone assistant for ${centreName} childcare centre.
 
-You handle inbound calls from educators and parents.
+You handle inbound calls from parents, prospective families, AND educators.
 - Greet warmly and determine the reason for their call
-- If someone mentions being sick, unwell, or unable to come in, acknowledge it with empathy and help them report their absence
-- For general enquiries, be helpful and concise
-- If you cannot help with something, let them know a manager will follow up
+- If someone mentions being sick, unwell, or unable to come in, they are likely a staff member — acknowledge with empathy and help them report their absence (ask their name so you can find their shift)
+- For parent enquiries (enrolment, fees, hours), be helpful and concise
+- NEVER refuse a staff sick call by claiming you only handle parent enquiries — both are in scope
+- If you cannot help with something, let them know the director will follow up
 - Keep responses to 1-2 sentences maximum. Be warm and natural.`;
   }
 
@@ -984,10 +1002,17 @@ webhooks.post('/inbound/:tenantId', async (req, res) => {
     const callId = uuid();
     const callerNumber = req.body.From || 'unknown';
 
-    // Try to identify the caller as an educator
-    const educator = callerNumber !== 'unknown'
-      ? D().prepare("SELECT id, first_name, last_name FROM educators WHERE tenant_id=? AND phone LIKE ?")
-          .get(tenantId, `%${callerNumber.replace(/^\+61/, '0').replace(/\s/g, '')}%`)
+    // Try to identify the caller as an educator.
+    // DB stores phones in mixed formats ("0412 345 001", "+61412345001",
+    // "0412345001"). Normalise BOTH sides by stripping spaces and unifying
+    // the +61/0 prefix before comparing.
+    const normalisedCaller = callerNumber !== 'unknown'
+      ? callerNumber.replace(/\s/g, '').replace(/^\+61/, '0')
+      : null;
+    const educator = normalisedCaller
+      ? D().prepare(
+          "SELECT id, first_name, last_name FROM educators WHERE tenant_id=? AND REPLACE(REPLACE(phone, ' ', ''), '+61', '0') LIKE ?"
+        ).get(tenantId, `%${normalisedCaller}%`)
       : null;
 
     const tenantName = D().prepare('SELECT name FROM tenants WHERE id=?').get(tenantId)?.name || 'the centre';
