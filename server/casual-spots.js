@@ -171,6 +171,14 @@ export async function createSpotOffer({ tenantId, roomId, date, source, sourceId
   }
 
   console.log(`[casual-spots] Offer ${offerId} created: ${roomId} on ${date} (${source})`);
+  try {
+    D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+      .run(uuid(), null, tenantId, 'casual_spot_created',
+        JSON.stringify({ entity_type: 'child', entity_id: vacatedChildId || null,
+          category: 'operations', offer_id: offerId, room_id: roomId, offer_date: date,
+          source, source_id: sourceId || null, revenue_cents: fee * 100 }),
+        null, 'system:casual-spots');
+  } catch (e) {}
   return offerId;
 }
 
@@ -209,6 +217,14 @@ export async function broadcastOffer(offerId, tenantId) {
 
   D().prepare("UPDATE spot_offers SET status='broadcasting', broadcast_sent_at=datetime('now'), broadcast_count=?, updated_at=datetime('now') WHERE id=?").run(count, offerId);
   console.log(`[casual-spots] Broadcast to ${count} families for offer ${offerId}`);
+  try {
+    D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+      .run(uuid(), null, tenantId, 'casual_spot_broadcast',
+        JSON.stringify({ entity_type: 'child', entity_id: offer.vacated_child_id || null,
+          category: 'operations', offer_id: offerId, room_id: offer.room_id,
+          offer_date: offer.offer_date, broadcast_count: count }),
+        null, 'system:casual-spots');
+  } catch (e) {}
   return count;
 }
 
@@ -248,6 +264,16 @@ export async function selectWinner(offerId, responseId, tenantId) {
     await sendSMS(l.parent_phone, lBody, tenantId);
     D().prepare("UPDATE spot_offer_responses SET status='notified_loss' WHERE id=?").run(l.id);
   }
+
+  try {
+    D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+      .run(uuid(), null, tenantId, 'casual_spot_winner_selected',
+        JSON.stringify({ entity_type: 'child', entity_id: offer.vacated_child_id || null,
+          category: 'operations', offer_id: offerId, booking_id: bookingId,
+          winner_waitlist_id: resp.waitlist_id, winner_child_name: resp.child_name,
+          revenue_cents: offer.revenue_cents }),
+        null, 'system:casual-spots');
+  } catch (e) {}
 
   return { ok: true, booking_id: bookingId };
 }

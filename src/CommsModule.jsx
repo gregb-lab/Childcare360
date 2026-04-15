@@ -23,7 +23,7 @@ const lbl={fontSize:11,color:MU,fontWeight:700,display:"block",marginBottom:4,te
 const fmtDT = d => d ? new Date(d).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "—";
 const fmtD  = d => d ? new Date(d+"T12:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}) : "—";
 
-const TABS=[{id:"messages",icon:"💬",label:"Messages"},{id:"health",icon:"🏥",label:"Health Events"},{id:"immunisation",icon:"💉",label:"Immunisation"}];
+const TABS=[{id:"messages",icon:"💬",label:"Messages"},{id:"sms",icon:"📱",label:"Send SMS"},{id:"health",icon:"🏥",label:"Health Events"},{id:"immunisation",icon:"💉",label:"Immunisation"}];
 
 export default function CommsModule() {
   const [tab,setTab]=useState("messages");
@@ -58,8 +58,141 @@ export default function CommsModule() {
       </div>
       <div style={{flex:1,minHeight:0,overflow:"hidden"}}>
         {tab==="messages"     && <MessagesTab onUnreadChange={setUnread}/>}
+        {tab==="sms"          && <SmsTab />}
         {tab==="health"       && <HealthTab />}
         {tab==="immunisation" && <ImmunisationTab />}
+      </div>
+    </div>
+  );
+}
+
+// ─── SMS COMPOSE TAB ──────────────────────────────────────────────────────
+function SmsTab() {
+  const [to, setTo] = useState("");
+  const [message, setMessage] = useState("");
+  const [purpose, setPurpose] = useState("general");
+  const [childId, setChildId] = useState("");
+  const [educatorId, setEducatorId] = useState("");
+  const [children, setChildren] = useState([]);
+  const [educators, setEducators] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [lastResult, setLastResult] = useState(null);
+
+  const loadHistory = useCallback(() => {
+    API("/api/comms/sms/history?limit=20").then(d => { if (d?.messages) setHistory(d.messages); }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+    API("/api/children").then(d => setChildren(Array.isArray(d) ? d : (d?.children || []))).catch(() => {});
+    API("/api/educators").then(d => setEducators(Array.isArray(d) ? d : (d?.educators || []))).catch(() => {});
+  }, [loadHistory]);
+
+  const handleSend = async () => {
+    if (!to.trim() || !message.trim()) return;
+    setSending(true);
+    setLastResult(null);
+    try {
+      const body = { to: to.trim(), message: message.trim(), purpose };
+      if (childId) body.child_id = childId;
+      if (educatorId) body.educator_id = educatorId;
+      const res = await API("/api/comms/sms/send", { method: "POST", body });
+      setLastResult(res);
+      if (res.ok) {
+        window.showToast && window.showToast("SMS sent ✓", "success");
+        setMessage("");
+        loadHistory();
+      } else {
+        window.showToast && window.showToast(res.error || "Send failed", "error");
+      }
+    } catch (e) { window.showToast && window.showToast("Send failed", "error"); }
+    setSending(false);
+  };
+
+  const charCount = message.length;
+  const smsSegments = Math.ceil(charCount / 160) || 1;
+  const charColor = charCount > 160 ? WA : MU;
+
+  return (
+    <div style={{ overflowY: "auto", height: "100%", paddingBottom: 24 }}>
+      <div style={{ ...card, marginBottom: 16 }}>
+        <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: DARK }}>Send SMS</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
+          <div>
+            <label style={lbl}>Phone Number *</label>
+            <input style={inp} value={to} onChange={e => setTo(e.target.value)} placeholder="0412 345 678 or +61412345678" />
+            <div style={{ fontSize: 10, color: MU, marginTop: 3 }}>AU format — spaces OK, will be normalised to E.164</div>
+          </div>
+          <div>
+            <label style={lbl}>Purpose</label>
+            <select style={inp} value={purpose} onChange={e => setPurpose(e.target.value)}>
+              <option value="general">General</option>
+              <option value="reminder">Reminder</option>
+              <option value="alert">Alert</option>
+              <option value="shift_fill">Shift Fill</option>
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Link to Child (optional)</label>
+            <select style={inp} value={childId} onChange={e => { setChildId(e.target.value); if (e.target.value) setEducatorId(""); }}>
+              <option value="">— none —</option>
+              {children.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Link to Educator (optional)</label>
+            <select style={inp} value={educatorId} onChange={e => { setEducatorId(e.target.value); if (e.target.value) setChildId(""); }}>
+              <option value="">— none —</option>
+              {educators.map(e2 => <option key={e2.id} value={e2.id}>{e2.first_name} {e2.last_name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={lbl}>Message *</label>
+          <textarea style={{ ...inp, minHeight: 90, resize: "vertical" }} value={message} onChange={e => setMessage(e.target.value)} placeholder="Type your SMS here..." />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: charColor, marginTop: 4 }}>
+            <span>{charCount} characters · {smsSegments} SMS segment{smsSegments !== 1 ? "s" : ""}</span>
+            {charCount > 160 && <span>⚠️ Multi-segment SMS will cost more</span>}
+          </div>
+        </div>
+        <button onClick={handleSend} disabled={sending || !to.trim() || !message.trim()} style={{ ...bp, opacity: (sending || !to.trim() || !message.trim()) ? 0.5 : 1 }}>
+          {sending ? "Sending..." : "📱 Send SMS"}
+        </button>
+        {lastResult && lastResult.ok && (
+          <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "#F0FFF4", border: "1px solid #A7F3D0", color: "#065F46", fontSize: 12 }}>
+            ✓ Sent to {lastResult.to} · Twilio SID: <code style={{ fontSize: 11 }}>{lastResult.twilio_sid || "—"}</code> · Status: {lastResult.status}
+          </div>
+        )}
+        {lastResult && lastResult.error && (
+          <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B", fontSize: 12 }}>
+            ✗ {lastResult.error}
+          </div>
+        )}
+      </div>
+
+      <div style={card}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: DARK }}>Recent SMS ({history.length})</h3>
+        {history.length === 0 && <p style={{ color: MU, fontSize: 13 }}>No SMS sent yet.</p>}
+        {history.map(m => (
+          <div key={m.id} style={{ padding: "10px 12px", borderRadius: 10, marginBottom: 6, border: "1px solid #F0EBF8", background: m.status === "failed" ? "#FEF2F2" : "#FDFBFF" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: DARK }}>
+                {m.to_number}
+                {m.child_name && <span style={{ marginLeft: 8, fontSize: 11, color: P, fontWeight: 600 }}>→ {m.child_name}</span>}
+                {m.educator_name && <span style={{ marginLeft: 8, fontSize: 11, color: P, fontWeight: 600 }}>→ {m.educator_name}</span>}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {m.purpose && <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 20, background: "#E8E0F0", color: "#6B5F7A" }}>{m.purpose}</span>}
+                <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 20, background: m.status === "failed" ? "#FEE2E2" : "#D4EDDA", color: m.status === "failed" ? "#991B1B" : "#155724", fontWeight: 700 }}>{m.status}</span>
+                <span style={{ fontSize: 10, color: MU }}>{fmtDT(m.created_at)}</span>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: "#5C4E6A", lineHeight: 1.4 }}>{m.message}</div>
+            {m.sent_by_name && <div style={{ fontSize: 10, color: MU, marginTop: 3 }}>by {m.sent_by_name}</div>}
+            {m.error_message && <div style={{ fontSize: 11, color: "#991B1B", marginTop: 4 }}>Error: {m.error_message}</div>}
+          </div>
+        ))}
       </div>
     </div>
   );

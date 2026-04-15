@@ -242,6 +242,14 @@ export async function processCheckinAlerts() {
         } catch (e) {}
 
         console.log(`[checkin-alert] Alert created: ${childName} — ${config.alert_method === 'call_only' ? 'call' : 'SMS'} to ${phone}`);
+
+        try {
+          D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+            .run(uuid(), null, tenantId, 'checkin_alert_triggered',
+              JSON.stringify({ entity_type: 'child', entity_id: child.child_id,
+                category: 'safety', alert_id: alertId, child_name: childName,
+                contact_method: config.alert_method, phone }), null, 'system:scheduler');
+        } catch (e) {}
       }
 
       // ── Phase 2: Escalate SMS → call if no reply ──
@@ -268,6 +276,13 @@ export async function processCheckinAlerts() {
             call_initiated_at=datetime('now'), call_sid=? WHERE id=? AND tenant_id=?`)
             .run(callSid || 'failed', alert.id, tenantId);
           console.log(`[checkin-alert] Escalated to call: ${alert.first_name} ${alert.last_name}`);
+          try {
+            D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+              .run(uuid(), null, tenantId, 'checkin_alert_escalated_to_call',
+                JSON.stringify({ entity_type: 'child', entity_id: alert.child_id,
+                  category: 'safety', alert_id: alert.id, phone, call_sid: callSid }),
+                null, 'system:scheduler');
+          } catch (e) {}
         }
       }
 
@@ -301,6 +316,14 @@ export async function processCheckinAlerts() {
             }
           } catch (e) {}
           console.log(`[checkin-alert] Escalated to director: ${alert.first_name} ${alert.last_name}`);
+          try {
+            D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+              .run(uuid(), null, tenantId, 'checkin_alert_escalated_to_director',
+                JSON.stringify({ entity_type: 'child', entity_id: alert.child_id,
+                  category: 'safety', alert_id: alert.id,
+                  child_name: `${alert.first_name} ${alert.last_name}` }),
+                null, 'system:scheduler');
+          } catch (e) {}
         }
       }
     } catch (e) {
@@ -493,6 +516,13 @@ router.post('/sms-reply', (req, res) => {
       D().prepare(`UPDATE checkin_alerts SET status='resolved', sms_response='yes',
         sms_response_at=datetime('now'), resolved_at=datetime('now'), resolution='arriving'
         WHERE id=?`).run(alert.id);
+      try {
+        D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+          .run(uuid(), null, alert.tenant_id, 'checkin_alert_resolved',
+            JSON.stringify({ entity_type: 'child', entity_id: alert.child_id,
+              category: 'safety', alert_id: alert.id, resolution: 'arriving', via: 'sms_yes' }),
+            null, 'twilio:sms-webhook');
+      } catch (e) {}
       res.type('text/xml').send('<Response><Message>Thank you! We look forward to seeing them soon.</Message></Response>');
     } else if (body === 'NO' || body.startsWith('N')) {
       D().prepare("UPDATE attendance_sessions SET absent=1, absent_reason='Parent confirmed absent via SMS' WHERE child_id=? AND date=? AND tenant_id=?")
@@ -500,6 +530,13 @@ router.post('/sms-reply', (req, res) => {
       D().prepare(`UPDATE checkin_alerts SET status='resolved', sms_response='no',
         sms_response_at=datetime('now'), resolved_at=datetime('now'), resolution='absent_confirmed'
         WHERE id=?`).run(alert.id);
+      try {
+        D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+          .run(uuid(), null, alert.tenant_id, 'checkin_alert_resolved',
+            JSON.stringify({ entity_type: 'child', entity_id: alert.child_id,
+              category: 'safety', alert_id: alert.id, resolution: 'absent_confirmed', via: 'sms_no' }),
+            null, 'twilio:sms-webhook');
+      } catch (e) {}
       // Trigger casual spot offer
       const child = D().prepare('SELECT room_id FROM children WHERE id=?').get(alert.child_id);
       if (child?.room_id) {

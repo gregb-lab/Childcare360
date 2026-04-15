@@ -133,6 +133,15 @@ const handleCreateThread = (req, res) => {
       VALUES (?,?,?,'admin',?,?,?,?,?)
     `).run(uuid(), req.tenantId, threadId, resolvedName, req.userId||null, body, fileJson, ackFlag);
 
+    try {
+      D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+        .run(uuid(), req.userId || null, req.tenantId, 'message_thread_created',
+          JSON.stringify({ entity_type: child_id ? 'child' : 'system', entity_id: child_id || null,
+            category: 'communication', thread_id: threadId, subject, recipient_count: recipientCount,
+            snippet: body?.slice(0, 50) }),
+          req.ip || null, req.headers['user-agent'] || null);
+    } catch (e) {}
+
     res.json({ id: threadId, ok: true, recipient_count: recipientCount, group_label: groupLabel });
   } catch(e) { res.status(500).json({ error: e.message }); }
 };
@@ -480,4 +489,123 @@ r.post('/messages/:id/acknowledge', (req, res) => {
 r.get('/templates', (req, res) => { res.json({ templates: [] }); });
 r.get('/scheduled', (req, res) => { res.json({ scheduled: [] }); });
 
+// ─── SMS COMPOSE ──────────────────────────────────────────────────────────
+
+function ensureSmsTable() {
+  try {
+    D().prepare(`CREATE TABLE IF NOT EXISTS sms_messages (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      sent_by TEXT,
+      to_number TEXT NOT NULL,
+      message TEXT NOT NULL,
+      twilio_sid TEXT,
+      status TEXT DEFAULT 'sent',
+      child_id TEXT,
+      educator_id TEXT,
+      purpose TEXT,
+      error_message TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`).run();
+  } catch (e) {}
+}
+ensureSmsTable();
+
+// Normalise to E.164 — assume AU (+61) if it starts with 0
+function toE164AU(raw) {
+  const clean = (raw || '').replace(/[\s\-().]/g, '');
+  if (/^\+61\d{9}$/.test(clean)) return clean;
+  if (/^61\d{9}$/.test(clean)) return '+' + clean;
+  if (/^0\d{9}$/.test(clean)) return '+61' + clean.slice(1);
+  if (/^\+\d{8,15}$/.test(clean)) return clean;
+  return null;
+}
+
+async function sendSmsViaTwilio(to, body, tenantId) {
+  const vs = D().prepare('SELECT * FROM voice_settings WHERE tenant_id=?').get(tenantId) || {};
+  const sid = process.env.TWILIO_ACCOUNT_SID || vs.twilio_account_sid;
+  const tok = process.env.TWILIO_AUTH_TOKEN || vs.twilio_auth_token;
+  const from = process.env.TWILIO_PHONE_NUMBER || vs.twilio_phone_number;
+  if (!sid || !tok || !from) throw new Error('Twilio not configured');
+  const mod = await import('twilio');
+  const client = (mod.default || mod)(sid, tok);
+  return await client.messages.create({ body, to, from });
+}
+
+function auditSafe(userId, tenantId, action, details, req) {
+  try {
+    D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
+      .run(uuid(), userId || null, tenantId, action,
+        typeof details === 'string' ? details : JSON.stringify(details),
+        req?.ip || null, req?.headers?.['user-agent'] || null);
+  } catch (e) {}
+}
+
+// POST /api/comms/sms/send
+r.post('/sms/send', async (req, res) => {
+  try {
+    ensureSmsTable();
+    const { to, message, child_id, educator_id, purpose } = req.body || {};
+    if (!to) return res.status(400).json({ error: 'to required' });
+    if (!message || !message.trim()) return res.status(400).json({ error: 'message required' });
+    if (message.length > 1600) return res.status(400).json({ error: 'message too long (max 1600 chars)' });
+
+    const e164 = toE164AU(to);
+    if (!e164) return res.status(400).json({ error: 'Invalid phone number format' });
+
+    const id = uuid();
+    let twilioSid = null;
+    let status = 'sent';
+    let errorMessage = null;
+    try {
+      const msg = await sendSmsViaTwilio(e164, message, req.tenantId);
+      twilioSid = msg.sid;
+      status = msg.status || 'sent';
+    } catch (err) {
+      status = 'failed';
+      errorMessage = err.message;
+    }
+
+    D().prepare(`INSERT INTO sms_messages
+      (id, tenant_id, sent_by, to_number, message, twilio_sid, status,
+       child_id, educator_id, purpose, error_message)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, req.tenantId, req.userId || null, e164, message, twilioSid,
+        status, child_id || null, educator_id || null, purpose || null, errorMessage);
+
+    const entityType = child_id ? 'child' : educator_id ? 'educator' : 'system';
+    const entityId = child_id || educator_id || null;
+    const snippet = message.length > 50 ? message.slice(0, 50) + '…' : message;
+    auditSafe(req.userId, req.tenantId, 'sms_sent', {
+      entity_type: entityType, entity_id: entityId, category: 'communication',
+      to: e164, snippet, twilio_sid: twilioSid, status, purpose: purpose || null,
+    }, req);
+
+    if (status === 'failed') return res.status(500).json({ ok: false, id, error: errorMessage });
+    res.json({ ok: true, id, twilio_sid: twilioSid, status, to: e164 });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/comms/sms/history?limit=20
+r.get('/sms/history', (req, res) => {
+  try {
+    ensureSmsTable();
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const rows = D().prepare(`SELECT sm.*, u.name as sent_by_name,
+        c.first_name || ' ' || c.last_name as child_name,
+        e.first_name || ' ' || e.last_name as educator_name
+      FROM sms_messages sm
+      LEFT JOIN users u ON u.id = sm.sent_by
+      LEFT JOIN children c ON c.id = sm.child_id
+      LEFT JOIN educators e ON e.id = sm.educator_id
+      WHERE sm.tenant_id = ?
+      ORDER BY sm.created_at DESC LIMIT ?`).all(req.tenantId, limit);
+    res.json({ messages: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Audit thread create — add to existing POST /threads handler
+// (done via post-send audit in handleCreateThread fallback — see below)
+
 export default r;
+export { auditSafe };

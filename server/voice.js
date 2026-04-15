@@ -577,7 +577,20 @@ router.post('/call', requireAuth, requireTenant, async (req, res) => {
       record: true, recordingStatusCallback: `${base}/api/voice/webhook/recording/${callId}`
     });
     setStatus(callId, 'ringing', { sid: call.sid });
-    auditLog(req.userId, req.tenantId, 'voice_call_outbound', { callId, to: to_number, purpose }, req.ip, req.headers['user-agent']);
+    // Resolve educator by phone so audit is linked to a subject entity
+    let educatorId = null;
+    try {
+      const normalised = (to_number || '').replace(/\s/g, '').replace(/^\+61/, '0');
+      const edu = D().prepare(
+        "SELECT id FROM educators WHERE tenant_id=? AND REPLACE(REPLACE(phone, ' ', ''), '+61', '0') LIKE ?"
+      ).get(req.tenantId, `%${normalised}%`);
+      educatorId = edu?.id || null;
+    } catch (e) {}
+    auditLog(req.userId, req.tenantId, 'voice_call_outbound', {
+      entity_type: educatorId ? 'educator' : (context_type || 'system'),
+      entity_id: educatorId || context_id || null,
+      category: 'communication', callId, to: to_number, purpose,
+    }, req.ip, req.headers['user-agent']);
     res.json({ ok: true, callId, callSid: call.sid });
   } catch(e) { setStatus(callId, 'failed', { error: e.message }); res.status(500).json({ error: e.message }); }
 });
