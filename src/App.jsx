@@ -4170,6 +4170,29 @@ function CredentialsTab({ tenantId, API2 }) {
   const [saving, setSaving]   = useState(false);
   const [testing, setTesting] = useState(null);
   const [results, setResults] = useState({});
+  const [retellDeploying, setRetellDeploying] = useState(false);
+  const [retellCheckingStatus, setRetellCheckingStatus] = useState(false);
+  const [retellResult, setRetellResult] = useState(null); // { ok, type:'deploy'|'status', data, error }
+
+  const deployRetell = async () => {
+    setRetellDeploying(true); setRetellResult(null);
+    try {
+      const r = await API2('/api/retell/agent', { method: 'POST' });
+      if (r.error) setRetellResult({ ok: false, type: 'deploy', error: r.error });
+      else setRetellResult({ ok: true, type: 'deploy', data: r });
+    } catch (e) { setRetellResult({ ok: false, type: 'deploy', error: e.message }); }
+    setRetellDeploying(false);
+  };
+
+  const checkRetellStatus = async () => {
+    setRetellCheckingStatus(true); setRetellResult(null);
+    try {
+      const r = await API2('/api/retell/status');
+      if (r.error) setRetellResult({ ok: false, type: 'status', error: r.error });
+      else setRetellResult({ ok: true, type: 'status', data: r });
+    } catch (e) { setRetellResult({ ok: false, type: 'status', error: e.message }); }
+    setRetellCheckingStatus(false);
+  };
 
   const PROVIDERS = [
     {
@@ -4321,12 +4344,24 @@ function CredentialsTab({ tenantId, API2 }) {
                 </div>
                 <div style={{ fontSize: 12, color: MU, marginTop: 2 }}>{prov.desc}</div>
               </div>
-              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
                 {configured && ["anthropic","openai"].includes(prov.id) && (
                   <button onClick={() => testConnection(prov.id)} disabled={testing === prov.id}
                     style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${P}40`, background: "#F8F5FC", color: P, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                     {testing === prov.id ? "Testing…" : "Test"}
                   </button>
+                )}
+                {prov.id === "retell" && (
+                  <>
+                    <button onClick={deployRetell} disabled={retellDeploying}
+                      style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: P, color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+                      {retellDeploying ? "Deploying…" : "🚀 Deploy / Update Agent"}
+                    </button>
+                    <button onClick={checkRetellStatus} disabled={retellCheckingStatus}
+                      style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${P}40`, background: "#F8F5FC", color: P, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                      {retellCheckingStatus ? "Checking…" : "📊 Check Status"}
+                    </button>
+                  </>
                 )}
                 {prov.url && (
                   <a href={prov.url} target="_blank" rel="noopener"
@@ -4357,6 +4392,50 @@ function CredentialsTab({ tenantId, API2 }) {
               <div style={{ marginTop: 10, padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
                 background: result.ok ? "#F0FDF4" : "#FEF2F2", color: result.ok ? OK : DA }}>
                 {result.ok ? `✓ ${result.model ? "Connected · " + result.model : "Connected"}` : `✗ ${result.message || "Failed"}`}
+              </div>
+            )}
+
+            {prov.id === "retell" && retellResult && (
+              <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 8, fontSize: 12,
+                background: retellResult.ok ? "#F0FDF4" : "#FEF2F2",
+                border: `1px solid ${retellResult.ok ? "#BBF7D0" : "#FECACA"}`,
+                color: retellResult.ok ? "#166534" : DA }}>
+                {!retellResult.ok && <div style={{ fontWeight: 700 }}>✗ {retellResult.error || "Failed"}</div>}
+                {retellResult.ok && retellResult.type === "deploy" && (
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>✓ Agent deployed</div>
+                    <div style={{ fontSize: 11, fontFamily: "monospace", color: "#166534" }}>
+                      Agent ID: {retellResult.data?.agent_id || retellResult.data?.agent?.agent_id || "—"}
+                      {retellResult.data?.agent_name && <span> · {retellResult.data.agent_name}</span>}
+                    </div>
+                  </div>
+                )}
+                {retellResult.ok && retellResult.type === "status" && (
+                  <div>
+                    {retellResult.data?.configured === false ? (
+                      <div style={{ fontWeight: 600, color: "#92400E" }}>No agent configured yet. Click Deploy / Update Agent to create one.</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ fontWeight: 700 }}>✓ Agent active</div>
+                        <div style={{ fontSize: 11, fontFamily: "monospace" }}>
+                          <div>Name: {retellResult.data?.agent?.agent_name || "—"}</div>
+                          <div>ID: {retellResult.data?.agent?.agent_id || "—"}</div>
+                          <div style={{ wordBreak: "break-all" }}>WS: {retellResult.data?.agent?.llm_websocket_url || "—"}</div>
+                        </div>
+                        {Array.isArray(retellResult.data?.phone_numbers) && retellResult.data.phone_numbers.length > 0 && (
+                          <div style={{ marginTop: 4 }}>
+                            <div style={{ fontSize: 11, fontWeight: 600 }}>Phone numbers:</div>
+                            {retellResult.data.phone_numbers.map((p, i) => (
+                              <div key={i} style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8 }}>
+                                · {p.phone_number || p.number || JSON.stringify(p)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
