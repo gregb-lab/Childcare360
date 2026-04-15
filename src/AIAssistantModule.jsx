@@ -1,8 +1,6 @@
 /**
  * AIAssistantModule.jsx — v2.19.0
  *   ✨ AI Writer     — Claude-powered observation/story/update generator
- *   💰 Fee Overrides — Per-child fee adjustments and discounts
- *   ✅ Compliance Tasks — NQF compliance task nagger with auto-generation
  */
 import { useState, useEffect, useCallback } from "react";
 
@@ -24,25 +22,18 @@ const fmtD=d=>d?new Date(d.length===10?d+"T12:00":d).toLocaleDateString("en-AU",
 
 const TABS=[
   {id:"ai",      icon:"✨", label:"AI Writing Assistant"},
-  {id:"fees",    icon:"💰", label:"Fee Overrides"},
-  {id:"tasks",   icon:"✅", label:"Compliance Tasks"},
 ];
 
 export default function AIAssistantModule() {
   const [tab,setTab]=useState("ai");
-  const [taskCount,setTaskCount]=useState(0);
-
-  useEffect(()=>{
-    API("/api/compliance-tasks").then(r=>setTaskCount(r.summary?.overdue||0)).catch(()=>{});
-  },[]);
 
   return (
     <div style={{padding:"24px 28px"}}>
       <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:24}}>
         <span style={{fontSize:28}}>✨</span>
         <div>
-          <h1 style={{margin:0,fontSize:22,fontWeight:900,color:DARK}}>AI Assistant & Compliance</h1>
-          <p style={{margin:"3px 0 0",fontSize:13,color:MU}}>AI writing · Per-child fees · Compliance task management</p>
+          <h1 style={{margin:0,fontSize:22,fontWeight:900,color:DARK}}>AI Writing Assistant</h1>
+          <p style={{margin:"3px 0 0",fontSize:13,color:MU}}>Claude-powered content generation for observations, stories and updates</p>
         </div>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:24,borderBottom:"1px solid #EDE8F4",paddingBottom:12}}>
@@ -52,16 +43,10 @@ export default function AIAssistantModule() {
               fontWeight:tab===t.id?700:500,background:tab===t.id?P:"transparent",
               color:tab===t.id?"#fff":MU,position:"relative"}}>
             {t.icon} {t.label}
-            {t.id==="tasks"&&taskCount>0&&(
-              <span style={{marginLeft:6,background:DA,color:"#fff",borderRadius:20,
-                padding:"1px 6px",fontSize:10,fontWeight:900}}>{taskCount}</span>
-            )}
           </button>
         ))}
       </div>
       {tab==="ai"    && <AIWriterTab />}
-      {tab==="fees"  && <FeeOverridesTab />}
-      {tab==="tasks" && <ComplianceTasksTab onCountChange={setTaskCount}/>}
     </div>
   );
 }

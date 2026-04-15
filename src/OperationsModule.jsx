@@ -40,12 +40,11 @@ const TABS = [
   { id:"rp",         icon:"🛡️", label:"Responsible Person" },
   { id:"handover",   icon:"📋", label:"Handover" },
   { id:"room_ci",    icon:"🏠", label:"Room Check-In" },
-  { id:"shifts",     icon:"📅", label:"Shift Bidding" },
 ];
 
 export default function OperationsModule() {
   const [tab, setTab] = useState("visitors");
-  const [alerts, setAlerts] = useState({ visitors:0, sleep:0, hazards:0, shifts:0 });
+  const [alerts, setAlerts] = useState({ visitors:0, sleep:0, hazards:0 });
 
   return (
     <div style={{ padding:"24px 28px" }}>
@@ -53,7 +52,7 @@ export default function OperationsModule() {
         <span style={{ fontSize:28 }}>⚙️</span>
         <div>
           <h1 style={{ margin:0, fontSize:22, fontWeight:900, color:DARK }}>Daily Operations</h1>
-          <p style={{ margin:"3px 0 0", fontSize:13, color:MUTED }}>Visitors · Evacuations · Sleep · Hazards · RP Log · Handover · Room Check-In · Shift Bidding</p>
+          <p style={{ margin:"3px 0 0", fontSize:13, color:MUTED }}>Visitors · Evacuations · Sleep · Hazards · RP Log · Handover · Room Check-In</p>
         </div>
       </div>
 
@@ -90,7 +89,6 @@ export default function OperationsModule() {
       {tab === "rp"         && <RPLogTab />}
       {tab === "handover"   && <HandoverTab />}
       {tab === "room_ci"    && <RoomCheckinTab />}
-      {tab === "shifts"     && <ShiftBiddingTab />}
     </div>
   );
 }

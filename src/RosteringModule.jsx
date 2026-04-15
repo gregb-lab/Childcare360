@@ -87,6 +87,7 @@ export function RosteringModule() {
     { id: "patterns", l: "Patterns", i: "📈" },
     { id: "educators", l: "Educators", i: "👩‍🏫" },
     { id: "timesheet", l: "Timesheet", i: "🕐" },
+    { id: "shiftbidding", l: "Shift Bidding", i: "📅" },
   ];
 
   if (loading && !data.stats) return <div style={{ textAlign: "center", padding: 60 }}><div style={{ fontSize: 48, marginBottom: 12 }}>🤖</div><p style={{ color: "#8A7F96", fontWeight: 600 }}>Loading AI Rostering…</p></div>;
@@ -119,6 +120,43 @@ export function RosteringModule() {
       {tab === "patterns" && <PatternsTab />}
       {tab === "educators" && <EducatorsTab educators={data.educators} loadEd={loadEd} selEd={selEd} setSelEd={setSelEd} reload={load} />}
       {tab === "timesheet" && <TimesheetTab educators={data.educators} periods={data.periods} />}
+      {tab === "shiftbidding" && <ShiftBiddingRoster />}
+    </div>
+  );
+}
+
+function ShiftBiddingRoster() {
+  const [shifts, setShifts] = useState([]);
+  const [bids, setBids] = useState({});
+  const load = useCallback(() => {
+    API("/api/operations/open-shifts").then(r => setShifts(r.shifts||[])).catch(()=>{});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const loadBids = async (entryId) => {
+    const r = await API(`/api/operations/shift-bids?entry_id=${entryId}`).catch(()=>({}));
+    setBids(p => ({...p, [entryId]: r.bids||[]}));
+  };
+  const decideBid = async (bidId, status) => {
+    await API(`/api/operations/shift-bids/${bidId}/decide`, { method:"PUT", body:{ status } }).catch(()=>{});
+    load();
+  };
+  if (!shifts.length) return <div style={{padding:40,textAlign:"center",color:"#8A7F96"}}>No open shifts available for bidding.</div>;
+  return (
+    <div style={{padding:"0 4px"}}>
+      <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>Open Shifts — Bidding</h3>
+      {shifts.map(s => (
+        <div key={s.id} style={{background:"#fff",borderRadius:12,border:"1px solid #EDE8F4",padding:"14px 18px",marginBottom:12}}>
+          <div style={{fontWeight:700,fontSize:13}}>{s.room_name} · {s.date} · {s.start_time}–{s.end_time}</div>
+          <button onClick={()=>loadBids(s.id)} style={{marginTop:8,padding:"6px 14px",borderRadius:7,border:"1px solid #7C3AED",background:"#fff",color:"#7C3AED",fontWeight:600,fontSize:12,cursor:"pointer"}}>View Bids</button>
+          {bids[s.id] && bids[s.id].map(b => (
+            <div key={b.id} style={{marginTop:8,display:"flex",alignItems:"center",gap:10,fontSize:12}}>
+              <span>{b.educator_name}</span>
+              <button onClick={()=>decideBid(b.id,"approved")} style={{padding:"4px 10px",borderRadius:6,border:"none",background:"#16A34A",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>Approve</button>
+              <button onClick={()=>decideBid(b.id,"rejected")} style={{padding:"4px 10px",borderRadius:6,border:"none",background:"#DC2626",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>Reject</button>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

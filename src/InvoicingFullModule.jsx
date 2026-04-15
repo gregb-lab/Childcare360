@@ -760,7 +760,7 @@ function FeesTab() {
   return (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <p style={{fontSize:13,color:MU,margin:0}}>
-        Set daily fee rates per room. These are used for bulk invoice generation. Child-level overrides can be set in AI Assistant → Fee Overrides.
+        Set daily fee rates per room. These are used for bulk invoice generation. Child-level overrides can be set in the Fee Overrides tab above.
       </p>
 
       {roomsWithFees.map(room=>(
