@@ -91,7 +91,7 @@ router.get('/:id', (req, res) => {
     `).get(req.params.id, fyStart);
 
     // Compute shifts_last_30 for detail view (matches list view subquery)
-    const shiftsCount = D().prepare("SELECT COUNT(*) as c FROM roster_entries WHERE educator_id = ? AND date >= date('now','-30 days')").get(req.params.id)?.c || 0;
+    const shiftsCount = D().prepare("SELECT COUNT(*) as c FROM roster_entries WHERE educator_id = ? AND tenant_id = ? AND date >= date('now','-30 days')").get(req.params.id, req.tenantId)?.c || 0;
 
     res.json({ ...edu, shifts_last_30: shiftsCount, availability, absences, documents, leaveRequests, rosterHistory, ytdEarningsCents: ytd?.total || 0 });
   } catch (err) {
@@ -269,7 +269,7 @@ router.put('/:id/leave/:leaveId', (req, res) => {
     if (!status) return res.status(400).json({ error: 'Status required' });
     D().prepare("UPDATE leave_requests SET status=?, notes=COALESCE(?,notes), approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND tenant_id=?")
       .run(status, notes||null, req.userId||'admin', req.params.leaveId, req.tenantId);
-    const updated = D().prepare('SELECT lr.*, e.first_name || \' \' || e.last_name as educator_name FROM leave_requests lr JOIN educators e ON e.id=lr.educator_id WHERE lr.id=?').get(req.params.leaveId);
+    const updated = D().prepare('SELECT lr.*, e.first_name || \' \' || e.last_name as educator_name FROM leave_requests lr JOIN educators e ON e.id=lr.educator_id WHERE lr.id=? AND lr.tenant_id=?').get(req.params.leaveId, req.tenantId);
     res.json(updated || { ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

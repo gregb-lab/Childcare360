@@ -210,8 +210,8 @@ r.put('/evacuation/:id', (req, res) => {
 r.put('/evacuation/:id/headcount/:hcId', (req, res) => {
   try {
     const { accounted, notes } = req.body;
-    D().prepare('UPDATE evacuation_headcounts SET accounted=?, notes=? WHERE id=? AND drill_id=?')
-      .run(accounted?1:0, notes||null, req.params.hcId, req.params.id);
+    D().prepare('UPDATE evacuation_headcounts SET accounted=?, notes=? WHERE id=? AND drill_id=? AND tenant_id=?')
+      .run(accounted?1:0, notes||null, req.params.hcId, req.params.id, req.tenantId);
 
     // Update drill totals
     const drill = D().prepare('SELECT id FROM evacuation_drills WHERE id=? AND tenant_id=?')

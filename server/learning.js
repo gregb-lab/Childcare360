@@ -697,8 +697,8 @@ r.post('/observations/:id/upload', upload.array('photos', 10), handleUploadError
     }));
 
     const existing = J(obs.media);
-    D().prepare('UPDATE observations SET media = ? WHERE id = ?')
-      .run(S([...existing, ...files]), req.params.id);
+    D().prepare('UPDATE observations SET media = ? WHERE id = ? AND tenant_id = ?')
+      .run(S([...existing, ...files]), req.params.id, req.tenantId);
 
     res.json({ ok: true, uploaded: files.length, files });
   } catch (e) { console.error('[observations:upload]', e); res.status(500).json({ error: e.message }); }

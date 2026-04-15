@@ -622,7 +622,7 @@ router.get('/:id/events', (req, res) => {
 router.get('/:id/educator-notes', (req, res) => {
   try {
     D().prepare(`CREATE TABLE IF NOT EXISTS child_educator_notes (id TEXT PRIMARY KEY, child_id TEXT, tenant_id TEXT, educator_id TEXT, educator_name TEXT, note TEXT, created_at TEXT DEFAULT (datetime('now')))`).run();
-    const rows = D().prepare('SELECT n.*, u.name as educator_name FROM child_educator_notes n LEFT JOIN users u ON u.id=n.educator_id WHERE n.child_id=? ORDER BY n.created_at DESC LIMIT 50').all(req.params.id);
+    const rows = D().prepare('SELECT n.*, u.name as educator_name FROM child_educator_notes n LEFT JOIN users u ON u.id=n.educator_id WHERE n.child_id=? AND n.tenant_id=? ORDER BY n.created_at DESC LIMIT 50').all(req.params.id, req.tenantId);
     res.json(rows);
   } catch(err) { res.json([]); }
 });
@@ -665,7 +665,7 @@ router.delete('/:id/collection-persons/:pid', requireAuth, requireTenant, (req, 
 router.get('/:id/focus', requireAuth, requireTenant, (req, res) => {
   try {
     D().prepare(`CREATE TABLE IF NOT EXISTS child_focus_profiles (id TEXT PRIMARY KEY, child_id TEXT UNIQUE, tenant_id TEXT, focus_data TEXT, generated_at TEXT)`).run();
-    const row = D().prepare('SELECT * FROM child_focus_profiles WHERE child_id=?').get(req.params.id);
+    const row = D().prepare('SELECT * FROM child_focus_profiles WHERE child_id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!row) return res.json(null);
     res.json({ focus: JSON.parse(row.focus_data||'{}'), generated_at: row.generated_at });
   } catch(err) { res.json(null); }
