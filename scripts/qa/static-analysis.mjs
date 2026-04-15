@@ -38,8 +38,8 @@ const SUPPRESSIONS = [
   { file: 'server/auth.js', lines: 'all', reason: 'Pre-auth queries run before tenant context exists' },
 
   // Twilio webhooks — cannot use JWT auth (called by Twilio, not a logged-in user)
-  { file: 'server/checkin-alerts.js', lines: [431, 441, 453, 467, 493, 500], reason: 'Twilio SMS/voice webhooks — no JWT possible' },
-  { file: 'server/casual-spots.js',   lines: [401, 402, 433],                 reason: 'Twilio SMS webhook' },
+  { file: 'server/checkin-alerts.js', lines: [431, 441, 453, 467, 468, 478, 490, 493, 500, 504], reason: 'Twilio SMS/voice webhooks — no JWT possible' },
+  { file: 'server/casual-spots.js',   lines: [401, 402, 429, 430, 433, 462],                 reason: 'Twilio SMS webhook' },
 
   // Casual spots internal helpers — IDs already fetched tenant-scoped
   { file: 'server/casual-spots.js', lines: [191, 207, 210, 233, 235, 243, 249], reason: 'Internal helpers — IDs fetched under tenant scope upstream' },
@@ -55,7 +55,7 @@ const SUPPRESSIONS = [
   { file: 'server/seed-rich.js',                lines: 'all',         reason: 'Seed script — creates demo tenants' },
 
   // Cross-tenant tables by design
-  { file: 'server/comms.js',     lines: [89, 178],       reason: 'users table is global, not tenant-scoped' },
+  { file: 'server/comms.js',     lines: [89, 178, 187],  reason: 'users table is global, not tenant-scoped' },
   { file: 'server/settings.js',  lines: [164, 169],      reason: 'users table is global, not tenant-scoped' },
   { file: 'server/invoicing.js', lines: [169, 176, 177], reason: 'payment_methods are user-scoped, not tenant-scoped' },
   { file: 'server/middleware.js', lines: [32],           reason: 'Middleware resolves tenant — cannot require it' },

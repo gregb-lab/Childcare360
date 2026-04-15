@@ -196,7 +196,7 @@ export async function broadcastOffer(offerId, tenantId) {
   const eligible = getEligibleWaitlist(offer.room_id, tenantId, offer.offer_date);
 
   if (!eligible.length) {
-    D().prepare("UPDATE spot_offers SET status='expired', updated_at=datetime('now') WHERE id=?").run(offerId);
+    D().prepare("UPDATE spot_offers SET status='expired', updated_at=datetime('now') WHERE id=? AND tenant_id=?").run(offerId, tenantId);
     return 0;
   }
 
@@ -212,7 +212,7 @@ export async function broadcastOffer(offerId, tenantId) {
     const body = (config.sms_offer_template || '').replace(/\{parent_name\}/g, (w.parent_name || '').split(' ')[0] || 'there')
       .replace(/\{room_name\}/g, room?.name || 'the room').replace(/\{date\}/g, dateFmt).replace(/\{fee\}/g, fee.toFixed(2));
     const sid = await sendSMS(phone, body, tenantId);
-    if (sid) { D().prepare("UPDATE spot_offer_responses SET sms_sent_at=datetime('now'), sms_sid=? WHERE id=?").run(sid, respId); count++; }
+    if (sid) { D().prepare("UPDATE spot_offer_responses SET sms_sent_at=datetime('now'), sms_sid=? WHERE id=? AND tenant_id=?").run(sid, respId, tenantId); count++; }
   }
 
   D().prepare("UPDATE spot_offers SET status='broadcasting', broadcast_sent_at=datetime('now'), broadcast_count=?, updated_at=datetime('now') WHERE id=?").run(count, offerId);
@@ -248,7 +248,7 @@ export async function selectWinner(offerId, responseId, tenantId) {
 
   D().prepare("UPDATE spot_offers SET status='pending_confirm', winner_waitlist_id=?, winner_booking_id=?, updated_at=datetime('now') WHERE id=?")
     .run(resp.waitlist_id, bookingId, offerId);
-  D().prepare("UPDATE spot_offer_responses SET status='winner' WHERE id=?").run(responseId);
+  D().prepare("UPDATE spot_offer_responses SET status='winner' WHERE id=? AND tenant_id=?").run(responseId, tenantId);
 
   // SMS winner
   const winBody = (config.sms_winner_template || '').replace(/\{parent_name\}/g, (resp.parent_name || '').split(' ')[0] || 'there')
@@ -256,13 +256,13 @@ export async function selectWinner(offerId, responseId, tenantId) {
   await sendSMS(resp.parent_phone, winBody + ' Reply CONFIRM to secure.', tenantId);
 
   // Notify losers
-  const losers = D().prepare("SELECT * FROM spot_offer_responses WHERE offer_id=? AND id!=? AND status='pending'").all(offerId, responseId);
+  const losers = D().prepare("SELECT * FROM spot_offer_responses WHERE offer_id=? AND id!=? AND status='pending' AND tenant_id=?").all(offerId, responseId, tenantId);
   for (const l of losers) {
     if (!l.parent_phone) continue;
     const lBody = (config.sms_loser_template || '').replace(/\{parent_name\}/g, (l.parent_name || '').split(' ')[0] || 'there')
       .replace(/\{room_name\}/g, room?.name || 'the room').replace(/\{date\}/g, dateFmt);
     await sendSMS(l.parent_phone, lBody, tenantId);
-    D().prepare("UPDATE spot_offer_responses SET status='notified_loss' WHERE id=?").run(l.id);
+    D().prepare("UPDATE spot_offer_responses SET status='notified_loss' WHERE id=? AND tenant_id=?").run(l.id, tenantId);
   }
 
   try {

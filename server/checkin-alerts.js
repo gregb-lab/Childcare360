@@ -532,7 +532,7 @@ router.post('/sms-reply', (req, res) => {
     if (body === 'YES' || body.startsWith('Y')) {
       D().prepare(`UPDATE checkin_alerts SET status='resolved', sms_response='yes',
         sms_response_at=datetime('now'), resolved_at=datetime('now'), resolution='arriving'
-        WHERE id=?`).run(alert.id);
+        WHERE id=? AND tenant_id=?`).run(alert.id, alert.tenant_id);
       try {
         D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
           .run(uuid(), null, alert.tenant_id, 'checkin_alert_resolved',
@@ -546,7 +546,7 @@ router.post('/sms-reply', (req, res) => {
         .run(alert.child_id, alert.alert_date, alert.tenant_id);
       D().prepare(`UPDATE checkin_alerts SET status='resolved', sms_response='no',
         sms_response_at=datetime('now'), resolved_at=datetime('now'), resolution='absent_confirmed'
-        WHERE id=?`).run(alert.id);
+        WHERE id=? AND tenant_id=?`).run(alert.id, alert.tenant_id);
       try {
         D().prepare('INSERT INTO audit_log (id,user_id,tenant_id,action,details,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)')
           .run(uuid(), null, alert.tenant_id, 'checkin_alert_resolved',
