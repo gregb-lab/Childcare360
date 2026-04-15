@@ -26,11 +26,82 @@ const FIX_REPORT = process.argv.includes('--fix-report');
 const VERBOSE    = process.argv.includes('--verbose');
 
 let totalIssues = 0;
+let suppressedCount = 0;
 const report = { critical: [], high: [], medium: [], info: [] };
 
+// ── SUPPRESSIONS: confirmed by-design High findings ──────────────────────────
+// Each entry: { file: 'server/foo.js', lines: 'all' | [int] | [[start,end]], reason: '...' }
+// Lines match against the `line` field of the issue. Use 'all' to suppress
+// every issue in that file (any line).
+const SUPPRESSIONS = [
+  // Auth — pre-auth queries, no tenant exists yet
+  { file: 'server/auth.js', lines: 'all', reason: 'Pre-auth queries run before tenant context exists' },
+
+  // Twilio webhooks — cannot use JWT auth (called by Twilio, not a logged-in user)
+  { file: 'server/checkin-alerts.js', lines: [431, 441, 453, 467, 493, 500], reason: 'Twilio SMS/voice webhooks — no JWT possible' },
+  { file: 'server/casual-spots.js',   lines: [401, 402, 433],                 reason: 'Twilio SMS webhook' },
+
+  // Casual spots internal helpers — IDs already fetched tenant-scoped
+  { file: 'server/casual-spots.js', lines: [191, 207, 210, 233, 235, 243, 249], reason: 'Internal helpers — IDs fetched under tenant scope upstream' },
+
+  // Schema/migration/seed — no tenant context by design
+  { file: 'server/checklists.js',               lines: [25, 27],      reason: 'Schema migration — CREATE TABLE / ALTER TABLE' },
+  { file: 'server/documents.js',                lines: [313],         reason: 'Schema migration' },
+  { file: 'server/educators.js',                lines: [15],          reason: 'Schema migration' },
+  { file: 'server/index.js',                    lines: [912],         reason: 'Schema migration' },
+  { file: 'server/invoicing-full.js',           lines: [32, 34],      reason: 'Schema migration' },
+  { file: 'server/roster-schema-migration.js',  lines: 'all',         reason: 'Migration script — no tenant context by design' },
+  { file: 'server/db.js',                       lines: 'all',         reason: 'Core DB module — schema and migrations' },
+  { file: 'server/seed-rich.js',                lines: 'all',         reason: 'Seed script — creates demo tenants' },
+
+  // Cross-tenant tables by design
+  { file: 'server/comms.js',     lines: [89, 178],       reason: 'users table is global, not tenant-scoped' },
+  { file: 'server/settings.js',  lines: [164, 169],      reason: 'users table is global, not tenant-scoped' },
+  { file: 'server/invoicing.js', lines: [169, 176, 177], reason: 'payment_methods are user-scoped, not tenant-scoped' },
+  { file: 'server/middleware.js', lines: [32],           reason: 'Middleware resolves tenant — cannot require it' },
+
+  // Public permission token routes
+  { file: 'server/excursions.js', lines: [10, 23], reason: 'Public permission token lookup — no auth by design' },
+
+  // Parent portal — scoped to userId not tenantId by design
+  { file: 'server/enrolment.js', lines: [56, 67, 68], reason: 'Parent portal queries scoped to userId, not tenantId' },
+
+  // Voice/shift-voice/retell — internal callbacks, Twilio webhooks
+  { file: 'server/shift-voice.js', lines: 'all', reason: 'Twilio voice webhooks — no JWT possible' },
+  { file: 'server/voice.js',       lines: 'all', reason: 'Twilio voice webhooks — no JWT possible' },
+  { file: 'server/retell.js',      lines: 'all', reason: 'Retell AI WebSocket — tenantId from URL path, no JWT' },
+
+  // Platform — superadmin cross-tenant by design
+  { file: 'server/platform.js', lines: 'all', reason: 'Superadmin cross-tenant by design' },
+
+  // Rostering — already tenant-scoped via parent record checks
+  { file: 'server/rostering.js',           lines: [93, 132, 540, 571, 581, 595], reason: 'Tenant validated via parent record upstream' },
+  { file: 'server/roster-enhancements.js', lines: [1456, 1488, 1498],            reason: 'Tenant validated via parent record upstream' },
+  { file: 'server/runsheet.js',            lines: [71, 86, 89, 94],              reason: 'Tenant validated via parent record upstream' },
+
+  // v2-features — tenant checked on SELECT above the UPDATE
+  { file: 'server/v2-features.js', lines: [220, 243], reason: 'Tenant validated on SELECT above this UPDATE' },
+];
+
+function isSuppressed(relFile, line) {
+  for (const s of SUPPRESSIONS) {
+    if (s.file !== relFile) continue;
+    if (s.lines === 'all') return true;
+    if (Array.isArray(s.lines)) {
+      for (const spec of s.lines) {
+        if (typeof spec === 'number' && spec === line) return true;
+        if (Array.isArray(spec) && line >= spec[0] && line <= spec[1]) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function issue(severity, file, line, message, snippet = '') {
-  totalIssues++;
   const rel = relative(ROOT, file);
+  // Only suppress High-severity findings — Critical, Medium, Info always report
+  if (severity === 'high' && isSuppressed(rel, line)) { suppressedCount++; return; }
+  totalIssues++;
   const entry = { file: rel, line, message, snippet: snippet.trim().slice(0, 120) };
   report[severity].push(entry);
 }
@@ -253,7 +324,7 @@ severities.forEach(({ key, label, desc }) => {
 });
 
 console.log('\n═══════════════════════════════════════════════════');
-console.log(`  Total issues: ${totalIssues}`);
+console.log(`  Total issues: ${totalIssues}${suppressedCount > 0 ? `  (suppressed: ${suppressedCount})` : ''}`);
 console.log(`  🔴 Critical: ${report.critical.length}  🟠 High: ${report.high.length}  🟡 Medium: ${report.medium.length}  🔵 Info: ${report.info.length}`);
 console.log('═══════════════════════════════════════════════════');
 
