@@ -85,7 +85,7 @@ export default function CasualSpotsModule() {
 
   const saveConfig = async () => {
     setSaving(true);
-    await API('/api/casual-spots/config', { method: 'PUT', body: config });
+    await API('/api/casual-spots/config', { method: 'PUT', body: config }).catch(e => { window.showToast?.(e.message||'Save failed','error'); setSaving(false); return; });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
     window.showToast && window.showToast('Settings saved', 'success');
     setSaving(false);

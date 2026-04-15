@@ -431,7 +431,7 @@ function MessagesTab({onUnreadChange}) {
                       {attachments.map((a,i)=>a.type?.startsWith('image')?<img key={i} src={a.url} alt={a.name} style={{maxWidth:200,borderRadius:6}}/>:<a key={i} href={a.url} target="_blank" rel="noopener" style={{fontSize:11,color:m.sender_type==="admin"?"#fff":P,textDecoration:"underline"}}>{a.name}</a>)}
                     </div>}
                     {m.acknowledge_required&&!m.ack_at&&(
-                      <button onClick={async()=>{await API('/api/comms/messages/'+m.id+'/acknowledge',{method:'POST'});openThread(active.id);}}
+                      <button onClick={async()=>{await API('/api/comms/messages/'+m.id+'/acknowledge',{method:'POST'}).catch(e=>window.showToast?.(e.message||'Failed','error'));openThread(active.id);}}
                         style={{marginTop:8,padding:"6px 14px",borderRadius:6,border:"none",background:"#534AB7",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}>Acknowledge</button>
                     )}
                     {m.ack_at&&<div style={{fontSize:10,marginTop:4,opacity:0.7}}>Acknowledged {fmtDT(m.ack_at)}</div>}

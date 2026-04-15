@@ -745,7 +745,7 @@ function FeesTab() {
   const deleteFee=async(feeId,roomName)=>{
     if(!window.showConfirm){if(!confirm(`Remove fee for ${roomName}?`))return;}
     else{const ok=await window.showConfirm(`Remove fee for ${roomName}?`);if(!ok)return;}
-    await API(`/api/invoicing-full/fee-schedules/${feeId}`,{method:"DELETE"});
+    await API(`/api/invoicing-full/fee-schedules/${feeId}`,{method:"DELETE"}).catch(e=>{window.showToast?.(e.message||'Delete failed','error');return;});
     load();
   };
 
