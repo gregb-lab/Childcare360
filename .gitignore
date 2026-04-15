@@ -21,3 +21,4 @@ railway.toml
 nixpacks.toml
 childcare360-app/
 .env.*
+cloudflared-linux-amd64.deb
