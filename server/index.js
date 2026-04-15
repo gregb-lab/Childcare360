@@ -1380,6 +1380,10 @@ if (BASE_PATH === '/') {
 }
 // SPA catch-all
 app.get('*', (req, res) => {
+  // Unknown /api/* or /auth/* paths: return JSON 404 instead of hanging
+  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+    return res.status(404).json({ error: 'Not Found', path: req.path });
+  }
   if (!req.path.startsWith('/api/') && !req.path.startsWith('/auth/')) {
     const indexPath = path.join(distPath, 'index.html');
     if (!existsSync(indexPath)) {

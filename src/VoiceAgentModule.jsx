@@ -979,7 +979,7 @@ export default function VoiceAgentModule() {
             <p style={{ margin: 0, fontSize: 13, opacity: 0.7, marginTop: 2 }}>Twilio + Claude AI — Inbound &amp; outbound calls</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, position: 'relative', zIndex: 10 }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding: '10px 18px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
@@ -991,7 +991,10 @@ export default function VoiceAgentModule() {
         </div>
       </div>
 
-      <div style={{ background: '#fff', flex: 1, minHeight: 0 }}>
+      {/* key={tab} forces full remount of each tab's component, clearing any
+          internal detail/selection state that could otherwise persist and
+          block navigation (e.g. sticky call detail panel in History). */}
+      <div key={tab} style={{ background: '#fff', flex: 1, minHeight: 0 }}>
         {tab === 'setup'   && <SettingsTab />}
         {tab === 'test'    && <TestCallTab />}
         {tab === 'history' && <HistoryTab />}

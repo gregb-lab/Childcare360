@@ -495,8 +495,44 @@ router.get('/calls/:id', requireAuth, requireTenant, (req, res) => {
   try {
     const call = D().prepare('SELECT * FROM voice_calls WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
     if (!call) return res.status(404).json({ error: 'Not found' });
-    res.json({ ...call, turns: getTranscript(req.params.id) });
+    // Proxy Twilio recording URL through our server so the browser never hits
+    // api.twilio.com directly (which triggers a basic-auth modal).
+    const proxiedRecording = call.recording_url
+      ? `/api/voice/calls/${call.id}/recording`
+      : null;
+    res.json({ ...call, recording_url: proxiedRecording, turns: getTranscript(req.params.id) });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/voice/calls/:id/recording — server-side proxy for Twilio recording audio
+router.get('/calls/:id/recording', requireAuth, requireTenant, async (req, res) => {
+  try {
+    const call = D().prepare('SELECT recording_url FROM voice_calls WHERE id=? AND tenant_id=?').get(req.params.id, req.tenantId);
+    if (!call?.recording_url) return res.status(404).json({ error: 'No recording' });
+
+    const settings = getSettings(req.tenantId);
+    if (!settings?.twilio_account_sid || !settings?.twilio_auth_token) {
+      return res.status(500).json({ error: 'Twilio not configured' });
+    }
+
+    const authHeader = 'Basic ' + Buffer.from(
+      settings.twilio_account_sid + ':' + settings.twilio_auth_token
+    ).toString('base64');
+
+    const upstream = await fetch(call.recording_url, { headers: { Authorization: authHeader } });
+    if (!upstream.ok) return res.status(upstream.status).json({ error: 'Upstream fetch failed' });
+
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg');
+    const len = upstream.headers.get('content-length');
+    if (len) res.setHeader('Content-Length', len);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    const arrayBuffer = await upstream.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (e) {
+    console.error('[voice] recording proxy error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ─── OUTBOUND CALL ────────────────────────────────────────────────────────────

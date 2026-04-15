@@ -1643,8 +1643,8 @@ export default function EducatorsModule() {
         )}
       </div>
       {mainTab==="list" && <>
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search educators…" style={{ flex:1, minWidth:180, ...inp }} />
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center", flexWrap: "wrap", overflow: "visible", width: "100%" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search educators…" style={{ flex:"1 1 200px", minWidth:140, ...inp }} />
         <select value={selectedRoom} onChange={e=>setSelectedRoom(e.target.value)}
           style={{ padding:"8px 12px",borderRadius:8,border:"1px solid #DDD6EE",fontSize:13,background:"#fff",fontFamily:"inherit" }}>
           <option value="">All Rooms</option>
