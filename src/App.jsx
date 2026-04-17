@@ -1005,8 +1005,8 @@ export default function ChildcareRosterApp() {
       })()}
 
       {/* ── MAIN CONTENT ── */}
-      <main style={{ flex: 1, overflowY: "auto", padding: 0, background: "#FAF7F4", display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <div key={activeTab} style={{ animation: "fadeInUp 0.35s ease-out", padding: 0, height: "100%", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, overflowY: "auto", padding: 0, background: "#FAF7F4", display: "flex", flexDirection: "column", minHeight: 0, alignItems: "stretch" }}>
+        <div style={{ padding: 0, minHeight: "100%", display: "flex", flexDirection: "column" }}>
         <header style={{ padding: "20px 32px", borderBottom: "1px solid #E8E0D8", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FDFBF9", minWidth: 0, overflow: "hidden" }}>
           <div style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1164,6 +1164,9 @@ export default function ChildcareRosterApp() {
       <style>{`
         @keyframes slideInRight { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .c360-module-root { min-height: 100%; display: flex; flex-direction: column; }
+        .c360-main > div { min-height: 100%; }
       `}</style>
     </div>
   );
