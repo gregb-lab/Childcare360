@@ -182,7 +182,6 @@ export function OwnerPortal() {
           Contact Support →
         </button>
       </div>
-      </div>
     );
   }
 
