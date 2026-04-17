@@ -474,7 +474,7 @@ function EquipmentTab() {
     <div>
       {alertCount>0 && (
         <div style={{...card,background:"#FFF5F5",border:"1px solid #FFCDD2",marginBottom:12}}>
-          <div style={{fontWeight:700,color:"#B71C1C",marginBottom:8}}>⚠️ {alertCount} item{alertCount!==1?"s":""} need attention</div>
+          <div style={{fontWeight:700,color:"#B71C1C",marginBottom:8}}>⚠️ {alertCount} item{alertCount!==1?"s":""} need{alertCount===1?"s":""} attention</div>
           {alerts.expired?.map(a=>(
             <div key={a.id} style={{fontSize:12,color:"#5C4E6A",padding:"3px 0"}}>
               {CATS[a.category]||"📦"} <strong>{a.name}</strong> — <span style={{color:"#B71C1C",fontWeight:700}}>EXPIRED</span> {a.expiry_date}

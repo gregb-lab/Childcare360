@@ -2807,7 +2807,13 @@ function ReportsView({ educators, rooms, clockRecords, complianceStatus, rosterE
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div style={cardStyle}>
             <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600 }}>Weekly Hours Distribution</h3>
-            <ResponsiveContainer width="100%" height={260}>
+            {hoursData.every(d=>!d.working&&!d.breaks) ? (
+              <div style={{textAlign:"center",padding:"40px 20px",color:"#A89DB5"}}>
+                <div style={{fontSize:32,marginBottom:8}}>📊</div>
+                <div style={{fontSize:13,fontWeight:600}}>No data for this period</div>
+                <div style={{fontSize:12,marginTop:4}}>Data will appear once educators clock in</div>
+              </div>
+            ) : <ResponsiveContainer width="100%" height={260}>
               <BarChart data={hoursData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D8" />
                 <XAxis dataKey="day" tick={{ fill: "#A89DB5", fontSize: 11 }} axisLine={false} />
@@ -2817,12 +2823,18 @@ function ReportsView({ educators, rooms, clockRecords, complianceStatus, rosterE
                 <Bar dataKey="working" stackId="a" fill="#8B6DAF" radius={[0, 0, 0, 0]} name="Working" />
                 <Bar dataKey="breaks" stackId="a" fill="#D4A26A" radius={[4, 4, 0, 0]} name="Breaks" />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>}
           </div>
 
           <div style={cardStyle}>
             <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600 }}>Educator Hours Today</h3>
-            <ResponsiveContainer width="100%" height={260}>
+            {educatorHours.every(d=>!d.today) ? (
+              <div style={{textAlign:"center",padding:"40px 20px",color:"#A89DB5"}}>
+                <div style={{fontSize:32,marginBottom:8}}>📊</div>
+                <div style={{fontSize:13,fontWeight:600}}>No data for this period</div>
+                <div style={{fontSize:12,marginTop:4}}>Data will appear once educators clock in</div>
+              </div>
+            ) : <ResponsiveContainer width="100%" height={260}>
               <BarChart data={educatorHours} layout="vertical" barSize={16}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D8" horizontal={false} />
                 <XAxis type="number" tick={{ fill: "#A89DB5", fontSize: 11 }} axisLine={false} />
@@ -2830,7 +2842,7 @@ function ReportsView({ educators, rooms, clockRecords, complianceStatus, rosterE
                 <Tooltip contentStyle={{ background: "#E8E0D8", border: "1px solid #D9D0C7", borderRadius: 8, fontSize: 12, color: "#3D3248" }} />
                 <Bar dataKey="today" fill="#9B7DC0" radius={[0, 6, 6, 0]} name="Today (hrs)" />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>}
           </div>
 
           <div style={{ ...cardStyle, gridColumn: "1 / -1" }}>

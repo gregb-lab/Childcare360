@@ -126,6 +126,9 @@ function PaymentsTab() {
                 Accept credit cards, bank transfers and direct debit from Australian families.
                 You'll need a Stripe account — <a href="https://stripe.com/au" target="_blank" rel="noreferrer" style={{color:P}}>sign up free at stripe.com/au</a>
               </p>
+              <p style={{fontSize:11,color:MU,margin:"6px 0 0",fontStyle:"italic"}}>
+                Any existing payment records below are offline records only.
+              </p>
             </div>
             <button style={bp} onClick={()=>setShowSetup(v=>!v)}>Configure Stripe</button>
           </div>
