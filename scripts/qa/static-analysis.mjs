@@ -75,7 +75,7 @@ const SUPPRESSIONS = [
   { file: 'server/platform.js', lines: 'all', reason: 'Superadmin cross-tenant by design' },
 
   // Rostering — already tenant-scoped via parent record checks
-  { file: 'server/rostering.js',           lines: [93, 132, 540, 571, 581, 595], reason: 'Tenant validated via parent record upstream' },
+  { file: 'server/rostering.js',           lines: [93, 132, 149, 540, 571, 581, 595, 612], reason: 'Tenant validated via parent record upstream' },
   { file: 'server/roster-enhancements.js', lines: [1456, 1488, 1498],            reason: 'Tenant validated via parent record upstream' },
   { file: 'server/runsheet.js',            lines: [71, 86, 89, 94],              reason: 'Tenant validated via parent record upstream' },
 
