@@ -893,7 +893,7 @@ function HistoryTab() {
                 {detail.recording_url && (
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, color: '#8B6DAF', fontWeight: 700, marginBottom: 6 }}>RECORDING</div>
-                    <audio controls style={{ width: '100%' }} src={detail.recording_url} />
+                    <audio controls style={{ width: '100%' }} src={detail.recording_url} onLoadedMetadata={e => e.target.dispatchEvent(new Event('durationchange'))} preload="metadata" />
                   </div>
                 )}
 

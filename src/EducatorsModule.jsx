@@ -52,10 +52,10 @@ function RPBadge({ educator }) {
 const STAFF_TYPE_CONFIG = {
   educator:     { label: "Educator",     color: "#7C3AED", bg: "#EDE4F0" },
   coordinator:  { label: "Coordinator",  color: "#5B21B6", bg: "#EDE9FE" },
-  cook:         { label: "Cook",         color: "#E65100", bg: "#FFF3E0" },
+  cook:         { label: "🍳 Cook",       color: "#E65100", bg: "#FFF3E0" },
   admin:        { label: "Admin",        color: "#1565C0", bg: "#E3F2FD" },
   cleaner:      { label: "Cleaner",      color: "#455A64", bg: "#ECEFF1" },
-  maintenance:  { label: "Maintenance",  color: "#6D4C41", bg: "#EFEBE9" },
+  maintenance:  { label: "🔧 Maintenance", color: "#6D4C41", bg: "#EFEBE9" },
   student:      { label: "Student",      color: "#2E7D32", bg: "#E8F5E9" },
   volunteer:    { label: "Volunteer",    color: "#00838F", bg: "#E0F7FA" },
   other:        { label: "Support Staff",color: "#757575", bg: "#F5F5F5" },
