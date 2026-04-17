@@ -960,7 +960,7 @@ export function UserMenu({ onSettings }) {
   if (!auth.user) return null;
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", maxWidth: "min(240px, 35vw)" }}>
       <button onClick={() => setOpen(!open)}
         style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", cursor: "pointer", padding: "10px 14px", borderRadius: 8 }}
         onMouseEnter={e => e.currentTarget.style.background = "#E8E0D8"}
@@ -972,17 +972,17 @@ export function UserMenu({ onSettings }) {
         }}>
           {!auth.user.avatar_url && auth.user.name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
         </div>
-        <div style={{ flex: 1, textAlign: "left" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#3D3248" }}>{auth.user.name}</div>
-          <div style={{ fontSize: 10, color: "#A89DB5" }}>{auth.currentTenant?.name || "No org"}</div>
+        <div style={{ flex: 1, textAlign: "left", minWidth: 0, overflow: "hidden" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#3D3248", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{auth.user.name}</div>
+          <div style={{ fontSize: 10, color: "#A89DB5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{auth.currentTenant?.name || "No org"}</div>
         </div>
         <span style={{ color: "#A89DB5", fontSize: 10 }}>▼</span>
       </button>
 
       {open && (
         <div style={{
-          position: "absolute", bottom: "100%", left: 0, right: 0, background: "#FFFFFF",
-          border: "1px solid #D9D0C7", borderRadius: 10, padding: 6, marginBottom: 4,
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#FFFFFF",
+          border: "1px solid #D9D0C7", borderRadius: 10, padding: 6,
           boxShadow: "0 8px 30px rgba(80,60,90,0.06)", zIndex: 100,
         }}>
           <div style={{ padding: "8px 12px", borderBottom: "1px solid #E8E0D8", marginBottom: 4 }}>

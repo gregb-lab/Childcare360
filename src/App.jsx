@@ -1007,9 +1007,9 @@ export default function ChildcareRosterApp() {
       {/* ── MAIN CONTENT ── */}
       <main style={{ flex: 1, overflowY: "auto", padding: 0, background: "#FAF7F4", display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div key={activeTab} style={{ animation: "fadeInUp 0.35s ease-out", padding: 0, height: "100%", display: "flex", flexDirection: "column" }}>
-        <header style={{ padding: "20px 32px", borderBottom: "1px solid #E8E0D8", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FDFBF9" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em" }}>
+        <header style={{ padding: "20px 32px", borderBottom: "1px solid #E8E0D8", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FDFBF9", minWidth: 0, overflow: "hidden" }}>
+          <div style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {(()=>{
               const labels = {
                 soc2:"SOC2 Compliance", parent_portal:"Parent Portal",
@@ -1033,7 +1033,7 @@ export default function ChildcareRosterApp() {
               }
             </p>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10,position:"relative"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,position:"relative",flexShrink:0}}>
             {/* Notification Bell */}
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowNotifications(v=>!v)}

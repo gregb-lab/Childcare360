@@ -485,4 +485,36 @@ router.put('/leave/:id/decide', requireAuth, requireTenant, (req, res) => {
 
 // simple GET moved above /:id route
 
+
+// GET /api/educators/clock-records/stale-count
+router.get('/clock-records/stale-count', requireAuth, requireTenant, (req, res) => {
+  try {
+    const stale = D().prepare(`
+      SELECT cr.id, cr.clock_in, e.first_name, e.last_name
+      FROM clock_records cr
+      JOIN educators e ON cr.educator_id = e.id
+      WHERE cr.clock_out IS NULL
+        AND cr.clock_in < date('now', '-1 day')
+        AND cr.tenant_id = ?
+    `).all(req.tenantId);
+    res.json({ count: stale.length, shifts: stale });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/educators/clock-records/auto-close-stale
+router.post('/clock-records/auto-close-stale', requireAuth, requireTenant, (req, res) => {
+  try {
+    const result = D().prepare(`
+      UPDATE clock_records
+      SET clock_out = date(clock_in) || 'T23:59:00',
+          notes = COALESCE(notes || ' | ', '') || 'Auto-closed: shift not manually closed',
+          updated_at = datetime('now')
+      WHERE clock_out IS NULL
+        AND clock_in < date('now', '-1 day')
+        AND tenant_id = ?
+    `).run(req.tenantId);
+    res.json({ closed: result.changes });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

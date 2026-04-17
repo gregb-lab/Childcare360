@@ -1379,6 +1379,23 @@ if (BASE_PATH === '/') {
   app.use(express.static(distPath, { maxAge: '1y' }));
 }
 // SPA catch-all
+
+// Nightly auto-close stale educator shifts (checks every hour, runs at 2am)
+setInterval(() => {
+  if (new Date().getHours() !== 2) return;
+  try {
+    const result = D().prepare(`
+      UPDATE clock_records
+      SET clock_out = date(clock_in) || 'T23:59:00',
+          notes = COALESCE(notes || ' | ', '') || 'Auto-closed by nightly job',
+          updated_at = datetime('now')
+      WHERE clock_out IS NULL
+        AND clock_in < date('now', '-1 day')
+    `).run();
+    if (result.changes > 0) console.log('[nightly] Auto-closed', result.changes, 'stale shifts');
+  } catch(e) { console.error('[nightly] Auto-close error:', e.message); }
+}, 60 * 60 * 1000);
+
 app.get('*', (req, res) => {
   // Unknown /api/* or /auth/* paths: return JSON 404 instead of hanging
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
