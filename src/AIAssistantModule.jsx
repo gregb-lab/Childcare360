@@ -24,6 +24,60 @@ const TABS=[
   {id:"ai",      icon:"✨", label:"AI Writing Assistant"},
 ];
 
+
+function ScrollableTabs({ tabs, active, onSelect, style }) {
+  const ref = React.useRef(null);
+  const [showL, setShowL] = React.useState(false);
+  const [showR, setShowR] = React.useState(false);
+  const check = React.useCallback(() => {
+    const el = ref.current; if (!el) return;
+    setShowL(el.scrollLeft > 4);
+    setShowR(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+  React.useEffect(() => {
+    check();
+    const el = ref.current;
+    if (el) el.addEventListener('scroll', check);
+    window.addEventListener('resize', check);
+    return () => { el && el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, [check, tabs]);
+  const scroll = d => ref.current && ref.current.scrollBy({ left: d * 140, behavior: 'smooth' });
+  const arr = (show, d) => show ? (
+    <button onClick={() => scroll(d)}
+      style={{ flexShrink:0, width:28, height:28, border:'1px solid #EDE8F4', borderRadius:8,
+        background:'#fff', cursor:'pointer', fontSize:16, color:'#534AB7',
+        display:'flex', alignItems:'center', justifyContent:'center' }}>
+      {d < 0 ? '‹' : '›'}
+    </button>
+  ) : <div style={{ width:28, flexShrink:0 }} />;
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:20,
+      borderBottom:'1px solid #EDE8F4', paddingBottom:12, ...(style||{}) }}>
+      {arr(showL, -1)}
+      <div ref={ref} onScroll={check}
+        style={{ display:'flex', gap:6, overflowX:'auto', flex:1,
+          scrollbarWidth:'none', msOverflowStyle:'none' }}>
+        {tabs.map(t => {
+          const id = t.id !== undefined ? t.id : t;
+          const label = t.icon ? t.icon + ' ' + t.label : (t.i ? t.i + ' ' + t.l : (t.label || t.l || t));
+          const isActive = active === id;
+          return (
+            <button key={id} onClick={() => onSelect(id)}
+              style={{ padding:'8px 16px', borderRadius:9, border:'none',
+                cursor:'pointer', fontSize:13, whiteSpace:'nowrap', flexShrink:0,
+                fontWeight: isActive ? 700 : 500,
+                background: isActive ? '#534AB7' : 'transparent',
+                color: isActive ? '#fff' : '#8A7F96' }}>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      {arr(showR, 1)}
+    </div>
+  );
+}
+
 export default function AIAssistantModule() {
   const [tab,setTab]=useState("ai");
 
@@ -36,16 +90,7 @@ export default function AIAssistantModule() {
           <p style={{margin:"3px 0 0",fontSize:13,color:MU}}>Claude-powered content generation for observations, stories and updates</p>
         </div>
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:24,borderBottom:"1px solid #EDE8F4",paddingBottom:12}}>
-        {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)}
-            style={{padding:"8px 16px",borderRadius:9,border:"none",cursor:"pointer",fontSize:13,
-              fontWeight:tab===t.id?700:500,background:tab===t.id?P:"transparent",
-              color:tab===t.id?"#fff":MU,position:"relative"}}>
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
+      <ScrollableTabs tabs={TABS} active={tab} onSelect={setTab} />
       {tab==="ai"    && <AIWriterTab />}
     </div>
   );

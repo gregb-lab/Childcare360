@@ -338,7 +338,7 @@ r.get('/immunisation/:childId', (req, res) => {
     const enriched = schedule.map(s => {
       const recs = recordMap[s.vaccine.toLowerCase()] || [];
       const completed = recs.length > 0;
-      const overdue = !completed && s.age_months <= ageMonths;
+      const overdue = !completed && s.age_months <= ageMonths && s.status !== "not_applicable";
       const upcoming = !completed && s.age_months > ageMonths && s.age_months <= ageMonths + 3;
       return {
         ...s,

@@ -1345,6 +1345,59 @@ function LeaveRequestsView() {
 }
 
 // ─── DASHBOARD VIEW ────────────────────────────────────────────────────────────
+
+function ScrollableTabs({ tabs, active, onSelect, style }) {
+  const ref = React.useRef(null);
+  const [showL, setShowL] = React.useState(false);
+  const [showR, setShowR] = React.useState(false);
+  const check = React.useCallback(() => {
+    const el = ref.current; if (!el) return;
+    setShowL(el.scrollLeft > 4);
+    setShowR(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+  React.useEffect(() => {
+    check();
+    const el = ref.current;
+    if (el) el.addEventListener('scroll', check);
+    window.addEventListener('resize', check);
+    return () => { el && el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, [check, tabs]);
+  const scroll = d => ref.current && ref.current.scrollBy({ left: d * 140, behavior: 'smooth' });
+  const arr = (show, d) => show ? (
+    React.createElement('button', { onClick: () => scroll(d),
+      style: { flexShrink:0, width:28, height:28, border:'1px solid #EDE8F4', borderRadius:8,
+        background:'#fff', cursor:'pointer', fontSize:16, color:'#534AB7',
+        display:'flex', alignItems:'center', justifyContent:'center' }},
+      d < 0 ? '\u2039' : '\u203a')
+  ) : React.createElement('div', { style: { width:28, flexShrink:0 } });
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:20,
+      borderBottom:'1px solid #EDE8F4', paddingBottom:12, ...(style||{}) }}>
+      {arr(showL, -1)}
+      <div ref={ref} onScroll={check}
+        style={{ display:'flex', gap:6, overflowX:'auto', flex:1,
+          scrollbarWidth:'none', msOverflowStyle:'none' }}>
+        {tabs.map(t => {
+          const id = t.id !== undefined ? t.id : t;
+          const label = t.icon ? t.icon + ' ' + t.label : (t.i ? t.i + ' ' + t.l : (t.label || t.l || t));
+          const isActive = active === id;
+          return (
+            <button key={id} onClick={() => onSelect(id)}
+              style={{ padding:'8px 16px', borderRadius:9, border:'none',
+                cursor:'pointer', fontSize:13, whiteSpace:'nowrap', flexShrink:0,
+                fontWeight: isActive ? 700 : 500,
+                background: isActive ? '#534AB7' : 'transparent',
+                color: isActive ? '#fff' : '#8A7F96' }}>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      {arr(showR, 1)}
+    </div>
+  );
+}
+
 function DashboardView({ complianceStatus, educators, rooms, alerts, clockRecords, now, onNavigate }) {
   const [today, setToday] = useState(null);
   const [ratioData, setRatioData] = useState(null);
@@ -4907,13 +4960,7 @@ function SettingsView({ branding, setBranding }) {
   return (
     <div>
       {/* Tab bar */}
-      <div style={{display:"flex",gap:4,marginBottom:16,background:"#fff",borderRadius:12,border:"1px solid #EDE8F4",padding:8,flexWrap:"wrap"}}>
-        {STABS.map(t=>(
-          <button key={t.id} onClick={()=>setStab(t.id)} style={{padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:stab===t.id?700:500,background:stab===t.id?purple2:lp2,color:stab===t.id?"#fff":"#6B5F7A"}}>
-            {t.l}
-          </button>
-        ))}
-      </div>
+      <ScrollableTabs tabs={STABS.map(s=>({id:s.id,label:s.l}))} active={stab} onSelect={setStab} style={{marginBottom:16}} />
 
       {/* ── SERVICE CONFIG TAB ── */}
       {stab==="service" && (

@@ -176,6 +176,12 @@ export function OwnerPortal() {
           The Owner Portal provides multi-centre management and platform-wide analytics.
           Contact your Childcare360 account manager to upgrade to Platform Owner access.
         </div>
+        <button onClick={()=>window.open('mailto:support@childcare360.net','_blank')}
+          style={{marginTop:16,padding:'10px 20px',borderRadius:9,border:'none',
+            background:'#534AB7',color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+          Contact Support →
+        </button>
+      </div>
       </div>
     );
   }

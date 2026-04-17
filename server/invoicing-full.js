@@ -65,7 +65,9 @@ r.get('/summary', (req, res) => {
         SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) as paid_count,
         SUM(CASE WHEN status IN ('issued','overdue') THEN amount_due*100 ELSE 0 END) as outstanding_cents,
         SUM(CASE WHEN status='paid' AND paid_at >= ? THEN amount_paid*100 ELSE 0 END) as collected_this_month_cents,
-        SUM(CASE WHEN status='overdue' THEN amount_due*100 ELSE 0 END) as overdue_cents
+        SUM(CASE WHEN status='overdue' THEN amount_due*100 ELSE 0 END) as overdue_cents,
+        SUM(amount_due*100) as total_invoiced_cents,
+        SUM(COALESCE(amount_paid,0)*100) as total_paid_cents
       FROM invoices WHERE tenant_id=?
     `).get(monthStart, req.tenantId);
 
@@ -88,6 +90,7 @@ r.get('/summary', (req, res) => {
       outstanding: c2d(summary.outstanding_cents),
       collected_this_month: c2d(summary.collected_this_month_cents),
       overdue_amount: c2d(summary.overdue_cents),
+      collection_rate: summary.total_invoiced_cents > 0 ? Math.round(summary.total_paid_cents / summary.total_invoiced_cents * 1000) / 10 : 0,
       pending_payment_plans: pendingPlans,
       available_credits: c2d(availableCredits),
     });

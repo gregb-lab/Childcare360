@@ -107,13 +107,7 @@ export function RosteringModule() {
           {fullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen"}
         </button>
       </div>
-      <div style={{ display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap" }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ ...btnS, background: tab === t.id ? "rgba(139,109,175,0.10)" : "#F8F5F1", color: tab === t.id ? "#7E5BA3" : "#6B5F7A", fontWeight: tab === t.id ? 700 : 500, border: tab === t.id ? "1px solid rgba(139,109,175,0.25)" : "1px solid #D9D0C7", position: "relative" }}>
-            {t.i} {t.l}{t.b > 0 && <span style={{ position: "absolute", top: -4, right: -4, background: "#C06B73", color: "#fff", fontSize: 8, fontWeight: 800, borderRadius: 8, padding: "1px 5px" }}>{t.b}</span>}
-          </button>
-        ))}
-      </div>
+      <ScrollableTabs tabs={tabs} active={tab} onSelect={setTab} style={{marginBottom:14}} />
       {tab === "roster" && <RosterTab educators={data.educators} periods={data.periods} templates={data.templates} archived={archived} sp={selPeriod} loadP={loadPeriod} reload={load} settings={settings} proposals={data.proposals} />}
       {tab === "sickcover" && <SickCoverTab educators={data?.educators || []} fills={data?.fills || []} reload={load} />}
       {tab === "nctime" && <NonContactTab />}

@@ -123,6 +123,23 @@ r.get('/periods', (req, res) => {
 
   const active = all.filter(p => p.status !== 'archived');
   const archived = all.filter(p => p.status === 'archived').slice(0, 4); // last 4 only
+
+  // Auto-create current week period if none covers today
+  const today = new Date().toISOString().split('T')[0];
+  const covers = active.find(p => p.start_date <= today && p.end_date >= today);
+  if (!covers) {
+    const mon = new Date();
+    mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+    const monStr = mon.toISOString().split('T')[0];
+    const fri = new Date(mon); fri.setDate(fri.getDate() + 4);
+    const friStr = fri.toISOString().split('T')[0];
+    const newId = uuid();
+    try {
+      db.prepare(`INSERT INTO roster_periods (id,tenant_id,start_date,end_date,status,created_at,updated_at) VALUES (?,?,?,?,'draft',datetime('now'),datetime('now'))`).run(newId, req.tenantId, monStr, friStr);
+      active.unshift({ id: newId, tenant_id: req.tenantId, start_date: monStr, end_date: friStr, status: 'draft', entry_count: 0, educator_count: 0 });
+    } catch(e) { console.error('[roster] auto-create period error:', e.message); }
+  }
+
   res.json({ periods: active, archived });
 });
 
@@ -537,8 +554,8 @@ r.post('/fill-requests', (req, res) => {
 
   toContact.forEach(c => {
     const attemptId = uuid();
-    db.prepare('INSERT INTO shift_fill_attempts (id,request_id,educator_id,contact_method,status) VALUES(?,?,?,?,?)')
-      .run(attemptId, id, c.id, config?.send_sms_first ? 'sms' : 'call', 'queued');
+    db.prepare('INSERT INTO shift_fill_attempts (id,tenant_id,request_id,educator_id,contact_method,status) VALUES(?,?,?,?,?,?)')
+      .run(attemptId, req.tenantId, id, c.id, config?.send_sms_first ? 'sms' : 'call', 'queued');
     attempts.push({ id: attemptId, educator: `${c.first_name} ${c.last_name}`, phone: c.phone, method: config?.send_sms_first ? 'sms' : 'call', reliability: c.reliability_score, distance: c.distance_km });
   });
 
@@ -569,7 +586,7 @@ r.post('/fill-requests/:id', (req, res) => {
         .run(educator_id, req.params.id, req.tenantId);
     } else if (action === 'decline') {
       D().prepare("UPDATE shift_fill_attempts SET status='declined', decline_reason=?, responded_at=datetime('now') WHERE request_id=? AND educator_id=?")
-        .run(reason, req.params.id, educator_id);
+        .run(reason, req.params.id, educator_id); // tenant scoped via request check above
     }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -581,7 +598,7 @@ r.get('/fill-requests/:id/attempts', (req, res) => {
   const attempts = D().prepare(`SELECT sfa.*, e.first_name || ' ' || e.last_name as educator_name,
     e.phone, e.reliability_score, e.distance_km
     FROM shift_fill_attempts sfa JOIN educators e ON e.id = sfa.educator_id
-    WHERE sfa.request_id = ? ORDER BY e.reliability_score DESC`).all(req.params.id);
+    WHERE sfa.request_id = ? ORDER BY e.reliability_score DESC`).all(req.params.id); // tenant scoped via req_check above
   res.json({ attempts });
 });
 
