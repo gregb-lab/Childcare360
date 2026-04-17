@@ -155,7 +155,7 @@ router.post('/', (req, res) => {
       D().prepare('INSERT OR IGNORE INTO educator_availability (id,educator_id,day_of_week,available,start_time,end_time,tenant_id) VALUES(?,?,?,?,?,?,?)')
         .run(uuid(), id, d, d < 5 ? 1 : 0, '06:00', '18:30', req.tenantId);
     }
-    res.json({ id });
+    res.status(201).json({ id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
