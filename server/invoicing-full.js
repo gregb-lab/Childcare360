@@ -41,7 +41,7 @@ const d2c = dollars => Math.round((parseFloat(dollars) || 0) * 100);
 // ── Invoice number generation ─────────────────────────────────────────────────
 function nextInvoiceNumber(tenantId) {
   const last = D().prepare(
-    "SELECT invoice_number FROM invoices WHERE tenant_id=? ORDER BY created_at DESC LIMIT 1"
+    "SELECT invoice_number FROM invoices WHERE tenant_id=? AND invoice_number LIKE 'INV-%' ORDER BY CAST(SUBSTR(invoice_number,5) AS INTEGER) DESC LIMIT 1"
   ).get(tenantId);
   if (!last) return 'INV-0001';
   const match = last.invoice_number.match(/(\d+)$/);

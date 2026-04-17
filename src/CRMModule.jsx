@@ -2,7 +2,7 @@
  * CRMModule.jsx — v2.7.0
  * Enquiry pipeline, tour booking calendar, follow-up dashboard
  */
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 const API = (path, opts={}) => {
   const t=localStorage.getItem("c360_token"),tid=localStorage.getItem("c360_tenant");

@@ -265,7 +265,7 @@ export function NotificationsInbox() {
             letterSpacing:"0.06em", padding:"12px 0 6px" }}>
             {date === new Date().toISOString().split("T")[0] ? "Today"
               : date === new Date(Date.now()-86400000).toISOString().split("T")[0] ? "Yesterday"
-              : new Date(date+"T12:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"long"})}
+              : date === "unknown" ? "Unknown date" : new Date(date+"T12:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"long"})}
           </div>
           {items.map(n => {
             const meta = TYPE_GROUPS[n.type] || { icon:"🔔", color:IN };

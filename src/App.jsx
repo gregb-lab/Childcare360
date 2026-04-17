@@ -407,13 +407,13 @@ function SidebarUserBlock({ collapsed, auth, onSettings }) {
           </div>
         </div>
         <span style={{color:"#A89DB5",fontSize:10,flexShrink:0,
-          transform:open?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}}>▲</span>
+          transform:open?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s"}}>▲</span>
       </div>
 
       {open && (
-        <div style={{position:"absolute",bottom:"calc(100% + 4px)",left:8,right:8,
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:8,right:8,
           background:"#fff",border:"1px solid #D9D0C7",
-          borderRadius:12,padding:6,boxShadow:"0 -8px 30px rgba(80,60,90,0.12)",zIndex:200}}>
+          borderRadius:12,padding:6,boxShadow:"0 8px 30px rgba(80,60,90,0.12)",zIndex:200}}>
           <div style={{padding:"6px 12px 10px",borderBottom:"1px solid #EDE8F4",marginBottom:4}}>
             <div style={{fontSize:12,fontWeight:600,color:"#3D3248"}}>{displayName}</div>
             <div style={{fontSize:11,color:"#A89DB5"}}>{email}</div>
@@ -518,7 +518,7 @@ export default function ChildcareRosterApp() {
       "medication_register","incidents","excursions","operations",
       "learning","learning_journey","observations","run_sheet","stories","ai_assistant","quality",
       "enrolment","waitlist","casual_spots","crm","engagement",
-      "educators","roster","compliance","ratio_report","ratio_check","wellbeing","payroll",
+      "educators","roster","ratio_report","ratio_check","wellbeing","payroll",
       "invoicing","invoicing_full","reports","analytics","ccs","payments",
       "message_centre","comms","bulk_comms","messaging","documents","voice",
       "risk_assessments","reports_builder","developer_api","admin_power","checklists","notifications","soc2",
